@@ -1,6 +1,6 @@
 # B042 - The registry and the trust flag are written in place; an unreadable registry reads as empty
 
-**Status:** Todo (spec: `docs/SPEC-ATOMIC-STATE-WRITES.md`)
+**Status:** Done (shipped in 0.106.226; spec: `docs/SPEC-ATOMIC-STATE-WRITES.md`)
 **Type:** Bug
 **Created:** 2026-11-18
 **Source:** CamiloCaceres/lolad (MIT), reviewed 2026-11-18 at `2649a3f`.

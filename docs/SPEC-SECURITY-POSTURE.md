@@ -88,7 +88,7 @@ One function, `isAllowedBrowserOrigin(req)`, in `lib/origin-guard.mjs`, used in 
 
 ### B.4 Rollout
 
-1. **Audit mode first** (`AIMAESTRO_ORIGIN_GUARD=audit`, the default for one release): log what would be refused, refuse nothing. The Doctor shows the refused origins in a `cross-origin` check.
+1. **Audit mode first** (`AIMAESTRO_ORIGIN_GUARD=audit`, the default from 0.106.225 until 0.106.234, when `enforce` became the default after a day with nothing to refuse on any host): log what would be refused, refuse nothing. The Doctor shows the refused origins in a `cross-origin` check.
 2. **Enforce** in the next release (`enforce` becomes the default; `off` stays for one release as an escape).
 
 ### B.5 Security considerations

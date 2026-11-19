@@ -48,7 +48,7 @@ export function startCall(params: Record<string, unknown>): ServiceResult<{ call
   // F042: this host's rules for calls (a rule with action "call", or one for any action)
   const caller = resolveParty(params.caller as string)
   const callee = resolveParty(params.callee as string)
-  // A call cannot wait (F118): an ask is refused now with an approval request; an approval lets the next identical call through
+  // A call cannot wait (F118): an ask is refused now with a quarantine entry; approving it lets the next identical call through, once
   const decision = holdForApproval(checkPolicy(caller, callee, 'call'), caller, callee, 'call')
   if (!decision.allowed) return policyDeniedResult(decision)
   try {

@@ -1,29 +1,40 @@
 /**
- * Approvals for `ask` (F118 step 2, docs/SPEC-POLICY-RULES.md section 11.3 and section 17).
+ * Ask = AMP quarantine (F118 step 2; AMP spec 07-security.md "Message Quarantine", 08-api.md "Quarantine Management";
+ * docs/SPEC-POLICY-RULES.md section 17).
  *
- * One request store per host: ~/.aimaestro/policy/approvals.json (mode 600, atomic writes). A request is kept on the
- * host whose rules asked: the recipient's host for a delivery, the sender's host for a send. A held message's payload
- * is in its own file, ~/.aimaestro/policy/held/<id>.json (mode 600), never in the store or the decision log.
+ * An `ask` rule quarantines the message: it is accepted (202 `quarantined`) and not delivered until an approver approves
+ * it. Entries follow AMP: ids `qtn_<unix-ts>_<hex>`, states `pending` -> `approved` | `rejected` | `expired` (one way),
+ * metadata `quarantine_id, reason, rules_triggered, quarantined_at, expires_at, status`, and for a policy hold (07
+ * "Policy Holds") `reason: "policy"`, the policy rule ids in `rules_triggered`, `reason_text` and `reviewers` (AMP
+ * addresses; severity is left out, as 07 allows). The other fields (approvers, from/to, action, host) are AI Maestro's own.
  *
- * Answers: once, for <duration> (a grant checkPolicy consults), always (an `except` entry in the ask rule), refuse.
- * A grant only turns an ask into an allow; it never opens a deny. No login: a dashboard click is recorded as an
- * unverified person. A rule with "proof": "signed" needs an Ed25519 signature from a device key paired to an approver.
+ * One store per host: ~/.aimaestro/policy/quarantine.json (mode 600, atomic writes), on the host whose rules asked: the
+ * recipient's host for a delivery, the sender's host for a send. A quarantined message's payload is in its own file,
+ * ~/.aimaestro/policy/quarantine/<id>.json (mode 600), never in the store or the decision log.
+ *
+ * Approve releases that one message, once. A call (not AMP) uses the same entries: an approved call entry lets the next
+ * identical call through, once, within the rule's expiry window. No login: a dashboard decision is recorded as an
+ * unverified person. A reviewer may instead answer the approval request notice with a signed message (07 "Approval by
+ * message"); that decision is verified, keeps the signed answer as proof, and is the only way to approve a rule with
+ * proof "signed".
  */
 import crypto from 'crypto'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { writeFileAtomicSync } from '@/lib/atomic-write.mjs'
-import { verifySignature } from '@/lib/amp-keys'
-import { rawKeyToHex, type DeviceKey } from '@/lib/person-signing'
+import { personAddress } from '@/lib/person-address'
+import { getAMPProviderDomain } from '@/lib/types/amp'
+import { getOrganization } from '@/lib/hosts-config'
 import {
-  DEFAULT_ASK_EXPIRY_MS, logPolicyDecision, parseDuration, partyLabel, policyFile, policyLogFile, supportedApprover, validatePolicy,
+  DEFAULT_ASK_EXPIRY_MS, logPolicyDecision, partyLabel, policyLogFile, supportedApprover,
   type PolicyAction, type PolicyDecision, type PolicyLogLine, type PolicyParty,
 } from '@/lib/policy'
 
-export type RequestState = 'pending' | 'approved' | 'refused' | 'expired'
-export type AnswerKind = 'once' | 'for' | 'always' | 'refuse'
-/** Which send path holds the message, so the answer delivers it through that same path */
+/** AMP 07 quarantine states */
+export type QuarantineStatus = 'pending' | 'approved' | 'rejected' | 'expired'
+export const QUARANTINE_STATES: QuarantineStatus[] = ['pending', 'approved', 'rejected', 'expired']
+/** Which send path holds the message, so approval delivers it through that same path */
 export type HeldPath = 'amp-route' | 'ui-send' | 'ui-forward' | 'chat'
 
 export interface Approver {
@@ -34,106 +45,128 @@ export interface Approver {
   via: string
 }
 
-export interface ApprovalAnswer {
-  answer: AnswerKind
-  for?: string
-  /** A grant's end (for), or the window of a call approved once */
-  until?: string
-  /** Who answered: "person:alice" from a signature, else what the person typed, marked unverified */
-  by: string
-  how: 'dashboard' | 'signed'
-  keyId?: string
-  at: string
-  /** always: the rule ids that got an except entry */
-  exceptAdded?: string[]
-}
-
-export interface ApprovalRequest {
-  id: string
-  created: string
+export interface QuarantineEntry {
+  // AMP 07 "Quarantine Metadata" and "Policy Holds"
+  quarantine_id: string
+  reason: 'policy'
+  rules_triggered: string[]
+  /** The decision's plain reason (rules and parties, never message text); 07 lets the sender see it */
+  reason_text: string
+  /** AMP addresses of the people and agents who may approve or reject (`person:*` has none, so it is not listed) */
+  reviewers: string[]
+  quarantined_at: string
+  expires_at: string
+  status: QuarantineStatus
+  // AI Maestro's additions
   host: string
   action: PolicyAction
   from: string
   to: string
   fromParty: PolicyParty
   toParty: PolicyParty
-  rules: string[]
-  /** The decision's reason (rules and parties, never message text) */
-  reason: string
+  /** The reviewers with their names and the rule pattern each came from */
   approvers: Approver[]
   /** Approver patterns that did not resolve to anyone, with why */
   unresolved?: string[]
   proof: 'any' | 'signed'
-  expiresAt: string
-  /** A call approved once lets the next identical call through for this long */
-  windowMs: number
-  state: RequestState
-  held?: { path: HeldPath }
-  answer?: ApprovalAnswer
-  /** A held message approved: one replay pass for the path's own policy check, consumed by it */
-  pass?: boolean
-  delivery?: { at: string; ok: boolean; status?: number; message?: string }
+  /** The sender's AMP address, for the outcome notice; none for an unidentified person */
+  sender?: string
+  /** The held message: its path, and its AMP id and from/to/subject when there is one (07 approval request `held`) */
+  held?: { path: HeldPath; message_id?: string; from?: string; to?: string; subject?: string }
+  /** The approval request notice sent to each reviewer: its message id is that reviewer's request (07) */
+  requests?: { to: string; id: string; at: string }[]
+  /** Who approved or rejected, when, and how (07 Policy Holds, reviewers rule 6); a signed answer is kept as proof */
+  decided?: { by: string; at: string; via?: 'rest' | 'signed-message'; answer?: SignedAnswer }
+  /** Approved: the one pass through the send path's policy check, until this time; consumed by it */
+  pass_until?: string
+  delivery?: { at: string; ok: boolean; status?: number; message?: string; message_id?: string }
 }
 
-export interface ApprovalGrant {
+/** A reviewer's signed answer to an approval request, as received and verified (07 "Approval by message") */
+export interface SignedAnswer {
   id: string
-  request: string
   from: string
   to: string
-  action: PolicyAction
-  rules: string[]
-  until: string
-  /** Left out: any number of uses until `until` */
-  uses?: number
-  by: string
-  created: string
+  subject: string
+  priority: string
+  in_reply_to: string
+  payload: unknown
+  signature: string
+  key_id?: string
+  verified_at: string
 }
 
-interface Store { version: 1; requests: ApprovalRequest[]; grants: ApprovalGrant[] }
+interface Store { version: 1; entries: QuarantineEntry[] }
 
-const MAX_FOR_MS = 30 * 86_400_000
-const KEEP_ANSWERED_MS = 30 * 86_400_000
+const KEEP_DECIDED_MS = 30 * 86_400_000
 const PASS_MS = 5 * 60_000
-export const SIGN_WINDOW_MS = 5 * 60_000
+export const QUARANTINE_ID = /^qtn_\d{1,12}_[0-9a-f]{6,32}$/
 
 /** ~/.aimaestro/policy, resolved on every call so a test's HOME applies. Tests may never write the real one. */
 function policyDir(): string {
   const home = os.homedir()
-  if (process.env.VITEST && home === os.userInfo().homedir) throw new Error('approval store: tests must set HOME to a temporary folder')
+  if (process.env.VITEST && home === os.userInfo().homedir) throw new Error('quarantine store: tests must set HOME to a temporary folder')
   return path.join(home, '.aimaestro', 'policy')
 }
-export const approvalsFile = () => path.join(policyDir(), 'approvals.json')
-const heldFile = (id: string) => path.join(policyDir(), 'held', `${id}.json`)
+export const quarantineFile = () => path.join(policyDir(), 'quarantine.json')
+const heldFile = (id: string) => path.join(policyDir(), 'quarantine', `${id}.json`)
 
 /** The store, or throws when the file exists and cannot be read (the Doctor fails then; nothing overwrites it). */
-export function readApprovals(): Store {
-  const file = approvalsFile()
+export function readQuarantine(): Store {
+  const file = quarantineFile()
   let text: string
   try { text = fs.readFileSync(file, 'utf8') } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { version: 1, requests: [], grants: [] }
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { version: 1, entries: [] }
     throw new Error(`${file} cannot be read: ${(e as Error).message}`)
   }
   try {
     const s = JSON.parse(text)
-    if (!s || !Array.isArray(s.requests) || !Array.isArray(s.grants)) throw new Error('it is not an approvals store')
+    if (!s || !Array.isArray(s.entries)) throw new Error('it is not a quarantine store')
     return s as Store
   } catch (e) {
     throw new Error(`${file} cannot be read: ${(e as Error).message}`)
   }
 }
 
-function writeApprovals(s: Store, now = Date.now()): void {
-  s.requests = s.requests.filter(r => r.state === 'pending' || now - Date.parse(r.answer?.at || r.expiresAt) < KEEP_ANSWERED_MS)
-  s.grants = s.grants.filter(g => Date.parse(g.until) > now && g.uses !== 0)
-  fs.mkdirSync(path.dirname(approvalsFile()), { recursive: true, mode: 0o700 })
-  writeFileAtomicSync(approvalsFile(), JSON.stringify(s, null, 2) + '\n', { mode: 0o600 })
+function writeQuarantine(s: Store, now = Date.now()): void {
+  s.entries = s.entries.filter(r => r.status === 'pending' || now - Date.parse(r.decided?.at || r.expires_at) < KEEP_DECIDED_MS)
+  fs.mkdirSync(path.dirname(quarantineFile()), { recursive: true, mode: 0o700 })
+  writeFileAtomicSync(quarantineFile(), JSON.stringify(s, null, 2) + '\n', { mode: 0o600 })
 }
 
 function record(line: Omit<PolicyLogLine, 'at'>): void {
   try { logPolicyDecision(line, process.env.VITEST ? path.join(policyDir(), 'decisions.jsonl') : policyLogFile()) } catch { /* never fails a send */ }
 }
 
-const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`
+/** AMP 07: qtn_<timestamp>_<hex> */
+const newId = (now: number) => `qtn_${Math.floor(now / 1000)}_${crypto.randomBytes(6).toString('hex')}`
+
+/** An approver's AMP address: p-<id>@<domain> for a person (13.1), <name>@<domain> for an agent; none for person:* */
+function reviewerAddress(ref: string): string | null {
+  if (ref === 'person:*') return null
+  if (ref.startsWith('person:')) return personAddress(ref.slice(7))
+  const name = ref.slice(6)
+  return name.includes('@') ? name : `${name}@${getAMPProviderDomain(getOrganization() || undefined)}`
+}
+
+/** A party's AMP address, or none (AI Maestro itself, an unidentified person) */
+function partyAddress(p: PolicyParty): string | undefined {
+  if (p.kind === 'person') return p.id ? personAddress(p.id) : undefined
+  if (p.kind !== 'agent' || !(p.name || p.id)) return undefined
+  return reviewerAddress(`agent:${p.name || p.id}`) || undefined
+}
+
+/** What the approval request says about the held message: the AMP envelope at the route, else the parties */
+function heldSummary(path: HeldPath, payload: unknown, from: PolicyParty, to: PolicyParty): NonNullable<QuarantineEntry['held']> {
+  const p = payload as { envelope?: { id?: string; from?: string; to?: string; subject?: string }; body?: { _forwarded?: { original_to?: unknown } } } | null
+  const env = p?.envelope
+  // A forwarding host names the recipient by bare name; the full address is in _forwarded
+  const fwdTo = p?.body?._forwarded?.original_to
+  if (path === 'amp-route' && env) return { path, message_id: env.id, from: env.from, to: typeof fwdTo === 'string' ? fwdTo : env.to, subject: env.subject }
+  const subject = (payload as { subject?: unknown } | null)?.subject
+  const f = partyAddress(from), t = partyAddress(to)
+  return { path, ...(f ? { from: f } : {}), ...(t ? { to: t } : {}), ...(typeof subject === 'string' ? { subject } : {}) }
+}
 
 // ── Approvers (spec 11.3 item 2) ─────────────────────────────────────────────
 
@@ -192,9 +225,9 @@ export function resolveApprovers(patterns: string[], from: PolicyParty, to: Poli
   return { approvers, unresolved }
 }
 
-// ── Requests ─────────────────────────────────────────────────────────────────
+// ── Entries ──────────────────────────────────────────────────────────────────
 
-export interface NewRequest {
+export interface NewQuarantine {
   decision: PolicyDecision
   from: PolicyParty
   to: PolicyParty
@@ -205,262 +238,190 @@ export interface NewRequest {
   now?: number
 }
 
-/** A new pending request, or why there can be none (no approver, an unreadable store). Never throws. */
-export function createRequest(o: NewRequest): { request: ApprovalRequest } | { refused: string } {
+/** A new pending entry, or why there can be none (no approver, an unreadable store). Never throws. */
+export function createQuarantine(o: NewQuarantine): { entry: QuarantineEntry } | { refused: string } {
   const now = o.now ?? Date.now()
   const { approvers, unresolved } = resolveApprovers(o.decision.approvers || [], o.from, o.to, o.look)
   if (!approvers.length) return { refused: `no approver could be found (${unresolved.join('; ') || 'the rule names none'})` }
   try {
-    const store = readApprovals()
+    const store = readQuarantine()
     expireDue(store, now)
-    const windowMs = o.decision.expiresMs ?? DEFAULT_ASK_EXPIRY_MS
-    const request: ApprovalRequest = {
-      id: newId('apr'), created: new Date(now).toISOString(), host: o.host, action: o.action,
-      from: partyLabel(o.from), to: partyLabel(o.to), fromParty: o.from, toParty: o.to,
-      rules: o.decision.ruleIds || [], reason: o.decision.reason, approvers, ...(unresolved.length ? { unresolved } : {}),
-      proof: o.decision.proof || 'any', expiresAt: new Date(now + windowMs).toISOString(), windowMs, state: 'pending',
-      ...(o.held ? { held: { path: o.held.path } } : {}),
+    const entry: QuarantineEntry = {
+      quarantine_id: newId(now), reason: 'policy', rules_triggered: o.decision.ruleIds || [], reason_text: o.decision.reason,
+      reviewers: approvers.map(a => reviewerAddress(a.ref)).filter((a): a is string => !!a),
+      quarantined_at: new Date(now).toISOString(), expires_at: new Date(now + (o.decision.expiresMs ?? DEFAULT_ASK_EXPIRY_MS)).toISOString(), status: 'pending',
+      host: o.host, action: o.action, from: partyLabel(o.from), to: partyLabel(o.to), fromParty: o.from, toParty: o.to,
+      approvers, ...(unresolved.length ? { unresolved } : {}), proof: o.decision.proof || 'any',
+      ...(o.held ? { held: heldSummary(o.held.path, o.held.payload, o.from, o.to) } : {}),
     }
+    const sender = entry.held?.from || partyAddress(o.from)
+    if (sender) entry.sender = sender
     if (o.held) {
-      fs.mkdirSync(path.dirname(heldFile(request.id)), { recursive: true, mode: 0o700 })
-      writeFileAtomicSync(heldFile(request.id), JSON.stringify(o.held.payload), { mode: 0o600 })
+      fs.mkdirSync(path.dirname(heldFile(entry.quarantine_id)), { recursive: true, mode: 0o700 })
+      writeFileAtomicSync(heldFile(entry.quarantine_id), JSON.stringify(o.held.payload), { mode: 0o600 })
     }
-    store.requests.push(request)
-    writeApprovals(store, now)
-    record({ event: 'ask', request: request.id, host: o.host, action: o.action, from: request.from, to: request.to, effect: 'ask', rules: request.rules, approvers: approvers.map(a => a.ref), proof: request.proof })
-    return { request }
+    store.entries.push(entry)
+    writeQuarantine(store, now)
+    record({ event: 'quarantined', request: entry.quarantine_id, host: o.host, action: o.action, from: entry.from, to: entry.to, effect: 'ask', rules: entry.rules_triggered, approvers: approvers.map(a => a.ref), proof: entry.proof })
+    return { entry }
   } catch (e) {
-    return { refused: `the approval store cannot be used: ${(e as Error).message}` }
+    return { refused: `the quarantine store cannot be used: ${(e as Error).message}` }
   }
 }
 
-/** Marks overdue pending requests expired (in `store`, not saved) and drops their payloads. Returns them. */
-function expireDue(store: Store, now: number): ApprovalRequest[] {
-  const due = store.requests.filter(r => r.state === 'pending' && Date.parse(r.expiresAt) <= now)
+/** Marks overdue pending entries expired (in `store`, not saved) and drops their payloads. Returns them. */
+function expireDue(store: Store, now: number): QuarantineEntry[] {
+  const due = store.entries.filter(r => r.status === 'pending' && Date.parse(r.expires_at) <= now)
   for (const r of due) {
-    r.state = 'expired'
-    dropHeld(r.id)
-    record({ event: 'expired', request: r.id, host: r.host, action: r.action, from: r.from, to: r.to, effect: 'deny', rules: r.rules, note: 'no answer before it expired' })
+    r.status = 'expired'
+    dropHeld(r.quarantine_id)
+    // AMP 07 TTL: not delivered, logged for audit
+    record({ event: 'expired', request: r.quarantine_id, host: r.host, action: r.action, from: r.from, to: r.to, effect: 'deny', rules: r.rules_triggered, note: 'no decision before it expired' })
   }
   return due
 }
 
-/** Expires every overdue request and saves. Returns the ones that just expired, so the caller can tell the senders. */
-export function sweepApprovals(now = Date.now()): ApprovalRequest[] {
-  const store = readApprovals()
+/** Expires every overdue entry and saves. Returns the ones that just expired, so the caller can tell the senders. */
+export function sweepQuarantine(now = Date.now()): QuarantineEntry[] {
+  const store = readQuarantine()
   const due = expireDue(store, now)
-  if (due.length) writeApprovals(store, now)
+  if (due.length) writeQuarantine(store, now)
   return due
 }
 
-export function listApprovals(state?: RequestState, now = Date.now()): ApprovalRequest[] {
-  const store = readApprovals()
-  if (expireDue(store, now).length) writeApprovals(store, now)
-  return store.requests.filter(r => !state || r.state === state).sort((a, b) => b.created.localeCompare(a.created))
+export function listQuarantine(status?: QuarantineStatus, now = Date.now()): QuarantineEntry[] {
+  const store = readQuarantine()
+  if (expireDue(store, now).length) writeQuarantine(store, now)
+  return store.entries.filter(r => !status || r.status === status).sort((a, b) => b.quarantined_at.localeCompare(a.quarantined_at))
 }
 
 function dropHeld(id: string): void {
   try { fs.unlinkSync(heldFile(id)) } catch { /* none */ }
 }
 
+/** A pending entry's payload, for GET /v1/quarantine/{id}; null when there is none */
+export function peekHeld(id: string): unknown | null {
+  try { return JSON.parse(fs.readFileSync(heldFile(id), 'utf8')) } catch { return null }
+}
+
 /** Reads and removes a held payload: whoever takes it delivers it, so it is delivered at most once */
 function takeHeld(id: string): unknown | null {
-  try {
-    const text = fs.readFileSync(heldFile(id), 'utf8')
-    fs.unlinkSync(heldFile(id))
-    return JSON.parse(text)
-  } catch { return null }
+  const payload = peekHeld(id)
+  if (payload !== null) dropHeld(id)
+  return payload
 }
 
 /**
- * A grant from an earlier answer (for <duration>, or a call approved once) that covers this ask. A use-limited grant
- * is used up here. Never throws: an unreadable store has no grants.
+ * The one pass of an approved entry, for those parties and that action only: with `id`, the replay of a held message;
+ * without, the next identical call. Returns the entry id, once. Never throws.
  */
-export function takeGrant(from: PolicyParty, to: PolicyParty, action: PolicyAction, ruleIds: string[], now = Date.now()): ApprovalGrant | null {
+export function takePass(from: PolicyParty, to: PolicyParty, action: PolicyAction, id?: string, now = Date.now()): string | null {
   try {
-    if (!fs.existsSync(approvalsFile())) return null
-    const store = readApprovals()
+    if (!fs.existsSync(quarantineFile())) return null
+    const store = readQuarantine()
     const f = partyLabel(from), t = partyLabel(to)
-    const g = store.grants.find(x => x.from === f && x.to === t && x.action === action && Date.parse(x.until) > now && x.uses !== 0 && ruleIds.every(id => x.rules.includes(id)))
-    if (!g) return null
-    if (g.uses !== undefined) { g.uses--; writeApprovals(store, now) }
-    return g
+    const r = store.entries.find(x => (id ? x.quarantine_id === id : !x.held) && x.status === 'approved' && !!x.pass_until && Date.parse(x.pass_until) > now && x.action === action && x.from === f && x.to === t)
+    if (!r) return null
+    delete r.pass_until
+    writeQuarantine(store, now)
+    return r.quarantine_id
   } catch { return null }
 }
 
-/** The one replay pass of an approved held message: true once, for that request and those parties only. */
-export function takePass(requestId: string, from: PolicyParty, to: PolicyParty, action: PolicyAction, now = Date.now()): boolean {
+export function recordDelivery(id: string, delivery: { ok: boolean; status?: number; message?: string; message_id?: string }, now = Date.now()): void {
   try {
-    const store = readApprovals()
-    const r = store.requests.find(x => x.id === requestId)
-    if (!r || r.state !== 'approved' || !r.pass || r.action !== action || r.from !== partyLabel(from) || r.to !== partyLabel(to)) return false
-    if (now - Date.parse(r.answer!.at) > PASS_MS) return false
-    r.pass = false
-    writeApprovals(store, now)
-    return true
-  } catch { return false }
-}
-
-export function recordDelivery(id: string, delivery: { ok: boolean; status?: number; message?: string }, now = Date.now()): void {
-  try {
-    const store = readApprovals()
-    const r = store.requests.find(x => x.id === id)
+    const store = readQuarantine()
+    const r = store.entries.find(x => x.quarantine_id === id)
     if (!r) return
     r.delivery = { at: new Date(now).toISOString(), ...delivery }
-    r.pass = false
-    writeApprovals(store, now)
-    record({ event: 'delivered', request: id, host: r.host, action: r.action, from: r.from, to: r.to, effect: delivery.ok ? 'allow' : 'deny', rules: r.rules, ...(delivery.ok ? {} : { note: (delivery.message || 'delivery failed').slice(0, 200) }) })
+    delete r.pass_until
+    writeQuarantine(store, now)
+    record({ event: 'delivered', request: id, host: r.host, action: r.action, from: r.from, to: r.to, effect: delivery.ok ? 'allow' : 'deny', rules: r.rules_triggered, ...(delivery.ok ? {} : { note: (delivery.message || 'delivery failed').slice(0, 200) }) })
   } catch (e) { console.warn(`[Policy] could not record the delivery of ${id}: ${(e as Error).message}`) }
 }
 
-// ── Answers ──────────────────────────────────────────────────────────────────
+// ── Approve / reject ─────────────────────────────────────────────────────────
 
-/** What a paired device signs to answer (spec section 17.4). The app must build exactly this string. */
-export function approvalSigningString(a: { host: string; request: string; answer: AnswerKind; for?: string; signedAt: string }): string {
-  return ['aimaestro-approval/1', a.host, a.request, a.answer, a.for || '', a.signedAt].join('|')
+export type DecideResult =
+  | { ok: true; entry: QuarantineEntry; held?: { path: HeldPath; payload: unknown } }
+  | { ok: false; status: 400 | 403 | 404 | 409 | 410; error: string; message: string }
+
+const fail = (status: 400 | 403 | 404 | 409 | 410, error: string, message: string): DecideResult => ({ ok: false, status, error, message })
+
+/**
+ * Approves or rejects a pending entry (AMP 08). Rejecting never needs proof (it can only stop something). An entry whose
+ * rule asks for proof "signed" cannot be approved from the dashboard.
+ */
+export function decideQuarantine(id: string, decision: 'approve' | 'reject', input: { by?: unknown; signed?: SignedAnswer } = {}, now = Date.now()): DecideResult {
+  if (input.by !== undefined && (typeof input.by !== 'string' || input.by.length > 200)) return fail(400, 'invalid_field', 'by must be text')
+  const signed = input.signed
+  const store = readQuarantine()
+  const expired = expireDue(store, now).length > 0
+  const r = store.entries.find(x => x.quarantine_id === id)
+  const done = (f: DecideResult) => { if (expired) writeQuarantine(store, now); return f }
+  if (!r) return done(fail(404, 'not_found', `No quarantine entry ${id} on this host`))
+  if (r.status === 'expired') return done(fail(410, 'quarantine_expired', `Quarantine entry ${id} expired at ${r.expires_at} and can no longer be approved`))
+  if (r.status !== 'pending') return done(fail(409, 'quarantine_decided', `Quarantine entry ${id} is already ${r.status}`))
+
+  const claimed = signed ? signed.from : typeof input.by === 'string' ? input.by.trim() : ''
+  // 07 Policy Holds, reviewers rule 3: the sender never decides on its own entry
+  if (claimed && (lc(claimed) === lc(r.from) || lc(claimed) === lc(r.sender))) return fail(403, 'forbidden', 'Whoever sent it cannot approve or reject it')
+  // Rule 2: a signed decision only from a listed reviewer
+  if (signed && !r.reviewers.some(a => lc(a) === lc(claimed))) return fail(403, 'forbidden', `${claimed} is not a reviewer of this entry`)
+  if (claimed.startsWith('agent:') && !r.approvers.some(a => lc(a.ref) === lc(claimed.split('@')[0]))) {
+    return fail(403, 'forbidden', `${claimed} is not an approver of this entry (approvers: ${r.approvers.map(a => a.label).join(', ')})`)
+  }
+  if (decision === 'approve' && r.proof === 'signed' && !signed) {
+    return fail(403, 'forbidden', `Rule ${r.rules_triggered.join(', ')} asks for proof "signed": the approval must be a verified, signed reply from ${r.approvers.map(a => a.label).join(' or ')} to the approval request AI Maestro sent them, so a dashboard approval is not enough. Rejecting needs no proof.`)
+  }
+
+  const by = signed ? signed.from : claimed ? `${claimed} (unverified)` : 'an unverified person'
+  r.status = decision === 'approve' ? 'approved' : 'rejected'
+  r.decided = { by, at: new Date(now).toISOString(), ...(signed ? { via: 'signed-message' as const, answer: signed } : { via: 'rest' as const }) }
+  let held: { path: HeldPath; payload: unknown } | undefined
+  if (r.held) {
+    if (r.status === 'approved') {
+      const payload = takeHeld(id)
+      if (payload !== null) { held = { path: r.held.path, payload }; r.pass_until = new Date(now + PASS_MS).toISOString() }
+      else r.delivery = { at: new Date(now).toISOString(), ok: false, message: 'the quarantined message was not found (already delivered, or lost)' }
+    } else dropHeld(id)
+  } else if (r.status === 'approved') {
+    // A call: the next identical call, within the rule's window
+    r.pass_until = new Date(now + (Date.parse(r.expires_at) - Date.parse(r.quarantined_at))).toISOString()
+  }
+  writeQuarantine(store, now)
+  record({ event: r.status, request: id, host: r.host, action: r.action, from: r.from, to: r.to, effect: r.status === 'rejected' ? 'deny' : 'allow', rules: r.rules_triggered, by, proof: signed ? 'signed' : 'dashboard' })
+  return { ok: true, entry: r, ...(held ? { held } : {}) }
 }
 
-export interface AnswerInput {
-  answer?: unknown
-  for?: unknown
-  /** Who is answering, as they name themselves (no login): "person:alice", "agent:ops", or a name */
-  by?: unknown
-  keyId?: unknown
-  signature?: unknown
-  signedAt?: unknown
+/** Records the approval request notice sent to a reviewer (its id is what a signed answer must reply to) */
+export function recordApprovalRequest(id: string, to: string, noticeId: string, now = Date.now()): void {
+  try {
+    const store = readQuarantine()
+    const r = store.entries.find(x => x.quarantine_id === id)
+    if (!r) return
+    r.requests = [...(r.requests || []), { to, id: noticeId, at: new Date(now).toISOString() }]
+    writeQuarantine(store, now)
+  } catch (e) { console.warn(`[Policy] could not record the approval request for ${id}: ${(e as Error).message}`) }
 }
 
-export type AnswerResult =
-  | { ok: true; request: ApprovalRequest; held?: { path: HeldPath; payload: unknown } }
-  | { ok: false; status: 400 | 403 | 404 | 409; error: string; message: string }
-
-const fail = (status: 400 | 403 | 404 | 409, error: string, message: string): AnswerResult => ({ ok: false, status, error, message })
-const ANSWERS: AnswerKind[] = ['once', 'for', 'always', 'refuse']
-
-function patternOf(p: PolicyParty): string | null {
-  if (p.kind === 'agent') return `agent:${p.name || p.id}${p.host ? `@${p.host}` : ''}`
-  if (p.kind === 'person' && p.id) return `person:${p.id}`
+/** The entry and the reviewer an approval request notice id was sent to, or null */
+export function findApprovalRequest(noticeId: string): { entry: QuarantineEntry; to: string } | null {
+  for (const entry of readQuarantine().entries) {
+    const req = entry.requests?.find(q => q.id === noticeId)
+    if (req) return { entry, to: req.to }
+  }
   return null
 }
 
-/**
- * always: an except entry for these two parties and this action in each ask rule that decided (spec 11.3 item 5).
- * The edit is a policy.edit and is logged. Throws with a plain message (version 1 file, an unnamed party, rule gone).
- */
-export function addAlwaysExcept(req: ApprovalRequest, by: string, file = policyFile(), now = Date.now()): string[] {
-  const from = patternOf(req.fromParty)
-  const to = patternOf(req.toParty)
-  if (!from || !to) throw new Error(`${req.from} is someone this host cannot name, so "always" has no one to write into the rule. Approve once or for a time instead.`)
-  let raw: any
-  try { raw = JSON.parse(fs.readFileSync(file, 'utf8')) } catch (e) { throw new Error(`${file} cannot be read: ${(e as Error).message}`) }
-  if ((raw?.version ?? 1) !== 2) throw new Error(`${file} is a version 1 file (rules in order), which has no exceptions to add to. Convert it to version 2 first, or approve once or for a time.`)
-  const day = new Date(now).toISOString().slice(0, 10)
-  const edited: string[] = []
-  for (const r of raw.rules || []) {
-    if (!req.rules.includes(r?.id) || r.effect !== 'ask') continue
-    r.except = [...(Array.isArray(r.except) ? r.except : []), { from: [from], to: [to], actions: [req.action], note: `approved always by ${by} on ${day} (request ${req.id})` }]
-    edited.push(r.id)
-  }
-  if (!edited.length) throw new Error(`the rule ${req.rules.join(', ')} is no longer an ask rule in ${file}, so there is nothing to add the exception to`)
-  validatePolicy(raw) // the edit must load, or nothing is written
-  writeFileAtomicSync(file, JSON.stringify(raw, null, 2) + '\n', { mode: 0o600 })
-  record({ event: 'policy.edit', request: req.id, host: req.host, action: req.action, from: req.from, to: req.to, effect: 'allow', rules: edited, by, note: `except added for ${from} -> ${to} (${req.action})` })
-  return edited
-}
-
-/**
- * Applies an answer. A refusal never needs proof (it can only stop something). A signature, when given, must verify
- * with an active device key of a person who is an approver; a rule with proof "signed" accepts nothing less.
- */
-export async function answerApproval(id: string, input: AnswerInput, opts: { keyFor: (keyId: string) => Promise<DeviceKey | null>; policyFile?: string; now?: number }): Promise<AnswerResult> {
-  const answer = input.answer as AnswerKind
-  if (!ANSWERS.includes(answer)) return fail(400, 'invalid_field', 'answer must be once, for, always or refuse')
-  const forMs = answer === 'for' ? parseDuration(input.for) : null
-  if (answer === 'for' && (forMs === null || forMs > MAX_FOR_MS)) return fail(400, 'invalid_field', 'for must be a duration such as 30m, 1h or 7d (at most 30d)')
-  if (input.by !== undefined && (typeof input.by !== 'string' || input.by.length > 200)) return fail(400, 'invalid_field', 'by must be text')
-
-  let req = listApprovals(undefined, opts.now ?? Date.now()).find(r => r.id === id)
-  if (!req) return fail(404, 'not_found', `No approval request ${id} on this host`)
-  if (req.state !== 'pending') return fail(409, 'invalid_state', `Request ${id} is already ${req.state}`)
-
-  const claimed = typeof input.by === 'string' ? input.by.trim() : ''
-  if (claimed && lc(claimed) === lc(req.from)) return fail(403, 'forbidden', 'Whoever asked cannot answer their own request')
-  if (claimed.startsWith('agent:') && !req.approvers.some(a => lc(a.ref) === lc(claimed.split('@')[0]))) {
-    return fail(403, 'forbidden', `${claimed} is not an approver of this request (approvers: ${req.approvers.map(a => a.label).join(', ')})`)
-  }
-
-  let by = claimed ? `${claimed} (unverified)` : 'an unverified person'
-  let how: ApprovalAnswer['how'] = 'dashboard'
-  let keyId: string | undefined
-  if (input.signature !== undefined || input.keyId !== undefined) {
-    if (typeof input.signature !== 'string' || typeof input.keyId !== 'string' || typeof input.signedAt !== 'string') {
-      return fail(400, 'invalid_field', 'a signed answer needs keyId, signature (base64) and signedAt (RFC 3339)')
-    }
-    const key = await opts.keyFor(input.keyId)
-    const hex = key ? rawKeyToHex(key.publicKey) : null
-    const people = req.approvers.filter(a => a.ref.startsWith('person:')).map(a => a.ref.slice(7))
-    const at = Date.parse(input.signedAt)
-    const now = opts.now ?? Date.now()
-    if (!key || !hex) return fail(403, 'bad_signature', 'No paired device key with that keyId')
-    if (key.status !== 'active') return fail(403, 'bad_signature', `That device key is ${key.status}`)
-    if (!people.includes('*') && !people.includes(key.personId)) return fail(403, 'bad_signature', `That device belongs to ${key.personId}, who is not an approver of this request`)
-    if (!verifySignature(approvalSigningString({ host: req.host, request: id, answer, for: answer === 'for' ? String(input.for) : undefined, signedAt: input.signedAt }), input.signature, hex)) {
-      return fail(403, 'bad_signature', 'The signature does not verify with that device key')
-    }
-    if (Number.isNaN(at) || Math.abs(now - at) > SIGN_WINDOW_MS) return fail(403, 'stale', 'signedAt is more than 5 minutes from the server clock')
-    by = `person:${key.personId}`
-    how = 'signed'
-    keyId = key.keyId
-  } else if (req.proof === 'signed' && answer !== 'refuse') {
-    return fail(403, 'signature_required', `This approval must be signed on a phone paired to ${req.approvers.map(a => a.label).join(' or ')}: rule ${req.rules.join(', ')} asks for proof "signed", so a dashboard click is not enough. Refusing needs no signature.`)
-  }
-
-  let exceptAdded: string[] | undefined
-  if (answer === 'always') {
-    try { exceptAdded = addAlwaysExcept(req, by, opts.policyFile ?? policyFile(), opts.now) } catch (e) {
-      return fail(409, 'cannot_always', (e as Error).message)
-    }
-  }
-
-  // Re-read after the awaits: another answer may have come in meanwhile
-  const now = opts.now ?? Date.now()
-  const store = readApprovals()
-  expireDue(store, now)
-  req = store.requests.find(r => r.id === id)!
-  if (req.state !== 'pending') { writeApprovals(store, now); return fail(409, 'invalid_state', `Request ${id} is already ${req.state}`) }
-
-  const until = answer === 'for' ? now + forMs! : answer === 'once' && !req.held ? now + req.windowMs : undefined
-  req.state = answer === 'refuse' ? 'refused' : 'approved'
-  req.answer = {
-    answer, ...(answer === 'for' ? { for: String(input.for) } : {}), ...(until ? { until: new Date(until).toISOString() } : {}),
-    by, how, ...(keyId ? { keyId } : {}), at: new Date(now).toISOString(), ...(exceptAdded ? { exceptAdded } : {}),
-  }
-  if (until) {
-    // for: every identical ask until then. A call approved once: the next identical call, within the window
-    store.grants.push({ id: newId('grant'), request: id, from: req.from, to: req.to, action: req.action, rules: req.rules, until: new Date(until).toISOString(), ...(answer === 'once' ? { uses: 1 } : {}), by, created: new Date(now).toISOString() })
-  }
-  let held: { path: HeldPath; payload: unknown } | undefined
-  if (req.held) {
-    if (req.state === 'approved') {
-      const payload = takeHeld(id)
-      if (payload !== null) { held = { path: req.held.path, payload }; req.pass = true }
-      else req.delivery = { at: new Date(now).toISOString(), ok: false, message: 'the held message was not found (already delivered, or lost)' }
-    } else dropHeld(id)
-  }
-  writeApprovals(store, now)
-  record({ event: 'answer', request: id, host: req.host, action: req.action, from: req.from, to: req.to, effect: req.state === 'refused' ? 'deny' : 'allow', rules: req.rules, answer: answer === 'for' ? `for ${input.for}` : answer, by, proof: how })
-  return { ok: true, request: req, ...(held ? { held } : {}) }
-}
-
-/** For the Doctor: pending requests past their expiry that no sweep marked, and whether the store reads. */
-export function approvalsHealth(now = Date.now()): { file: string; pending: number; overdue: string[]; error?: string } {
+/** For the Doctor: pending entries past their expiry that no sweep marked, and whether the store reads. */
+export function quarantineHealth(now = Date.now()): { file: string; pending: number; overdue: string[]; error?: string } {
   let file = ''
   try {
-    file = approvalsFile()
-    const store = readApprovals()
-    const pending = store.requests.filter(r => r.state === 'pending')
+    file = quarantineFile()
+    const pending = readQuarantine().entries.filter(r => r.status === 'pending')
     // A minute of grace: the sweeper runs every minute
-    return { file, pending: pending.length, overdue: pending.filter(r => Date.parse(r.expiresAt) < now - 60_000).map(r => r.id) }
+    return { file, pending: pending.length, overdue: pending.filter(r => Date.parse(r.expires_at) < now - 60_000).map(r => r.quarantine_id) }
   } catch (e) {
     return { file, pending: 0, overdue: [], error: (e as Error).message }
   }

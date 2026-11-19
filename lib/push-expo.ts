@@ -199,12 +199,12 @@ export async function pushCall(call: { callId: string; caller: string; callee: s
 }
 
 /**
- * An approval request (F118 step 2) names these people as approvers: notify their devices paired here that opted in to
+ * A quarantine entry (F118 step 2, AMP 07) names these people as approvers: notify their devices paired here that opted in to
  * `approval`, or to `needs_you` (an app that predates `approval`). Only the parties' labels, never message text.
  * `*` (any person) notifies every device that opted in.
  */
-export async function pushApproval(a: { personIds: string[]; requestId: string; from: string; to: string; action: string }): Promise<void> {
-  if (!claimSlot(`approval:${a.requestId}`, COOLDOWN_MS)) return
+export async function pushApproval(a: { personIds: string[]; quarantineId: string; from: string; to: string; action: string }): Promise<void> {
+  if (!claimSlot(`approval:${a.quarantineId}`, COOLDOWN_MS)) return
   const anyone = a.personIds.includes('*')
   const targets = loadDevices().filter(d => (anyone || a.personIds.includes(d.personId)) && d.pushToken && (d.pushTypes?.includes('approval') || d.pushTypes?.includes('needs_you')))
   if (!targets.length) return
@@ -213,7 +213,7 @@ export async function pushApproval(a: { personIds: string[]; requestId: string; 
     to,
     title: 'Approval needed',
     body: `${a.from} wants to ${a.action} ${a.to}. Open AI Maestro to answer.`,
-    data: { type: 'approval', requestId: a.requestId, hostId },
+    data: { type: 'approval', quarantine_id: a.quarantineId, hostId },
     channelId: 'needs_you',
     priority: 'high',
     sound: 'default',

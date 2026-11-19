@@ -319,14 +319,14 @@ describe('send paths with a version 2 file', () => {
     fs.rmSync(home, { recursive: true, force: true })
   })
 
-  it('an ask on a call is refused at once with an approval request, and the check reports ask', async () => {
+  it('an ask on a call is refused at once with a quarantine entry, and the check reports ask', async () => {
     const { startCall } = await import('@/services/calls-service')
     const r = startCall({ caller: 'agent:backend', callee: 'person:alice' })
     expect(r.status).toBe(403)
     expect((r.data as any).message).toContain('needs approval')
-    expect((r.data as any).message).toMatch(/request apr-/i)
+    expect((r.data as any).message).toMatch(/quarantine entry qtn_\d+_[0-9a-f]+/i)
     expect((r.data as any).details).toMatchObject({ effect: 'ask', ruleIds: ['calls-to-alice'] })
-    expect((r.data as any).details.request).toMatchObject({ approvers: ['person:alice'], held: false })
+    expect((r.data as any).details.quarantine_id).toMatch(/^qtn_/)
     const { explainPolicy, getPolicy } = await import('@/services/policy-service')
     const why = await explainPolicy({ from: 'agent:backend', to: 'person:alice', action: 'call' })
     expect(why.data).toMatchObject({ allowed: false, effect: 'ask' })

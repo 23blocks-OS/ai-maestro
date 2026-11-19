@@ -62,11 +62,12 @@ describe('decide', () => {
 })
 
 describe('helpers', () => {
-  it('guardMode defaults to audit', () => {
-    expect(guardMode({})).toBe('audit')
+  it('guardMode defaults to enforce', () => {
+    expect(guardMode({})).toBe('enforce')
     expect(guardMode({ AIMAESTRO_ORIGIN_GUARD: 'ENFORCE' })).toBe('enforce')
     expect(guardMode({ AIMAESTRO_ORIGIN_GUARD: 'off' })).toBe('off')
-    expect(guardMode({ AIMAESTRO_ORIGIN_GUARD: 'bogus' })).toBe('audit')
+    expect(guardMode({ AIMAESTRO_ORIGIN_GUARD: 'audit' })).toBe('audit')
+    expect(guardMode({ AIMAESTRO_ORIGIN_GUARD: 'bogus' })).toBe('enforce')
   })
   it('hostnameOf', () => {
     expect(hostnameOf('[::1]:23000')).toBe('::1')

@@ -941,7 +941,7 @@ function capturePaneRaw(sessionName, lines = 200) {
 }
 
 // F042: the dashboard has no login, so its sender is a person this host cannot name. Returns the reason, or null.
-// F118: an ask holds the text for approval (the reason says by whom); `approved` is the pass of an approved one
+// F118: an ask quarantines the text (the reason says who approves); `approved` is the pass of an approved entry
 async function chatPolicyRefusal(sessionName, message, approved) {
   try {
     const { getAgentBySession, getAgentByName } = await import('./lib/agent-registry.ts')
@@ -951,7 +951,8 @@ async function chatPolicyRefusal(sessionName, message, approved) {
     const to = agent ? agentParty(agent) : { kind: 'agent', name: sessionName }
     let decision = checkPolicy(from, to, 'message', { approved })
     if (decision.effect === 'ask') decision = holdForApproval(decision, from, to, 'message', { path: 'chat', payload: { sessionName, agentId: agent?.id, message } })
-    return decision.allowed ? null : decision.reason
+    if (decision.allowed) return null
+    return { reason: decision.reason, held: decision.quarantine?.held ? decision.quarantine : undefined }
   } catch (err) {
     // A check that cannot run must not stop the chat: no rules is today's behaviour
     console.warn(`[Chat] policy check failed for ${sessionName}: ${err.message}`)
@@ -961,7 +962,8 @@ async function chatPolicyRefusal(sessionName, message, approved) {
 
 async function sendChatMessage(sessionName, message, approved) {
   const refused = await chatPolicyRefusal(sessionName, message, approved)
-  if (refused) return { ok: false, error: refused }
+  // A held one is not a failure: the chat shows it as waiting (chat:held), with no Retry
+  if (refused) return { ok: false, error: refused.reason, ...(refused.held ? { held: refused.held } : {}) }
   return withPaneLock(sessionName, () => sendChatMessageNow(sessionName, message))
 }
 
@@ -1082,7 +1084,7 @@ async function sendChatMessageNow(sessionName, message) {
 }
 
 // A reaction note (services/chat-reactions-service.ts) reaches the agent by the path of chat:send
-// An approved held chat message (F118) arrives here too, with its request id as the pass
+// An approved quarantined chat message (F118) arrives here too, with its quarantine id as the pass
 globalThis.__deliverChatLine = async (sessionName, text, approved) => {
   const result = await sendChatMessage(sessionName, text, approved)
   const sessionState = terminalSessions.get(sessionName)
@@ -1092,6 +1094,12 @@ globalThis.__deliverChatLine = async (sessionName, text, approved) => {
     }
   }
   return result
+}
+
+// What became of a quarantined chat message (F118, services/policy-service.ts): the quarantine id picks the bubble
+globalThis.__chatQuarantineOutcome = (quarantineId, outcome, text) => {
+  const msg = JSON.stringify({ type: 'chat:quarantineOutcome', quarantineId, outcome, text })
+  for (const s of terminalSessions.values()) s.chatClients?.forEach(ws => { if (ws.readyState === 1) ws.send(msg) })
 }
 
 /**
@@ -2183,6 +2191,9 @@ async function startServer(handleRequest) {
                 for (const delay of [500, 1500, 3000, 5000, 8000, 12000]) {
                   setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), delay)
                 }
+              } else if (result.held) {
+                // F118: quarantined, waiting for an approver; chat:quarantineOutcome says what became of it
+                if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'chat:quarantined', message: parsed.message, reason: result.error, quarantine: result.held }))
               } else {
                 if (ws.readyState === 1) {
                   // sendFailed carries the original text so the client can mark
@@ -2691,6 +2702,9 @@ async function startServer(handleRequest) {
                 for (const delay of [500, 1500, 3000, 5000, 8000, 12000]) {
                   setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), delay)
                 }
+              } else if (result.held) {
+                // F118: quarantined, waiting for an approver; chat:quarantineOutcome says what became of it
+                if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'chat:quarantined', message: parsed.message, reason: result.error, quarantine: result.held }))
               } else {
                 if (ws.readyState === 1) {
                   // sendFailed carries the original text so the client can mark
@@ -2926,7 +2940,7 @@ async function startServer(handleRequest) {
 
     // F118: expire approval requests that ran out while the server was down, and keep sweeping once a minute
     import('./lib/policy-check.ts').then(m => m.ensureApprovalSweeper()).catch(() => {})
-    import('./services/policy-service.ts').then(m => m.sweepPolicyRequests()).catch(err => console.warn('[Policy] startup sweep failed:', err.message))
+    import('./services/policy-service.ts').then(m => m.sweepPolicyQuarantine()).catch(err => console.warn('[Policy] startup sweep failed:', err.message))
 
     // Run startup self-diagnostics (non-blocking)
     setTimeout(async () => {

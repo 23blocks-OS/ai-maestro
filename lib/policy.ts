@@ -57,7 +57,7 @@ export interface PolicyExcept {
   to?: string[]
   actions?: PolicyAction[]
   both?: boolean
-  /** Why the exception is there ("approved always by Alice on 2026-11-20") */
+  /** Why the exception is there ("Alice's own agents", "until the audit ends") */
   note?: string
 }
 
@@ -119,8 +119,8 @@ export interface PolicyDecision {
   proof?: 'any' | 'signed'
   /** An ask: how long it waits, the shortest `expires` of the deciding rules (ms) */
   expiresMs?: number
-  /** An ask that became an approval request (lib/policy-approvals); held: the message waits for the answer */
-  request?: { id: string; approvers: string[]; expiresAt: string; held: boolean }
+  /** An ask that became an AMP quarantine entry (lib/policy-approvals); held: the message waits for the decision */
+  quarantine?: { id: string; expiresAt: string; held: boolean; reviewers?: string[] }
   host?: string
 }
 
@@ -512,10 +512,10 @@ export interface PolicyLogLine {
   at: string
   host?: string
   /** An approval event (F118 step 2); absent for a decision */
-  event?: 'ask' | 'answer' | 'expired' | 'delivered' | 'policy.edit'
+  event?: 'quarantined' | 'approved' | 'rejected' | 'expired' | 'delivered'
+  /** The quarantine entry (qtn_...) */
   request?: string
-  answer?: string
-  /** Who answered, as they named themselves, and how (dashboard: an unverified person; signed: a paired device's key) */
+  /** Who approved or rejected, as they named themselves (dashboard: an unverified person) */
   by?: string
   proof?: string
   approvers?: string[]
@@ -570,13 +570,22 @@ export class PolicyDeniedError extends Error {
 }
 
 /**
- * The answer a service gives for a refusal: 403 with the reason, the same shape as /api/v1/route's. A held message
- * (an ask that became an approval request) is 202 approval_pending with the request (spec section 5).
+ * The answer a service gives when the policy says no (AMP 08 error codes). A deny is a block: 403 `forbidden` with the
+ * plain reason in `message`. A quarantined message (an ask: an AMP 07 policy hold) is 202 with status `quarantined`
+ * and the `quarantine` object of 05 "Status Values"; `message` repeats the plain reason for the dashboard. A call that
+ * asks is refused (403) with the entry an approval answers.
  */
 // data is any so the result fits every service's ServiceResult<T>
 export function policyDeniedResult(decision: PolicyDecision): { data: any; status: 403 | 202 } {
-  if (decision.request?.held) {
-    return { data: { error: 'approval_pending', status: 'held', message: decision.reason, request: decision.request, details: { ruleIds: decision.ruleIds, effect: 'ask', host: decision.host } }, status: 202 }
+  const q = decision.quarantine
+  if (q?.held) {
+    return {
+      data: {
+        status: 'quarantined', message: decision.reason,
+        quarantine: { quarantine_id: q.id, reason: 'policy', rules_triggered: decision.ruleIds || [], reason_text: decision.reason, reviewers: q.reviewers || [], expires_at: q.expiresAt },
+      },
+      status: 202,
+    }
   }
-  return { data: { error: 'policy_denied', message: decision.reason, details: { rule: decision.rule, ruleIds: decision.ruleIds, effect: decision.effect, host: decision.host, ...(decision.request ? { request: decision.request } : {}) } }, status: 403 }
+  return { data: { error: 'forbidden', message: decision.reason, details: { rule: decision.rule, ruleIds: decision.ruleIds, effect: decision.effect, host: decision.host, ...(q ? { quarantine_id: q.id, expires_at: q.expiresAt } : {}) } }, status: 403 }
 }

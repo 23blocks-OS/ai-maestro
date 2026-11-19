@@ -3,6 +3,54 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.235] - 2026-11-19 - Signed approval requests, and approval by signed reply
+
+### Added
+- Each host now has a provider key. AI Maestro publishes it in `/api/v1/info` and `/.well-known/agent-messaging.json` (AMP spec 06 and 07). The file is `~/.aimaestro/amp/provider-key.pem`.
+- When a rule holds a message, AI Maestro sends each reviewer an approval request. This is a signed AMP message from `_provider@<tenant>.aimaestro.local` (AMP spec 07, "Provider Notices"). A person gets it in their mailbox, and an agent gets it in its inbox.
+- A reviewer can approve or reject by replying to that request with a signed message. The reply has `in_reply_to` set to the request id and `payload.context` set to `{ "decision": "approve" or "reject", "quarantine_id": "qtn_…" }`. AI Maestro checks the signature, the reviewer and the entry, then applies the decision once. It keeps the signed reply as proof. A plain "ok" is never a decision.
+- A rule with `"proof": "signed"` can now be approved, but only by this signed reply.
+- `quarantine:policy` is now in the provider's capabilities.
+
+### Changed
+- The sender gets a signed `quarantine_outcome` notice when the entry is approved, rejected or expires, in reply to the held message. This notice replaces the unsigned "AI Maestro" inbox message. A person who sent the message now gets the notice too.
+- AI Maestro checks every received `_provider` notice with the key of the provider that sent it, found by discovery. It never uses a key that came with the message. A notice that does not verify is refused.
+- The name `_provider` is reserved. Registration with that name gets 409 `name_taken`.
+## [0.106.234] - 2026-11-19 - SECURITY.md says the real design; the Origin check refuses by default
+
+- **The Origin check now refuses** (B044). A browser request from a page that is not AI Maestro, a known host or a trusted origin gets 403. The audit ran on every host from 0.106.225 and found nothing legitimate to refuse. To go back to logging only, set `AIMAESTRO_ORIGIN_GUARD=audit`; behind a reverse proxy, list its origin in `AIMAESTRO_TRUSTED_ORIGINS`. Requests without an Origin (the CLI, scripts, agents, other hosts) are not affected.
+- **SECURITY.md is rewritten** (B043). It said only version 1.0.x was supported, told people to bind to localhost on port 3000, to run `tmux kill-server` at the end of the day, and planned a login. It now says the real model: no login by design, the network is the trust boundary, what the operator must do, the known design limits, and where data lives. `tests/security-md.test.ts` stops the old claims from coming back.
+
+## [0.106.233] - 2026-11-19 - Approvals now use AMP quarantine on the wire
+
+### Changed
+- An `ask` rule now holds a message the way the Agent Messaging Protocol says: it is an AMP **quarantine** entry with reason `policy` (AMP spec 05, 07 and 08). In 0.106.230 we used our own words and formats for this. AI Maestro is the reference implementation of AMP, so other providers must see AMP, not our own names.
+- A held message is answered with HTTP 202 and `status: "quarantined"`, with a `quarantine` object (`quarantine_id`, `reason: "policy"`, `rules_triggered`, `reason_text`, `reviewers`, `expires_at`). Before: 202 `approval_pending` with `status: "held"`.
+- A denied message is a block: HTTP 403 `forbidden`, with the plain reason in `message`. Before: 403 `policy_denied`. A host still understands `policy_denied` from a peer that has not updated yet.
+- Entries have AMP ids (`qtn_<time>_<hex>`) and AMP states: `pending`, then `approved`, `rejected` or `expired`. Before: `apr-…` ids and `refused`.
+- The API is the AMP quarantine API: `GET /api/v1/quarantine?status=&limit=`, `GET /api/v1/quarantine/{id}`, `POST /api/v1/quarantine/{id}/approve` and `/reject` (also in headless mode). An expired entry answers 410 `quarantine_expired`; an entry that was already decided answers 409 `quarantine_decided`. It still lists and decides across hosts.
+- Approve releases that one message, once. A call (not AMP) uses the same entries: approving lets the next identical call through, once.
+- Settings > Approvals has two buttons: Approve and Reject.
+- The store is now `~/.aimaestro/policy/quarantine.json`, and held messages are in `~/.aimaestro/policy/quarantine/`. The old `approvals.json` is not read.
+
+### Removed
+- `GET /api/policy/requests` and `POST /api/policy/requests/:id/answer`. Nothing outside AI Maestro used them yet.
+- The answers "for a time" and "always". They change the rules, so they are not approvals. They come back later as policy edits (F118 step 3).
+- Our own signed approval string (`aimaestro-approval/1|…`). A rule with `"proof": "signed"` cannot be approved from the dashboard; it says so plainly. The AMP way (a signed reply from the reviewer to the provider's approval request) is the next step.
+
+### Fixed
+- The chat shows a quarantined message as "Held for approval", with the reason and no Retry, in both chat views (from PR #124). Before, it showed "Not delivered yet" with Retry, and Retry made a second entry. When the entry is approved, rejected or expires, the bubble changes to "Delivered" or "Not delivered". The companion input shows "Held for approval".
+
+## [0.106.232] - 2026-11-19 - Backlog status for the registry and Origin fixes
+
+- B042 (safe registry writes) is Done: it shipped in 0.106.226.
+- B044 (the Origin check) is In Progress: audit mode shipped in 0.106.225; making `enforce` the default comes after reading each host's audit.
+- B043 (SECURITY.md) stays Todo, with a note on what is still wrong.
+
+## [0.106.231] - 2026-11-19 - Neutral host names in the newest tests
+
+- The origin guard test and a comment in `lib/policy.ts` used our own host names and a host's Tailscale address. They now use `host-a`, `host-b` and `100.64.0.2`, as the other tests do since 0.106.221.
+
 ## [0.106.230] - 2026-11-18 - Approvals for ask rules
 
 ### Added

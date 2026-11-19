@@ -34,7 +34,7 @@ import { loadKeyPair } from '@/lib/amp-keys'
 import { deriveDidKey } from '@/lib/amp-did'
 import { type ServiceResult, invalidRequest, runtimeConflict, serviceError } from '@/services/service-errors'
 import { getPolicy, type PolicyReport } from '@/services/policy-service'
-import { approvalsHealth } from '@/lib/policy-approvals'
+import { quarantineHealth } from '@/lib/policy-approvals'
 import {
   type DiagnosticStatus, type DiagnosticCheck, type DiagnosticCategory,
   checkAgentFolders, checkNameHints, checkAmpMailboxes, checkGhostAgents, checkOutsideAgents,
@@ -472,7 +472,7 @@ async function buildReport(): Promise<ServiceResult<DiagnosticReport>> {
     ['amp-refusals', () => checkAmpRefusals()],
     ['cross-origin', () => checkCrossOrigin()],
     ['policy', () => checkPolicyRules(getPolicy().data as PolicyReport)],
-    ['policy-approvals', () => checkPolicyApprovals(approvalsHealth())],
+    ['policy-approvals', () => checkPolicyApprovals(quarantineHealth())],
   ] as [string, () => DiagnosticCheck | Promise<DiagnosticCheck>][]).map(async ([name, run]): Promise<DiagnosticCheck> => {
     // One broken check must not take the report down
     try { return await run() } catch (error: any) {

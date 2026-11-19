@@ -119,7 +119,7 @@ describe('send paths refuse with the reason', () => {
     const r = await sendMessage({ from: 'bob', to: 'payroll', subject: 'Hi', content: { type: 'request', message: 'pay me' } })
     error.mockRestore()
     expect(r.status).toBe(403)
-    expect(r.data).toMatchObject({ error: 'policy_denied' })
+    expect(r.data).toMatchObject({ error: 'forbidden' })
     expect(r.data.message).toContain('Payroll answers the finance team only')
   })
 

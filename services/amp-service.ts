@@ -83,7 +83,7 @@ import { personKeyFor, personHostFor } from '@/lib/person-keys'
 import { personAddress } from '@/lib/person-address'
 import { saveMessage as savePersonMessage } from '@/lib/person-mailbox'
 import { getPerson } from '@/lib/people-registry'
-import { pushMessage } from '@/lib/push-expo'
+import { pushApproval, pushMessage } from '@/lib/push-expo'
 import { checkPersonSend, personNonces, rawKeyToHex } from '@/lib/person-signing'
 import { findContactByAddress, isHttpUrl, isOneLine } from '@/services/contacts-service'
 import { isApprovalRequired } from '@/services/amp-registrations-service'
@@ -1420,7 +1420,12 @@ export async function deliverRouted(c: RoutedDelivery, rateLimitHeaders?: Record
           sender_kind: personSender ? 'person' : 'agent', verified: verification.state === 'verified', status: 'unread',
         })
         const agentId = senderAgent?.id || (personSender ? undefined : getAgentByNameAnyHost(senderName)?.id)
-        pushMessage({ personId: personRecipient, messageId, agentAddress: envelope.from, agentId, senderName }).catch(() => {})
+        const ctx = (body.payload as { context?: { amp_notice?: unknown; quarantine_id?: unknown } } | undefined)?.context
+        // A verified approval request (AMP 07) gets the approval push alone; the message push only for a device that takes no approval push
+        const approval = isProviderAddress(envelope.from) && verification.state === 'verified' && ctx?.amp_notice === 'approval_request' && typeof ctx.quarantine_id === 'string'
+          ? pushApproval({ personIds: [personRecipient], quarantineId: ctx.quarantine_id as string, what: envelope.subject.replace(/^Approval needed: /, '') })
+          : Promise.resolve(0)
+        approval.then(n => { if (n === 0) return pushMessage({ personId: personRecipient, messageId, agentAddress: envelope.from, agentId, senderName }) }).catch(() => {})
         return { data: { id: messageId, status: 'delivered', method: 'local', delivered_at: now } as AMPRouteResponse, status: 200, headers: rateLimitHeaders }
       }
       // A forwarded message stops here: the host that forwarded it already asked every peer

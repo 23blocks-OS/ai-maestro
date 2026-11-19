@@ -95,22 +95,24 @@ export function settingsWarnings(workingDirectory: string | undefined, cred: Age
 /**
  * What a running Claude session really signs in with, as its hook reports it (#65 part 2). `via` is read from the
  * process environment in Claude Code's own order; `launched` is the kind scripts/aim-launch.sh marked when it started
- * the program (absent when something else started it). Kinds only: no value or fingerprint leaves the process.
+ * the program (absent when something else started it); `ref` is the profile it launched with, the vault name or folder
+ * (absent before 0.106.237). No value or fingerprint leaves the process.
  */
-export interface CredentialSeen { via: AgentCredential['kind']; launched?: AgentCredential['kind']; at: number }
+export interface CredentialSeen { via: AgentCredential['kind']; launched?: AgentCredential['kind']; ref?: string; at: number }
 
 const seenStore: Map<string, CredentialSeen> = ((globalThis as any)._aimCredentialSeen ??= new Map())
 const isKind = (k: unknown): k is AgentCredential['kind'] => CREDENTIAL_KINDS.includes(k as any)
 
 /** Record a hook's report (from the heartbeat). Anything malformed is dropped. */
 export function recordCredentialSeen(agentId: string, report: unknown): void {
-  const r = report as { via?: unknown; launched?: unknown } | null
+  const r = report as { via?: unknown; launched?: unknown; ref?: unknown } | null
   if (!agentId || !r || !isKind(r.via)) return
   const launched = isKind(r.launched) ? r.launched : undefined
+  const ref = typeof r.ref === 'string' && (VAULT_NAME.test(r.ref) || SAFE_PATH.test(r.ref)) ? r.ref : undefined
   const prev = seenStore.get(agentId)
   // Same report as before: keep its time, so the agent list (and the mesh feed built on it) does not change on every heartbeat
-  if (prev && prev.via === r.via && prev.launched === launched) return
-  seenStore.set(agentId, { via: r.via, ...(launched ? { launched } : {}), at: Date.now() })
+  if (prev && prev.via === r.via && prev.launched === launched && prev.ref === ref) return
+  seenStore.set(agentId, { via: r.via, ...(launched ? { launched } : {}), ...(ref ? { ref } : {}), at: Date.now() })
 }
 
 /** Forget it when the agent is woken again: the next session reports afresh. */
@@ -125,7 +127,8 @@ const KIND_WORDS: Record<AgentCredential['kind'], string> = {
  * Compare the profile with what the session reported. Null when there is nothing to compare: no profile set (the
  * agent was never told which account to use), or no report yet. `match` needs the right kind AND the launcher's mark,
  * because a token Claude Code ignores can still sit in the environment (the incident); right kind without the mark
- * is `unverified` (started by hand or by an old wrapper).
+ * is `unverified` (started by hand or by an old wrapper). The launcher's mark also names the profile it used, so a
+ * switch to another token of the same kind is a `mismatch` until the session restarts (field report 2026-11-19).
  */
 export function credentialCheck(cred: AgentCredential | undefined | null, agentId: string, seen = seenStore.get(agentId)): CredentialCheck | null {
   if (!seen) return null
@@ -138,5 +141,10 @@ export function credentialCheck(cred: AgentCredential | undefined | null, agentI
   if (want === 'oauth-token' && seen.via === 'host-login' && !seen.launched) return { state: 'unverified', at, detail: `AI Maestro did not start this session with its setting, and a subscription token is invisible from outside, so it may be on ${describeCredential(cred)} or on the computer's own login. Wake it again to be sure.` }
   if (seen.via !== want) return { state: 'mismatch', at, detail: `Set to use ${describeCredential(cred)}, but the running session signs in with ${KIND_WORDS[seen.via]}.` }
   if (want !== 'host-login' && seen.launched !== want) return { state: 'unverified', at, detail: `The session has ${KIND_WORDS[seen.via]}, but AI Maestro did not start it with this setting. Wake it again to be sure it is ${describeCredential(cred)}.` }
+  if (want !== 'host-login') {
+    const ref = want === 'config-dir' ? cred.dir : cred.secret
+    if (!seen.ref) return { state: 'unverified', at, detail: `The session was started with ${KIND_WORDS[want]}, but before AI Maestro recorded which one. Wake it again to be sure it is ${describeCredential(cred)}.` }
+    if (seen.ref !== ref) return { state: 'mismatch', at, detail: `Set to use ${describeCredential(cred)}, but the running session was started with ${seen.ref}. Restart it to switch.` }
+  }
   return { state: 'match', at, detail: `Running on ${describeCredential(cred)}.` }
 }

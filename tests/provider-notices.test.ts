@@ -27,7 +27,8 @@ const host = vi.hoisted(() => ({
 vi.mock('@/lib/message-delivery', () => ({ deliver: (...a: unknown[]) => deliverMock(...(a as [])) }))
 vi.mock('@/lib/person-keys', () => ({ personKeyFor: async (id: string) => keys.get(id) || null, personHostFor: async () => null }))
 vi.mock('@/lib/person-mailbox', () => ({ saveMessage: (personId: string, m: any) => saved.push({ personId, m }) }))
-vi.mock('@/lib/push-expo', () => ({ pushMessage: async () => {}, pushApproval: async () => {} }))
+const push = vi.hoisted(() => ({ message: vi.fn(async () => {}), approval: vi.fn(async (_a: any) => 1) }))
+vi.mock('@/lib/push-expo', () => ({ pushMessage: push.message, pushApproval: push.approval }))
 vi.mock('@/lib/people-registry', async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   getPerson: (id: string) => (people.has(id) ? { id, displayName: id.slice(-4) } : null),
@@ -98,6 +99,7 @@ describe('provider notices and approval by signed message', () => {
   })
   beforeEach(async () => {
     deliverMock.mockClear(); fetchMock.mockClear(); saved.length = 0; routed.length = 0
+    push.message.mockClear(); push.approval.mockClear(); push.approval.mockImplementation(async () => 1)
     fs.rmSync(path.join(home, '.aimaestro', 'policy'), { recursive: true, force: true })
     fs.writeFileSync(path.join(home, '.aimaestro', 'policy.json'), JSON.stringify({ version: 2, rules: [RULE] }))
     ;(await import('@/lib/provider-key')).clearProviderKeyCache()
@@ -167,6 +169,13 @@ describe('provider notices and approval by signed message', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://mini:23000/api/v1/info', expect.anything())
   })
 
+  it('a reviewer whose devices take no approval push gets the new-message push instead', async () => {
+    push.approval.mockImplementation(async () => 0)
+    await holdFromCarol()
+    await new Promise(r => setTimeout(r, 0))
+    expect(push.message.mock.calls.map((c: any[]) => c[0].personId)).toEqual([ANA, BEN])
+  })
+
   it('_provider is reserved: registration is refused with name_taken', async () => {
     const { registerAgent } = await import('@/services/amp-service')
     const pem = crypto.generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'pem' }).toString()
@@ -185,6 +194,13 @@ describe('provider notices and approval by signed message', () => {
     })
     expect(saved[0].m.id).toBe(request(ANA))
     expect(deliverMock).not.toHaveBeenCalled()
+    // One push per reviewer: the approval push, sent where the mailbox is; no new-message push on top
+    await new Promise(r => setTimeout(r, 0))
+    expect(push.approval.mock.calls.map(c => c[0])).toEqual([
+      { personIds: [ANA], quarantineId: entry.quarantine_id, what: `message from carol@${DOMAIN} to bob@${DOMAIN}` },
+      { personIds: [BEN], quarantineId: entry.quarantine_id, what: `message from carol@${DOMAIN} to bob@${DOMAIN}` },
+    ])
+    expect(push.message).not.toHaveBeenCalled()
 
     const yes = await answer(ANA, { in_reply_to: request(ANA), context: { decision: 'approve', quarantine_id: entry.quarantine_id } })
     expect(yes).toMatchObject({ status: 200, data: { status: 'delivered' } })

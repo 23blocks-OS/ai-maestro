@@ -203,20 +203,21 @@ export async function pushCall(call: { callId: string; caller: string; callee: s
  * `approval`, or to `needs_you` (an app that predates `approval`). Only the parties' labels, never message text.
  * `*` (any person) notifies every device that opted in.
  */
-export async function pushApproval(a: { personIds: string[]; quarantineId: string; from: string; to: string; action: string }): Promise<void> {
-  if (!claimSlot(`approval:${a.quarantineId}`, COOLDOWN_MS)) return
+export async function pushApproval(a: { personIds: string[]; quarantineId: string; what: string }): Promise<number> {
+  if (!claimSlot(`approval:${a.quarantineId}:${a.personIds.join(',')}`, COOLDOWN_MS)) return -1
   const anyone = a.personIds.includes('*')
   const targets = loadDevices().filter(d => (anyone || a.personIds.includes(d.personId)) && d.pushToken && (d.pushTypes?.includes('approval') || d.pushTypes?.includes('needs_you')))
-  if (!targets.length) return
+  if (!targets.length) return 0
   const hostId = getSelfHostId()
   await deliver(targets, to => ({
     to,
     title: 'Approval needed',
-    body: `${a.from} wants to ${a.action} ${a.to}. Open AI Maestro to answer.`,
+    body: `${a.what}. Open AI Maestro to answer.`,
     data: { type: 'approval', quarantine_id: a.quarantineId, hostId },
     channelId: 'needs_you',
     priority: 'high',
     sound: 'default',
     interruptionLevel: 'time-sensitive',
   }))
+  return targets.length
 }

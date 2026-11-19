@@ -132,6 +132,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F118** — [Governance actions and approvals through the policy engine](./backlog/F118-governance-actions-and-approvals.md) — `Todo` (spec: `docs/SPEC-POLICY-RULES.md`)
 - **F103** — [A paired device can speak as its owner (the phone counts as Juan)](./backlog/F103-paired-device-speaks-as-person.md) — `In Progress`
 - **F107** — [One sync channel between hosts](./backlog/F107-one-sync-channel-between-hosts.md) — `Todo` (spec)
+- **F128** — [Switch to a fallback credential when a session hits its usage limit](./backlog/F128-fallback-credential-on-usage-limit.md) — `Todo`
 
 ## Bugs
 

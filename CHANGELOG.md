@@ -3,6 +3,25 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.238] - 2026-11-19 - One push per approval request
+
+### Fixed
+- A person reviewer got two pushes for each approval request: the `approval` push from the deciding host and a new-message push for the `approval_request` notice. Now the host that delivers the notice into the person's mailbox sends the `approval` push alone. That is also the host where their phone is paired, so a reviewer whose phone is paired on another host now gets it too. A device that takes no approval push gets the new-message push instead. `person:*` (any person) is still pushed from the deciding host.
+
+## [0.106.237] - 2026-11-19 - The credential check sees a switch that has not reached the session yet
+
+### Fixed
+- After a credential switch, an agent that was busy and not restarted showed `match` on the new profile while its session still ran on the old one. The launcher now marks which profile it started with (the vault entry name or folder, never a value), the hook reports it, and the check is `mismatch` ("started with X, restart it to switch") until the session restarts. A session started by an older launcher, which did not name the profile, is `unverified`.
+
+- The plugin (1.19.22) carries the hook change.
+
+### Added
+- Backlog F128: switch to a fallback credential when a session hits its usage limit.
+
+## [0.106.236] - 2026-11-19 - amp-read checks notices from the server with its published key
+
+- The plugin (1.19.21) brings agentmessaging/claude-plugin 0.5.5: `amp-read` checks a `_provider@…` notice (an approval request, a quarantine outcome) with the key the server publishes in `/api/v1/info`, as AMP 07 "Provider Notices" says, never with a key looked up for the `_provider` name. A notice that claims another provider is a bad signature. Other messages read exactly as before.
+
 ## [0.106.235] - 2026-11-19 - Signed approval requests, and approval by signed reply
 
 ### Added

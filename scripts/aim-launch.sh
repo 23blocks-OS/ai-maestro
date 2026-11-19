@@ -28,6 +28,8 @@ command="$*"
 
 unset ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY ANTHROPIC_BASE_URL CLAUDE_CODE_OAUTH_TOKEN
 export AIM_CREDENTIAL_VIA="$kind" # the Claude Code hook reports this mark back: the live check on the agent card
+# Which profile, by vault name or folder (never a value): a switch to another token of the same kind shows until a restart
+export AIM_CREDENTIAL_REF="${secret:-${dir:-}}"
 case "$kind" in
   config-dir)
     [ -d "$dir" ] || { echo "aim-launch: no folder $dir" >&2; exit 2; }

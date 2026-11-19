@@ -54,7 +54,7 @@ describe('credential profiles (#65)', () => {
 
 describe('live credential check (#65 part 2)', () => {
   const token = { kind: 'oauth-token' as const, secret: 'ACME_MAX_TOKEN' }
-  const seen = (via: any, launched?: any) => ({ via, launched, at: 0 })
+  const seen = (via: any, launched?: any, ref?: string) => ({ via, launched, ref, at: 0 })
 
   it('is silent without a report, and checks no setting as the host login', () => {
     // No setting is checked as the host's own login
@@ -68,20 +68,33 @@ describe('live credential check (#65 part 2)', () => {
     expect(credentialCheck({ kind: 'host-login' }, 'a', seen('api-key'))?.state).toBe('mismatch')
   })
   it('needs the launcher mark for a match, amber without it', () => {
-    expect(credentialCheck(token, 'a', seen('oauth-token', 'oauth-token'))?.state).toBe('match')
+    expect(credentialCheck(token, 'a', seen('oauth-token', 'oauth-token', 'ACME_MAX_TOKEN'))?.state).toBe('match')
     expect(credentialCheck(token, 'a', seen('oauth-token'))?.state).toBe('unverified')
     // started by a hand wrapper: the token is invisible to the hook, so not red
     expect(credentialCheck(token, 'a', seen('host-login'))?.state).toBe('unverified')
     expect(credentialCheck({ kind: 'host-login' }, 'a', seen('host-login'))?.state).toBe('match')
   })
+  it('is red for a session still on the profile it started with after a switch (field report 2026-11-19)', () => {
+    // A crew switched to another token while busy: same kind, different vault entry, not restarted
+    const c = credentialCheck(token, 'a', seen('oauth-token', 'oauth-token', 'ACME_OLD_TOKEN'))
+    expect(c?.state).toBe('mismatch')
+    expect(c?.detail).toContain('ACME_OLD_TOKEN')
+    // Started by a launcher that did not name the profile yet: cannot tell which token, so not a match
+    expect(credentialCheck(token, 'a', seen('oauth-token', 'oauth-token'))?.state).toBe('unverified')
+    const dir = { kind: 'config-dir' as const, dir: '/Users/acme/.claude-b' }
+    expect(credentialCheck(dir, 'a', seen('config-dir', 'config-dir', '/Users/acme/.claude-a'))?.state).toBe('mismatch')
+    expect(credentialCheck(dir, 'a', seen('config-dir', 'config-dir', '/Users/acme/.claude-b'))?.state).toBe('match')
+  })
   it('records only well-formed reports, and forgets them at wake', () => {
     recordCredentialSeen('acme-1', { via: 'sk-ant-pasted-value' })
     expect(credentialCheck(token, 'acme-1')).toBeNull()
-    recordCredentialSeen('acme-1', { via: 'oauth-token', launched: 'oauth-token', extra: 'x' })
+    recordCredentialSeen('acme-1', { via: 'oauth-token', launched: 'oauth-token', ref: 'ACME_MAX_TOKEN', extra: 'x' })
     expect(credentialCheck(token, 'acme-1')?.state).toBe('match')
     const at = credentialCheck(token, 'acme-1')?.at
-    recordCredentialSeen('acme-1', { via: 'oauth-token', launched: 'oauth-token' })
+    recordCredentialSeen('acme-1', { via: 'oauth-token', launched: 'oauth-token', ref: 'ACME_MAX_TOKEN' })
     expect(credentialCheck(token, 'acme-1')?.at).toBe(at) // a repeat report does not move it
+    recordCredentialSeen('acme-1', { via: 'oauth-token', launched: 'oauth-token', ref: 'sk-ant pasted value' })
+    expect(credentialCheck(token, 'acme-1')?.state).toBe('unverified') // a malformed ref is dropped, never stored
     forgetCredentialSeen('acme-1')
     expect(credentialCheck(token, 'acme-1')).toBeNull()
   })

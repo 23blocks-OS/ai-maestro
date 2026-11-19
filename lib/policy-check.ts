@@ -107,9 +107,10 @@ export function holdForApproval(d: PolicyDecision, from: PolicyParty, to: Policy
   const r = made.entry
   const who = r.approvers.map(a => a.label).join(' or ')
   const when = r.expires_at.slice(0, 16).replace('T', ' ') + ' UTC'
-  const pushTo = r.approvers.filter(a => a.ref.startsWith('person:')).map(a => a.ref.slice(7))
-  if (pushTo.length && !process.env.VITEST) {
-    import('@/lib/push-expo').then(m => m.pushApproval({ personIds: pushTo, quarantineId: r.quarantine_id, from: r.from, to: r.to, action })).catch(() => {})
+  // A named person gets one push, sent where their mailbox is when the approval request lands (services/amp-service);
+  // `person:*` has no address, so no notice, and is pushed from here
+  if (r.approvers.some(a => a.ref === 'person:*') && !process.env.VITEST) {
+    import('@/lib/push-expo').then(m => m.pushApproval({ personIds: ['*'], quarantineId: r.quarantine_id, what: `${r.from} wants to ${action} ${r.to}` })).catch(() => {})
   }
   // AMP 07 "Approval request": a signed provider notice to each reviewer, which a signed reply answers
   if (!process.env.VITEST) import('@/services/provider-notices').then(m => m.sendApprovalRequests(r)).catch(e => console.warn(`[Policy] approval requests for ${r.quarantine_id}: ${e.message}`))

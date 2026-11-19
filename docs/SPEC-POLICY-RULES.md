@@ -188,8 +188,8 @@ Relations are the small part of the Zanzibar idea that we need: a check that fol
 | `device` | 2 | The device controller, before it runs a command | the device's owner, with `device:<id>` |
 | `wake` | 2 | The wake flow (`lib/wake-flow.ts`), on the agent's host | agent |
 | `task` | 2 | Card creation on another agent's board | agent |
-| `agent.create`, `agent.delete`, `agent.move` | 4 | The agent services, on the owning host | agent or org |
-| `agent.mode` | 4 | Wake and settings, when the permission mode goes up | agent |
+| `agent.create`, `agent.delete`, `agent.move` | 4 (built, 0.106.239) | The agent services, on the owning host (section 18) | agent |
+| `agent.mode` | 4 (built, 0.106.239) | Wake and settings, when the permission mode goes up | agent |
 | `agent.config` | 4 | The protected-file writer (F067) | agent |
 | `secret.use`, `secret.grant` | 4 | The vault (F065) | `secret:<name>` |
 | `sql.write` | 4 | The F037 approval step | agent |
@@ -532,3 +532,39 @@ An agent answers with `amp-send.sh _provider@<tenant>.aimaestro.local "Re: appro
 - 07 does not say what the route answers for a message to `_provider`, nor the error codes of a refused answer; AI Maestro uses the 08 quarantine and validation codes above.
 - A call or a chat message has no AMP message id, so its outcome notice has no `in_reply_to`; a call's approval request has no `held`.
 - 07 does not say how a reviewer finds which provider instance keeps the entry; AI Maestro asks its peers.
+
+## 18. As built: governance actions, first part (0.106.239, F118 step 3)
+
+### 18.1 Scope of a rule
+
+The engine knows `agent.create`, `agent.delete`, `agent.move` and `agent.mode` besides `message` and `call`. Two choices keep every existing file meaning what it meant:
+
+- **A rule or exception without `actions` covers `message` and `call` only.** A governance action is governed only by a rule that names it. Without this, `deny * -> agent:payroll` (written to stop messages) would also stop deleting payroll.
+- **The file's `default` applies to `message` and `call` only.** A governance action that no rule names goes ahead. A `"default": "deny"` file written for messaging does not stop every create and delete.
+- A version 1 rule cannot name a governance action (`action` stays `message` or `call`): governance needs a version 2 file.
+
+Reasons use words, not action names: "an unidentified person may not delete agent:payroll: blocked by keep-payroll".
+
+### 18.2 Where each action is checked
+
+Each check runs in the service that does the action, on the agent's host, before anything changes. So the dashboard, the API, the headless router and the agents CLI all meet it.
+
+| Action | Service | Notes |
+|---|---|---|
+| `agent.create` | `createNewAgent`, `createSession` (a session for a name the registry does not know), `createDockerAgent`, `createCloudAgent` | `to` is the new agent by name, on its host |
+| `agent.delete` | `deleteAgentById` (soft and hard), `unlinkOrDeleteAgentSession` with delete | The Doctor's repair passes as `system` |
+| `agent.move` | `transferAgent` | A clone is checked as a move: the agent leaves for another host either way |
+| `agent.mode` | `updateAgentById` and the wake request, only when the mode goes up | Order: plan only < supervised (also no setting) < trust edits < smart auto < full autonomy |
+
+A deny answers 403 `forbidden` with the reason. An ask opens a quarantine entry (section 17) and answers 403 with its `quarantine_id`, as a call does. Once a reviewer approves, the same action by the same caller goes through once.
+
+### 18.3 Who the caller is
+
+With no login, the caller of the dashboard and the API is an unidentified person (`person`), which matches `*` and `person:*`. AI Maestro's own work passes as `system`. So rules for governance actions are written about the target (`to`), for example: ask `rel:manager` before anyone deletes or moves an agent of the finance team, or deny raising `agent:payroll` to full autonomy. An `agent:` or `person:<id>` in `from` does not match an API call yet.
+
+### 18.4 Not in this part
+
+- Paths that create or remove agents as a side effect, not as an operator's action: session discovery, AMP self-registration and self-delete, the help assistant, the meeting coach, imports on the receiving host.
+- `agent.config` (needs F067's protected-file writer), `secret.use`, `secret.grant`, `sql.write` (F033 and F037 into the store, 17.6), `policy.edit` (no editor API yet).
+- The agent layer from F067 profiles, closed teams as rules, `role:` and `org:` subjects, answers "for a time" and "always" as policy edits.
+

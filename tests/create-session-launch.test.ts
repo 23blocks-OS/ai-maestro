@@ -24,7 +24,7 @@ vi.mock('@/lib/agent-runtime', () => ({
 }))
 vi.mock('@/lib/hosts-config', () => ({
   getHosts: () => [], getSelfHost: () => ({ id: 'self', url: 'http://localhost:23000', name: 'self' }),
-  isSelf: () => true, getHostById: () => undefined,
+  isSelf: () => true, getHostById: () => undefined, getSelfHostId: () => 'self', getOrganization: () => 'acme',
 }))
 vi.mock('@/lib/working-directory', () => ({ resolveWorkingDirectory: () => ({ ok: true, cwd: '/tmp/aria', warnings: [] }) }))
 vi.mock('@/lib/session-persistence', () => ({ persistSession: vi.fn(), loadPersistedSessions: () => [], unpersistSession: vi.fn() }))

@@ -1,6 +1,6 @@
 # F118 - Governance actions and approvals through the policy engine
 
-**Status:** In Progress (spec: `docs/SPEC-POLICY-RULES.md`, sections 3, 4.3 and 11). Step 1 (version 2 rules, F042 phases 2a and 2b) shipped in 0.106.229. Step 2 (ask with approvals, phase 4) shipped in 0.106.230 (spec section 17). Next: step 3, governance actions.
+**Status:** In Progress (spec: `docs/SPEC-POLICY-RULES.md`, sections 3, 4.3 and 11). Step 1 (version 2 rules, F042 phases 2a and 2b) shipped in 0.106.229. Step 2 (ask with approvals, phase 4) shipped in 0.106.230 (spec section 17). Step 3 is in progress: `agent.create`, `agent.delete`, `agent.move` and `agent.mode` are checked from 0.106.239 (spec section 18); next are the agent layer, closed teams and the remaining actions.
 **Type:** Feature
 **Created:** 2026-11-18
 

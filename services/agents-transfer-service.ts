@@ -19,6 +19,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { execSync, execFileSync } from 'child_process'
 import type { Agent, Repository } from '@/types/agent'
 import type { AgentExportManifest, AgentImportOptions, AgentImportResult, PortableRepository, RepositoryImportResult } from '@/types/portable'
+import { agentParty, governanceCheck } from '@/lib/policy-check'
+import { policyDeniedResult, type PolicyParty } from '@/lib/policy'
 import { type ServiceResult, notFound, missingField, invalidField, invalidRequest, operationFailed } from '@/services/service-errors'
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -1048,12 +1050,16 @@ export async function importAgent(
  */
 export async function transferAgent(
   agentIdOrName: string,
-  body: TransferRequest
+  body: TransferRequest,
+  caller?: PolicyParty
 ): Promise<ServiceResult<TransferResult>> {
   const agent = resolveAgent(agentIdOrName)
   if (!agent) {
     return notFound('Agent', agentIdOrName)
   }
+  // A clone is checked as a move too: either way the agent leaves for another host
+  const refused = governanceCheck('agent.move', agentParty(agent), caller)
+  if (refused) return policyDeniedResult(refused)
 
   const { targetHostUrl, mode, newAlias, cloneRepositories } = body
 

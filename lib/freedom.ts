@@ -75,3 +75,10 @@ export function modeForStop(
   if (current && STOP_MODES[stop].includes(current) && allowed.includes(current)) return current
   return STOP_MODES[stop].find((m) => allowed.includes(m)) || 'supervised'
 }
+
+/** How much an agent may do alone, low to high; no setting is `supervised` (the default). Raising it is the
+ *  governance action `agent.mode` (F118 step 3). */
+const MODE_RANK: Record<AgentPermissionMode, number> = { planOnly: 0, supervised: 1, trustEdits: 2, smartAuto: 3, fullAutonomy: 4 }
+export const raisesMode = (from: AgentPermissionMode | undefined, to: AgentPermissionMode | undefined) =>
+  !!to && (MODE_RANK[to] ?? 0) > MODE_RANK[from || 'supervised']
+

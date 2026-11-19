@@ -62,7 +62,11 @@ Names and phone numbers are personal data. Keep what is needed; make phone optio
 
 ### 3.5 Permissions between people and agents
 
-Who may talk to which agent, and who may see an agent's memory. Model it after lolad's policy file (`CamiloCaceres/lolad`, `org.yaml`): explicit rules in order, first match wins, then defaults, anything else denied **with a reason** shown in the UI ("why was this blocked?"). Defaults: any person may message any agent; memory and approvals are per agent. Not enforcement against a hostile device; policy for a trusted network.
+Who may message or call whom (F042, host 0.106.222). Each host keeps its rules in `~/.aimaestro/policy.json`: `{ "rules": [ { "from", "to", "allow", "both"?, "action"?: "message" | "call", "note"? } ] }`. Rules go in order and the first match decides; when none matches, the message goes through, so with no file every person may talk to every agent and every agent may message every agent. Patterns: `*`, `person:*`, `agent:*`, `person:<id>`, `agent:<name or id>`, `agent:<name>@<host>`, `team:<name or id>`, `host:<id>`. A file that does not parse applies no rules and `GET /api/policy` shows the error.
+
+A refusal is a 403 `{ error: "policy_denied", message, details: { rule, host } }`; `message` is the plain reason, for example `person:bob may not message agent:payroll@host-b: blocked by rule 1 on host host-b (* -> agent:payroll): Payroll answers the finance team only`. It is recorded with the AMP refusals. Each host checks its own rules on the traffic it handles: the sender's host before sending, the recipient's host before delivering, and a refusal from the recipient's host reaches the sender unchanged. `GET /api/policy/check?from=&to=[&action=call]` answers "why can't A reach B" from this host and the hosts of both parties.
+
+Checked on: the AMP route (agents, people, mesh, federation), the dashboard's message API and forwards, the chat, the companion, device input and starting a call. The dashboard has no login, so its chat counts as an unidentified person (matched only by `person:*` and `*`); a person's signed message from the app carries their id. Memory and approvals stay per agent. Not enforcement against a hostile device; policy for a trusted network.
 
 ### 3.6 Pairing the app (F057 step 2)
 

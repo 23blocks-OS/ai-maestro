@@ -5,6 +5,8 @@
 import { sendFromUI } from '@/lib/message-send'
 import { getAgent } from '@/lib/agent-registry'
 import { relayNote, voiceNote } from '@/lib/device-relay.mjs'
+import { agentParty, askNotPossible, checkPolicy } from '@/lib/policy-check'
+import type { PolicyParty } from '@/lib/policy'
 
 interface DeviceEvent {
   id: string
@@ -41,6 +43,15 @@ export async function deliverDeviceEvent(event: DeviceEvent, agentIdOf: (address
   const person = disagree ? undefined : marked?.name
   const heard = voiceNote(voice, disagree ? marked?.name : undefined)
 
+  // F042: the marked person, or someone this host cannot name. A refused input is dropped with its reason in the log
+  const fromParty: PolicyParty = !input ? { kind: 'system' } : person && marked ? { kind: 'person', id: marked.personId } : { kind: 'person' }
+  const decision = askNotPossible(checkPolicy(fromParty, agentParty(agent), 'message'), 'a device input has no screen to wait for an approval')
+  if (!decision.allowed) {
+    console.warn(`[Devices] Input at ${device} not delivered: ${decision.reason}`)
+    seen.add(event.id)
+    return
+  }
+
   // Experiment F100: the agent's speaking side answers. When it cannot, the words go the usual way below
   const speaking = (globalThis as { _speakingSides?: { handle(a: unknown, e: unknown): boolean } })._speakingSides
   if (input && agent.experiments?.speakingSide && speaking?.handle(agent, { deviceKey: event.deviceKey, deviceName: device, text: event.text, source: event.source, via: event.via, person, ...(heard ? { note: heard } : {}) })) {
@@ -63,6 +74,7 @@ export async function deliverDeviceEvent(event: DeviceEvent, agentIdOf: (address
     },
     priority: 'normal',
     fromVerified: !!person,
+    fromParty,
   } as Parameters<typeof sendFromUI>[0])
 
   seen.add(event.id)

@@ -1,10 +1,10 @@
 'use client'
 
-import { Server, KeyRound, Stethoscope, HelpCircle, Info, Compass, FlaskConical, Webhook, Globe, Store, Brain, SquareTerminal, AudioLines } from 'lucide-react'
+import { ShieldCheck, Server, KeyRound, Stethoscope, HelpCircle, Info, Compass, FlaskConical, Webhook, Globe, Store, Brain, SquareTerminal, AudioLines } from 'lucide-react'
 
 interface SettingsSidebarProps {
-  activeSection: 'hosts' | 'accounts' | 'doctor' | 'domains' | 'webhooks' | 'memory' | 'terminal' | 'voice' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace'
-  onSectionChange: (section: 'hosts' | 'accounts' | 'doctor' | 'domains' | 'webhooks' | 'memory' | 'terminal' | 'voice' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace') => void
+  activeSection: 'hosts' | 'accounts' | 'doctor' | 'approvals' | 'domains' | 'webhooks' | 'memory' | 'terminal' | 'voice' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace'
+  onSectionChange: (section: 'hosts' | 'accounts' | 'doctor' | 'approvals' | 'domains' | 'webhooks' | 'memory' | 'terminal' | 'voice' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace') => void
 }
 
 export default function SettingsSidebar({ activeSection, onSectionChange }: SettingsSidebarProps) {
@@ -26,6 +26,12 @@ export default function SettingsSidebar({ activeSection, onSectionChange }: Sett
       label: 'Doctor',
       icon: Stethoscope,
       description: 'Check agents and hosts',
+    },
+    {
+      id: 'approvals' as const,
+      label: 'Approvals',
+      icon: ShieldCheck,
+      description: 'Messages and calls waiting',
     },
     {
       id: 'domains' as const,

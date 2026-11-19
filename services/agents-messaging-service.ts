@@ -37,6 +37,7 @@ import {
   deleteAgentMessage,
 } from '@/lib/agent-messaging'
 import { sendFromUI, forwardFromUI } from '@/lib/message-send'
+import { PolicyDeniedError, policyDeniedResult } from '@/lib/policy'
 import type { Message } from '@/lib/messageQueue'
 import {
   getAgent,
@@ -261,6 +262,7 @@ export async function sendMessage(
     }
   } catch (error) {
     console.error('Failed to send message:', error)
+    if (error instanceof PolicyDeniedError) return policyDeniedResult(error.decision)
     return operationFailed('send message', (error as Error).message)
   }
 }
@@ -357,6 +359,7 @@ export async function forwardMessage(
     return { data: { message: result.message }, status: 201 }
   } catch (error) {
     console.error('Failed to forward message:', error)
+    if (error instanceof PolicyDeniedError) return policyDeniedResult(error.decision)
     return operationFailed('forward message', (error as Error).message)
   }
 }

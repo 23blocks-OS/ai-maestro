@@ -544,3 +544,66 @@ export function checkAmpRefusals(now = Date.now(), file = ampRefusalsFile()): Di
   }))
   return check('amp-refusals', 'host', items, 'No AMP messages refused in the last 24 hours', `${recent.length} AMP message(s) refused in the last 24 hours`, hint)
 }
+
+// ---------------------------------------------------------------------------
+// cross-origin (B044): browser requests the origin guard refused, or would have refused in audit mode
+// ---------------------------------------------------------------------------
+
+export interface OriginGuardStats {
+  mode: string
+  total: number
+  entries: { reason: string; path: string; method: string; origin: string | null; host: string; count: number; last: number }[]
+}
+
+export function checkCrossOrigin(stats: OriginGuardStats | null = (globalThis as any)._originGuard?.stats() ?? null): DiagnosticCheck {
+  if (!stats) return { name: 'cross-origin', status: 'pass', category: 'host', message: 'The origin guard is not running in this process' }
+  if (stats.mode === 'off') return { name: 'cross-origin', status: 'warn', category: 'host', message: 'The origin guard is off (AIMAESTRO_ORIGIN_GUARD=off): any web page in your browser can reach this host' }
+  const verb = stats.mode === 'enforce' ? 'refused' : 'would have been refused'
+  const hint = 'A page that is not an AI Maestro dashboard tried to reach this host, or a real dashboard address is missing: add a reverse proxy or other address to AIMAESTRO_TRUSTED_ORIGINS, or the host to Settings > Hosts. Mode: AIMAESTRO_ORIGIN_GUARD=audit|enforce|off.'
+  const items: DiagnosticItem[] = stats.entries.slice(0, 10).map(e => ({
+    key: `origin:${e.reason}:${e.origin}:${e.host}:${e.path}`,
+    status: 'warn' as const,
+    message: `${e.count} ${e.method} ${e.path} ${verb}: ${e.reason}, Origin ${e.origin ?? '(none)'}, Host ${e.host || '(none)'}; last at ${new Date(e.last).toISOString().slice(0, 16).replace('T', ' ')} UTC`,
+  }))
+  return check('cross-origin', 'host', items, `No cross-origin browser requests ${verb} since the server started (mode: ${stats.mode})`, `${stats.total} browser request(s) ${verb} since the server started (mode: ${stats.mode})`, hint)
+}
+
+// ---------------------------------------------------------------------------
+// policy (F042 / F118 step 1): the rules file loads, its lint warnings, and its own tests
+// ---------------------------------------------------------------------------
+
+export interface PolicyCheckInput {
+  file: string
+  version?: 1 | 2
+  rules: unknown[]
+  error?: string
+  lint: { rule: string; message: string }[]
+  tests: { test: { from: string; to: string; action?: string; expect: string }; got: string; pass: boolean; reason: string }[]
+}
+
+export function checkPolicyRules(p: PolicyCheckInput): DiagnosticCheck {
+  const items: DiagnosticItem[] = []
+  // No rules in force although a file exists: fail. The last good version still in force: warn
+  if (p.error) items.push({ key: 'policy:error', status: p.version ? 'warn' : 'fail', path: p.file, message: p.error })
+  for (const l of p.lint) items.push({ key: `policy:lint:${l.rule}`, status: 'warn', message: l.message })
+  for (const [i, t] of p.tests.entries()) {
+    if (!t.pass) items.push({ key: `policy:test:${i + 1}`, status: 'warn', message: `Test ${i + 1} (${t.test.from} -> ${t.test.to}, ${t.test.action || 'message'}) expects ${t.test.expect}, got ${t.got}: ${t.reason}` })
+  }
+  const ok = !p.version
+    ? 'No policy file on this host: everyone may reach everyone'
+    : `The policy file loads (version ${p.version}${p.version === 1 ? ', rules in order' : ''}, ${p.rules.length} rule(s), ${p.tests.length} test(s) pass)`
+  return check('policy', 'host', items, ok, `The policy file has ${items.length} problem(s)`,
+    `Fix ${p.file}. GET /api/policy shows the rules in force, the lint warnings and the test results; decisions are logged in ~/.aimaestro/policy/decisions.jsonl.`)
+}
+
+// ---------------------------------------------------------------------------
+// policy-approvals (F118 step 2): the approval store reads, and no request outlived its expiry unswept
+// ---------------------------------------------------------------------------
+
+export function checkPolicyApprovals(h: { file: string; pending: number; overdue: string[]; error?: string }): DiagnosticCheck {
+  const items: DiagnosticItem[] = []
+  if (h.error) items.push({ key: 'policy-approvals:store', status: 'fail', path: h.file, message: h.error })
+  for (const id of h.overdue) items.push({ key: `policy-approvals:overdue:${id}`, status: 'warn', message: `Request ${id} is past its expiry and still pending: the sweeper has not run (it runs once a minute in the server)` })
+  return check('policy-approvals', 'host', items, `The approval store reads (${h.pending} pending)`, `The approval store has ${items.length} problem(s)`,
+    `The store is ${h.file || '~/.aimaestro/policy/approvals.json'}. While it cannot be read, every ask is refused. GET /api/policy/requests lists the requests (and expires overdue ones).`)
+}

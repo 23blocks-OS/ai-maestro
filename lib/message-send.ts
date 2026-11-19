@@ -26,6 +26,8 @@ import { verifySignature } from '@/lib/amp-keys'
 import { canonicalStringify } from '@/lib/amp-canonical-json'
 import { getHostById, getSelfHost, getSelfHostId, isSelf } from '@/lib/hosts-config-server.mjs'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
+import { agentParty, checkPolicy, holdForApproval, resolveParty } from '@/lib/policy-check'
+import { PolicyDeniedError, type PolicyParty } from '@/lib/policy'
 import type { Message } from '@/lib/messageQueue'
 
 // Re-export Message type for consumers
@@ -101,6 +103,21 @@ function buildAMPEnvelope(message: Message): { envelope: AMPEnvelope; payload: A
   return { envelope, payload }
 }
 
+/** The other host's policy refused it (F042): pass its reason on as it is. */
+function throwIfPolicyDenied(status: number, text: string, host: string | null): void {
+  if (status !== 403) return
+  let d: { error?: string; message?: string } = {}
+  try { d = JSON.parse(text) } catch { return }
+  if (d.error === 'policy_denied' && typeof d.message === 'string') throw new PolicyDeniedError({ allowed: false, reason: d.message, host: host || undefined })
+}
+
+/** The other host's rules hold it for approval (F118): say so, with its request, instead of "delivered". */
+async function throwIfHeld(res: Response, host: string | null): Promise<void> {
+  if (res.status !== 202) return
+  const d = await res.json().catch(() => null) as { status?: string; message?: string; request?: { id: string; approvers: string[]; expiresAt: string; held: boolean } } | null
+  if (d?.status === 'held' && d.request) throw new PolicyDeniedError({ allowed: false, effect: 'ask', reason: d.message || `Held for approval on ${host}`, request: d.request, host: host || undefined })
+}
+
 // ============================================================================
 /**
  * Result of a UI/API send.
@@ -135,6 +152,10 @@ export interface SendFromUIOptions {
   fromLabel?: string
   toLabel?: string
   fromVerified?: boolean
+  /** Who is sending, for the policy (F042), when `from` is not an agent: a person at a device. Resolved from `from` otherwise */
+  fromParty?: PolicyParty
+  /** An approved request this send delivers (F118): its one pass through the policy check */
+  approved?: string
   amp?: {
     signature?: string
     senderPublicKey?: string
@@ -161,6 +182,14 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<SendOutcom
   // A pending registration neither sends nor receives. This route has no API key to stop it, and the relay below skips deliver().
   const unapproved = [fromAgent, toAgent].find(a => a && getAgent(a.agentId)?.registrationStatus === 'pending')
   if (unapproved) throw new Error(`${unapproved.alias} is waiting for the owner to approve its registration`)
+
+  // F042: this host's rules. A remote recipient's host checks its own rules again when the message arrives there
+  const fromParty = options.fromParty || (fromAgent ? agentParty({ id: fromAgent.agentId, name: fromAgent.alias, hostId: fromAgent.hostId }) : resolveParty(from))
+  const toParty = toAgent ? agentParty({ id: toAgent.agentId, name: toAgent.alias, hostId: toAgent.hostId }) : resolveParty(toIdentifier, targetHostId || undefined)
+  let decision = checkPolicy(fromParty, toParty, 'message', { approved: options.approved })
+  // An ask holds the send as it is; the answer sends it again through here with its pass (F118)
+  if (decision.effect === 'ask') decision = holdForApproval(decision, fromParty, toParty, 'message', { path: 'ui-send', payload: { ...options, approved: undefined } })
+  if (!decision.allowed) throw new PolicyDeniedError(decision)
 
   // For unresolved recipients, create minimal resolved info
   // NEVER use raw identifier as agentId - it could be a name
@@ -301,11 +330,14 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<SendOutcom
         }),
       })
       clearTimeout(timeoutId)
+      await throwIfHeld(remoteResponse, targetHostId)
       if (!remoteResponse.ok) {
         const errorText = await remoteResponse.text().catch(() => 'unknown')
+        throwIfPolicyDenied(remoteResponse.status, errorText, targetHostId)
         throw new Error(`Remote host returned ${remoteResponse.status}: ${errorText}`)
       }
     } catch (error) {
+      if (error instanceof PolicyDeniedError) throw error
       if (error instanceof DOMException && error.name === 'AbortError') {
         throw new Error(`Remote delivery to ${targetHostId} timed out`)
       }
@@ -378,6 +410,8 @@ export interface ForwardFromUIOptions {
   toAgent: string
   forwardNote?: string
   providedOriginalMessage?: Message
+  /** An approved request this forward delivers (F118) */
+  approved?: string
 }
 
 export async function forwardFromUI(options: ForwardFromUIOptions): Promise<SendOutcome> {
@@ -404,6 +438,13 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<Send
     hostId: targetHostId || undefined,
     hostUrl: undefined
   }
+
+  // F042: forwarding is a send from the forwarder to the new recipient
+  const fwdFrom = agentParty({ id: fromResolved.agentId, name: fromResolved.alias, hostId: fromResolved.hostId })
+  const fwdTo = toResolvedLocal ? agentParty({ id: toResolvedLocal.agentId, name: toResolvedLocal.alias, hostId: toResolvedLocal.hostId }) : resolveParty(toIdentifier, targetHostId || undefined)
+  let decision = checkPolicy(fwdFrom, fwdTo, 'message', { approved: options.approved })
+  if (decision.effect === 'ask') decision = holdForApproval(decision, fwdFrom, fwdTo, 'message', { path: 'ui-forward', payload: { ...options, approved: undefined } })
+  if (!decision.allowed) throw new PolicyDeniedError(decision)
 
   // Get original message
   let originalMessage: Message | null
@@ -505,11 +546,14 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<Send
         }),
       })
       clearTimeout(timeoutId)
+      await throwIfHeld(remoteResponse, targetHostId)
       if (!remoteResponse.ok) {
         const errorText = await remoteResponse.text().catch(() => 'unknown')
+        throwIfPolicyDenied(remoteResponse.status, errorText, targetHostId)
         throw new Error(`Remote host returned ${remoteResponse.status}: ${errorText}`)
       }
     } catch (error) {
+      if (error instanceof PolicyDeniedError) throw error
       if (error instanceof DOMException && error.name === 'AbortError') {
         throw new Error(`Forward to ${targetHostId} timed out`)
       }

@@ -5,6 +5,7 @@ import SettingsSidebar from '@/components/SettingsSidebar'
 import HostsSection from '@/components/settings/HostsSection'
 import AccountsSection from '@/components/settings/AccountsSection'
 import DoctorSection from '@/components/settings/DoctorSection'
+import ApprovalsSection from '@/components/settings/ApprovalsSection'
 import DomainsSection from '@/components/settings/DomainsSection'
 import WebhooksSection from '@/components/settings/WebhooksSection'
 import HelpSection from '@/components/settings/HelpSection'
@@ -19,7 +20,7 @@ import { VersionChecker } from '@/components/VersionChecker'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
-const SECTIONS = ['hosts', 'accounts', 'doctor', 'domains', 'webhooks', 'memory', 'terminal', 'voice', 'help', 'about', 'onboarding', 'experiments', 'marketplace'] as const
+const SECTIONS = ['hosts', 'accounts', 'doctor', 'approvals', 'domains', 'webhooks', 'memory', 'terminal', 'voice', 'help', 'about', 'onboarding', 'experiments', 'marketplace'] as const
 type Section = typeof SECTIONS[number]
 
 export default function SettingsPage() {
@@ -56,6 +57,7 @@ export default function SettingsPage() {
           {activeSection === 'hosts' && <HostsSection />}
           {activeSection === 'accounts' && <AccountsSection />}
           {activeSection === 'doctor' && <DoctorSection />}
+          {activeSection === 'approvals' && <ApprovalsSection />}
           {activeSection === 'domains' && <DomainsSection />}
           {activeSection === 'webhooks' && <WebhooksSection />}
           {activeSection === 'memory' && <MemorySection />}

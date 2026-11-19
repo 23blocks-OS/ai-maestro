@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
-import type { Agent, AgentSummary, AgentSession, CreateAgentRequest, UpdateAgentRequest, UpdateAgentMetricsRequest, DeploymentType } from '@/types/agent'
+import type { Agent, AgentSummary, AgentSession, CreateAgentRequest, UpdateAgentRequest, UpdateAgentMetricsRequest, DeploymentType, AgentCredential } from '@/types/agent'
 import { parseSessionName, computeSessionName, memberKind, memberPlatform } from '@/types/agent'
 import { getSelfHost, getSelfHostId, isSelf } from '@/lib/hosts-config'
 import { renameInIndex, removeFromIndex } from '@/lib/amp-inbox-writer'
@@ -10,6 +10,7 @@ import { invalidateAgentCache } from '@/lib/messageQueue'
 import { sessionExistsSync, killSessionSync, renameSessionSync } from '@/lib/agent-runtime'
 import { pruneAgentBackups } from '@/lib/agent-backup-retention'
 import { computeHash, getGenderFromHash, getAvatarUrl } from '@/lib/hash-utils'
+import { writeFileAtomicSync } from '@/lib/atomic-write.mjs'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
@@ -150,27 +151,65 @@ function backfillRuntime(agents: Agent[]): boolean {
 // mtime-based cache to avoid redundant disk reads within the same tick
 let _cachedAgents: Agent[] | null = null
 let _cachedMtimeMs: number = 0
+// B042: set while registry.json exists but cannot be read or parsed. saveAgents refuses while it is
+// set, because every write path is load-change-save and would replace all agents with the few it saw.
+let _registryError: { error: string; at: string; backup?: string } | null = null
+// The last list that parsed, served to readers while the file cannot be read
+let _lastGoodAgents: Agent[] = []
+let _lastGoodCopied = false
+
+/** Why registry.json cannot be read, or null when it can (the Doctor's agent-registry check) */
+export function getRegistryError() {
+  return _registryError
+}
+
+function markUnreadable(error: unknown, mtimeMs: number): Agent[] {
+  const message = error instanceof Error ? error.message : String(error)
+  if (_registryError?.error !== message) {
+    // Keep the bad file for the operator before anything else touches it; never deleted by us
+    let backup: string | undefined = `${REGISTRY_FILE}.corrupt-${Math.round(mtimeMs) || Date.now()}`
+    try {
+      if (!fs.existsSync(backup)) fs.copyFileSync(REGISTRY_FILE, backup)
+    } catch {
+      backup = undefined
+    }
+    _registryError = { error: message, at: new Date().toISOString(), ...(backup ? { backup } : {}) }
+    console.error(`[Agent Registry] ${REGISTRY_FILE} cannot be read (${message}); saves are refused until it is fixed.${backup ? ` Copy kept at ${backup}` : ''}`)
+  }
+  _cachedAgents = null
+  _cachedMtimeMs = 0
+  return _lastGoodAgents
+}
 
 export function loadAgents(): Agent[] {
+  let mtimeMs = 0
   try {
     ensureAgentsDir()
 
+    // No file is a fresh install: an empty list is the truth, and saving it is safe
     if (!fs.existsSync(REGISTRY_FILE)) {
       _cachedAgents = null
       _cachedMtimeMs = 0
+      _registryError = null
       return []
     }
 
     // Return cached data if file hasn't changed
     const stat = fs.statSync(REGISTRY_FILE)
+    mtimeMs = stat.mtimeMs
     if (_cachedAgents && stat.mtimeMs === _cachedMtimeMs) {
       return _cachedAgents
     }
 
-    const data = fs.readFileSync(REGISTRY_FILE, 'utf-8')
-    const agents = JSON.parse(data)
-
-    if (!Array.isArray(agents)) return []
+    let agents: Agent[]
+    try {
+      agents = JSON.parse(fs.readFileSync(REGISTRY_FILE, 'utf-8'))
+      if (!Array.isArray(agents)) throw new Error('the file does not hold a list of agents')
+    } catch (error) {
+      return markUnreadable(error, mtimeMs)
+    }
+    _registryError = null
+    _lastGoodAgents = agents
 
     // Migrate claudeArgs → programArgs (field was renamed)
     let needsMigration = false
@@ -196,24 +235,35 @@ export function loadAgents(): Agent[] {
     _cachedMtimeMs = stat.mtimeMs
     return agents
   } catch (error) {
-    console.error('Failed to load agents:', error)
-    return []
+    // stat/read failures (EACCES, EIO) are "cannot read" too, never "no agents"
+    return markUnreadable(error, mtimeMs)
   }
 }
 
 /**
- * Save agents to registry
+ * Save agents to registry. Atomic (B042): readers and crashes see the old file or the new one.
+ * Refuses, returning false, while registry.json exists but cannot be read.
  */
 export function saveAgents(agents: Agent[]): boolean {
+  if (_registryError) {
+    console.error(`[Agent Registry] Save refused: ${REGISTRY_FILE} cannot be read (${_registryError.error}). Restore it; see the Doctor.`)
+    return false
+  }
   try {
     ensureAgentsDir()
 
-    const data = JSON.stringify(agents, null, 2)
-    fs.writeFileSync(REGISTRY_FILE, data, 'utf-8')
+    // One step back for the operator: the file as it was before this process first changed it
+    if (!_lastGoodCopied && fs.existsSync(REGISTRY_FILE)) {
+      fs.copyFileSync(REGISTRY_FILE, `${REGISTRY_FILE}.last-good`)
+      _lastGoodCopied = true
+    }
+
+    writeFileAtomicSync(REGISTRY_FILE, JSON.stringify(agents, null, 2))
 
     // Invalidate cache so next loadAgents() re-reads from disk
     _cachedAgents = null
     _cachedMtimeMs = 0
+    _lastGoodAgents = agents
 
     return true
   } catch (error) {
@@ -235,6 +285,9 @@ export function saveAgents(agents: Agent[]): boolean {
  * other keys). Best-effort: failures are logged, never thrown — provisioning an
  * agent must not fail because a project dir is read-only or missing.
  */
+/** Thrown before the rename when .claude.json changed since our read (trustProjectDirectory) */
+class ConcurrentChange extends Error {}
+
 /**
  * Pre-accept Claude Code's "Do you trust the files in this folder?" prompt for
  * an agent's working directory.
@@ -253,28 +306,59 @@ export function saveAgents(agents: Agent[]): boolean {
  *
  * Only ever sets the flag to true for a directory the operator named; never
  * removes trust, and never touches any other project entry.
+ *
+ * B042: the file is shared with every running Claude Code process. It goes to the
+ * file the agent's Claude Code reads (its config-dir profile, else
+ * $CLAUDE_CONFIG_DIR, else the home folder), is never created, is refused when it
+ * is a link, not a regular file, or does not parse, and is written atomically
+ * after checking just before the rename that nobody changed it since our read.
  */
-export function trustProjectDirectory(workingDirectory?: string | null): boolean {
+export function trustProjectDirectory(workingDirectory?: string | null, credential?: AgentCredential | null): boolean {
   try {
     if (!workingDirectory || !path.isAbsolute(workingDirectory)) return false
     if (workingDirectory === '/' || workingDirectory === os.homedir()) return false
     if (!fs.existsSync(workingDirectory)) return false
+    // Claude Code keys projects by the real path of its folder (/tmp → /private/tmp on macOS)
+    const projectKey = fs.realpathSync(workingDirectory)
 
-    const claudeJson = path.join(os.homedir(), '.claude.json')
-    if (!fs.existsSync(claudeJson)) return false
+    const configDir = (credential?.kind === 'config-dir' && credential.dir) || process.env.CLAUDE_CONFIG_DIR || os.homedir()
+    const claudeJson = path.join(configDir, '.claude.json')
 
-    const config = JSON.parse(fs.readFileSync(claudeJson, 'utf-8'))
-    config.projects = config.projects || {}
-    const entry = config.projects[workingDirectory]
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let before: fs.Stats
+      try { before = fs.lstatSync(claudeJson) } catch { return false } // never create it
+      if (!before.isFile()) {
+        console.warn(`[Registry] Not pre-trusting ${projectKey}: ${claudeJson} is a link or not a regular file`)
+        return false
+      }
 
-    // Already trusted — leave the file untouched rather than rewriting a large
-    // shared config for no reason.
-    if (entry && entry.hasTrustDialogAccepted === true) return true
+      const config = JSON.parse(fs.readFileSync(claudeJson, 'utf-8'))
+      if (!config || typeof config !== 'object' || Array.isArray(config)) return false
+      config.projects = config.projects || {}
+      const entry = config.projects[projectKey]
 
-    config.projects[workingDirectory] = { ...(entry || {}), hasTrustDialogAccepted: true }
-    fs.writeFileSync(claudeJson, JSON.stringify(config, null, 2))
-    console.log(`[Registry] Pre-trusted working directory: ${workingDirectory}`)
-    return true
+      // Already trusted — leave the file untouched rather than rewriting a large
+      // shared config for no reason.
+      if (entry && entry.hasTrustDialogAccepted === true) return true
+
+      config.projects[projectKey] = { ...(entry || {}), hasTrustDialogAccepted: true }
+      try {
+        writeFileAtomicSync(claudeJson, JSON.stringify(config, null, 2), {
+          // Claude Code wrote since our read: drop ours and redo it on its content
+          beforeRename: () => {
+            const now = fs.lstatSync(claudeJson)
+            if (now.mtimeMs !== before.mtimeMs || now.size !== before.size) throw new ConcurrentChange()
+          },
+        })
+      } catch (err) {
+        if (err instanceof ConcurrentChange) continue
+        throw err
+      }
+      console.log(`[Registry] Pre-trusted working directory: ${projectKey} (in ${claudeJson})`)
+      return true
+    }
+    console.warn(`[Registry] Not pre-trusting ${projectKey}: ${claudeJson} kept changing`)
+    return false
   } catch (err) {
     // Never block agent provisioning on this — worst case the operator sees
     // the prompt once, which is the behaviour we had before.
@@ -632,12 +716,16 @@ export function createAgent(request: CreateAgentRequest): Agent {
   }
 
   agents.push(agent)
-  saveAgents(agents)
+  if (!saveAgents(agents)) {
+    throw new Error(getRegistryError()
+      ? 'The agent registry cannot be read, so new agents are not saved. Open the Doctor to fix it.'
+      : 'Could not save the agent registry')
+  }
   invalidateAgentCache()
 
   // Let detached sessions in this dir self-identify (statusline + AMP).
   writeAgentDirHint(agent.name, agent.workingDirectory)
-  trustProjectDirectory(agent.workingDirectory)
+  trustProjectDirectory(agent.workingDirectory, agent.credential)
 
   return agent
 }
@@ -1117,7 +1205,7 @@ export function linkSession(agentId: string, sessionName: string, workingDirecto
   if (saved) invalidateAgentCache()
   // Let detached sessions in this dir self-identify (statusline + AMP).
   writeAgentDirHint(agents[index].name, agents[index].workingDirectory)
-  trustProjectDirectory(agents[index].workingDirectory)
+  trustProjectDirectory(agents[index].workingDirectory, agents[index].credential)
   return saved
 }
 

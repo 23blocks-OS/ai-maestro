@@ -5,6 +5,8 @@
  * Routes are thin wrappers that call these functions.
  */
 
+import { agentParty, checkPolicy, holdForApproval } from '@/lib/policy-check'
+import { policyDeniedResult } from '@/lib/policy'
 import { getAgent } from '@/lib/agent-registry'
 import { getRuntime } from '@/lib/agent-runtime'
 import { isPaneAtBareShell, BARE_SHELL_MESSAGE } from '@/lib/pane-occupant'
@@ -174,7 +176,9 @@ export const CHAT_NOT_SUBMITTED_MESSAGE =
 
 export async function sendChatMessage(
   agentId: string,
-  message: string
+  message: string,
+  /** An approved held message this send delivers (F118): its one pass through the policy check */
+  opts: { approved?: string } = {}
 ): Promise<ServiceResult<Record<string, unknown>>> {
   if (!message || typeof message !== 'string') {
     return missingField('message')
@@ -184,6 +188,13 @@ export async function sendChatMessage(
   if (!agent) {
     return notFound('Agent', agentId)
   }
+
+  // F042: like the dashboard chat, the sender is a person this host cannot name
+  const from = { kind: 'person' as const }
+  const to = agentParty(agent)
+  let decision = checkPolicy(from, to, 'message', { approved: opts.approved })
+  if (decision.effect === 'ask') decision = holdForApproval(decision, from, to, 'message', { path: 'chat', payload: { agentId, sessionName: agent.name || agent.alias, message } })
+  if (!decision.allowed) return policyDeniedResult(decision)
 
   const sessionName = agent.name || agent.alias
   if (!sessionName) {

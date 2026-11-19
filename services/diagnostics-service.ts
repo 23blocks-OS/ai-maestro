@@ -26,17 +26,19 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { getHosts, getSelfHostId, isSelf } from '@/lib/hosts-config'
-import { loadAgents } from '@/lib/agent-registry'
+import { loadAgents, getRegistryError } from '@/lib/agent-registry'
 import { agentBackupsDir } from '@/lib/agent-backup-retention'
 import { hasChannel, isChannelVerified } from '@/lib/channel-bridge.mjs'
 import { tmux } from '@/lib/tmux-safe.mjs'
 import { loadKeyPair } from '@/lib/amp-keys'
 import { deriveDidKey } from '@/lib/amp-did'
 import { type ServiceResult, invalidRequest, runtimeConflict, serviceError } from '@/services/service-errors'
+import { getPolicy, type PolicyReport } from '@/services/policy-service'
+import { approvalsHealth } from '@/lib/policy-approvals'
 import {
   type DiagnosticStatus, type DiagnosticCheck, type DiagnosticCategory,
   checkAgentFolders, checkNameHints, checkAmpMailboxes, checkGhostAgents, checkOutsideAgents,
-  checkDeletedAgentBackups, checkAppVersion, checkClaudeHook, checkAmpScripts, checkAgentPrograms, checkAmpRefusals, readAppVersion, runningAppVersion,
+  checkDeletedAgentBackups, checkAppVersion, checkClaudeHook, checkAmpScripts, checkAgentPrograms, checkAmpRefusals, checkCrossOrigin, checkPolicyRules, checkPolicyApprovals, readAppVersion, runningAppVersion,
   liveTmuxNames, ghostSavers, listDeletedAgentBackups, dirBytes, formatBytes,
 } from '@/services/doctor-checks'
 
@@ -150,6 +152,18 @@ function checkAgentRegistry(): DiagnosticCheck {
     // Count agents
     const agents = loadAgents()
     const activeAgents = agents.filter(a => !a.deletedAt)
+
+    // B042: the file is there but does not parse. Saves are refused until it is fixed.
+    const unreadable = getRegistryError()
+    if (unreadable) {
+      return {
+        name: 'agent-registry',
+        status: 'fail',
+        message: `${registryFile} cannot be read (${unreadable.error}). AI Maestro will not save agent changes until it is fixed.`,
+        hint: `Repair the file, or put back registry.json.last-good or a registry.backup.*.json from the same folder. Saving resumes once it reads.${unreadable.backup ? ` The unreadable file was copied to ${unreadable.backup}.` : ''}`,
+        details: { path: registryFile, ...unreadable, agentsInMemory: agents.length },
+      }
+    }
 
     return {
       name: 'agent-registry',
@@ -456,6 +470,9 @@ async function buildReport(): Promise<ServiceResult<DiagnosticReport>> {
     ['amp-scripts', () => checkAmpScripts(home, repoDir)],
     ['agent-programs', () => checkAgentPrograms(agents, home)],
     ['amp-refusals', () => checkAmpRefusals()],
+    ['cross-origin', () => checkCrossOrigin()],
+    ['policy', () => checkPolicyRules(getPolicy().data as PolicyReport)],
+    ['policy-approvals', () => checkPolicyApprovals(approvalsHealth())],
   ] as [string, () => DiagnosticCheck | Promise<DiagnosticCheck>][]).map(async ([name, run]): Promise<DiagnosticCheck> => {
     // One broken check must not take the report down
     try { return await run() } catch (error: any) {

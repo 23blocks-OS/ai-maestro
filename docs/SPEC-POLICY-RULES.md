@@ -1,6 +1,6 @@
 # Spec: policy rules and governance
 
-**Status:** Phase 1 is PR #113 (F042, 0.106.222). Phases 2a and 2b shipped in 0.106.229 (F118 step 1), with the recommendations of section 14 for questions 1, 2, 3 and 9; section 16 says what was built and what was left out. Phase 4 (approvals for `ask`) shipped in 0.106.230 (F118 step 2), with the recommendations of section 14 for questions 4 and 7; section 17 says what was built, the signed-answer contract for the app, and the plan for moving F033 and F037 into the store. Phases 2c, 3, 5 and 6 are proposals. Backlog: F042 (who may reach whom), F118 (governance actions and approvals), F066 (audit trail), F067 (agent governance profiles), F043 (federation between people).
+**Status:** Phase 1 is PR #113 (F042, 0.106.222). Phases 2a and 2b shipped in 0.106.229 (F118 step 1), with the recommendations of section 14 for questions 1, 2, 3 and 9; section 16 says what was built and what was left out. Phase 4 (approvals for `ask`) shipped in 0.106.230 (F118 step 2), with the recommendations of section 14 for questions 4 and 7; since 0.106.233 an ask is an AMP quarantine on the wire. Section 17 says what was built and the plan for moving F033 and F037 into the store. Phases 2c, 3, 5 and 6 are proposals. Backlog: F042 (who may reach whom), F118 (governance actions and approvals), F066 (audit trail), F067 (agent governance profiles), F043 (federation between people).
 **Goal:** one small rules engine that answers two questions with a reason: "may A do this to B?" and "who must approve it?". The same engine serves messages and calls (F042), agent actions (device, wake, task) and governance (configuration changes, permission modes, secrets).
 
 Examples use neutral names: the company Acme, the people Alice and Bob, the agents `payroll`, `dev` and `support`, the hosts `host-a` and `host-b`.
@@ -215,8 +215,8 @@ Every check returns:
 - `rules` lists every rule that decided, not only the first (Cedar returns all determining policies).
 - `audit` lists the rules in audit mode that would have changed the answer: "Would be blocked by `x` (audit only)".
 - `policy` names the hash of each layer, so a log line says exactly which rules were in force.
-- A denial stays a 403 `policy_denied` with `message` (phase 1 shape). `details` adds `ruleIds`. `details.rule` (the number) stays for version 1 files.
-- An `ask` is a 202 `approval_pending` with the request id, the approvers and the reason. The caller does not retry; it waits for the answer or the expiry.
+- A denial is a 403 `forbidden` (AMP 08) with the plain reason in `message` (`policy_denied` until 0.106.233). `details` adds `ruleIds`. `details.rule` (the number) stays for version 1 files.
+- An `ask` is an AMP policy hold: 202 with `status: "quarantined"` and the `quarantine` object (section 17.3). The caller does not retry; it waits for the decision or the expiry.
 - `GET /api/policy/check` keeps its phase 1 shape and adds the same fields. It still asks the hosts of both parties (`localOnly=1` between hosts).
 
 ## 6. The decision log
@@ -333,7 +333,7 @@ There is no common place that says who may approve what. Each approval card has 
 | 2b | Version 2: deny, ask, allow; `except`; version 1 compiled at load; property test; converter in the Doctor; audit mode | done (0.106.229), except the converter |
 | 2c | Actions `device`, `wake`, `task`, in that order, each at its one place | M |
 | 3 | Settings > Policy editor, matrix, test box, "why" links, what-if replay, `policy.edit` | M |
-| 4 | Ask with approvals: one request store, approvers, proof, expiry and escalation, answers once / for a time / always, held messages | done (0.106.230, section 17), except call and coordinator escalation and the app's signed answers |
+| 4 | Ask with approvals: one request store, approvers, proof, expiry and escalation, answers once / for a time / always, held messages | done as AMP quarantine (0.106.230, wire in 0.106.233, section 17): approve releases one message once; "for a time" and "always" move to step 3 as policy edits; approval by signed message, provider notices and escalation are next |
 | 5 | Governance actions (section 4.3), the agent layer from F067 profiles, closed teams as rules, `rel:` subjects | L |
 | 6 | The organization layer copied to every host, hashes in Settings, Doctor drift check, last good version | M |
 
@@ -405,19 +405,24 @@ Code: `lib/policy.ts` (validation, the version 1 compiler, the evaluator `decide
 - **Doctor `policy` check:** fail when a file exists but no rules apply (broken, never loaded); warn when the last good version is in force, for each lint warning and for each failing test.
 - **Not built:** the converter for version 1 files (`GET /api/policy` shows a version 1 file as version 2 rules, which can be copied into a version 2 file), the what-if replay, layers other than the host.
 
-## 17. As built: phase 4, approvals (0.106.230, F118 step 2)
+## 17. As built: phase 4, ask = AMP quarantine (0.106.230, wire changed in 0.106.233, F118 step 2)
 
-Juan did not answer the open questions, so this step takes the recommendations of section 14 (questions 4 and 7) and the ones in the task. Code: `lib/policy-approvals.ts` (the store, approvers, answers, signatures, the "always" edit), `lib/policy-check.ts` (`holdForApproval`, `askNotPossible`, grants and passes inside `checkPolicy`, the sweeper), `services/policy-service.ts` (list, answer, delivery of held messages, telling the sender), `components/settings/ApprovalsSection.tsx`. Tests: `tests/policy-approvals.test.ts`.
+An `ask` is an **AMP policy hold**: a quarantine entry with `reason: "policy"`. Everything on the wire follows the AMP spec: [05 Routing, Status Values](https://github.com/agentmessaging/protocol/blob/main/spec/05-routing.md#status-values), [07 Security, Message Quarantine and Policy Holds](https://github.com/agentmessaging/protocol/blob/main/spec/07-security.md#message-quarantine), [08 API, Quarantine Management and Error Codes](https://github.com/agentmessaging/protocol/blob/main/spec/08-api.md). 07 lets a provider override verdicts per rule id through policy; our rules file is that policy: `deny` is a block, `ask` is a quarantine. The first version of this step (0.106.230) used its own words (`approval_pending`, `held`, `refused`, `apr-` ids, `/api/policy/requests`, a signed string of its own); 0.106.233 replaced them with AMP's.
 
-### 17.1 The request store
+Code: `lib/policy-approvals.ts` (the store, approvers, approve / reject), `lib/policy-check.ts` (`holdForApproval`, `askNotPossible`, the pass inside `checkPolicy`, the sweeper), `lib/policy.ts` (`policyDeniedResult`, the wire shapes), `services/policy-service.ts` (the quarantine API, delivery of a released message, telling the sender), `components/settings/ApprovalsSection.tsx`. Tests: `tests/policy-approvals.test.ts`.
 
-- One store per host: `~/.aimaestro/policy/approvals.json`, mode 600, written atomically (`lib/atomic-write.mjs`). A request has: `id` (`apr-…`), `created`, `host`, `action`, `from` and `to` (labels), `rules` (the ask rule ids), `reason`, `approvers` (resolved, 17.2), `unresolved` (patterns that named nobody, with why), `proof`, `expiresAt`, `state` (`pending`, `approved`, `refused`, `expired`), `answer` (`once` / `for` / `always` / `refuse`, `for`, `until`, `by`, `how`, `keyId`, `at`, `exceptAdded`), `held` (the path that holds the message) and `delivery` (when, ok, the error).
-- A held message's payload is in its own file, `~/.aimaestro/policy/held/<id>.json`, mode 600. It is never in the store or in the decision log. It is removed when the request is refused or expires, and read and removed in one step when it is approved, so it is delivered at most once (a crash between that step and the delivery loses it, and the request says "not delivered").
-- Answered and expired requests are kept 30 days; grants until they end.
-- **The host that decided keeps the request** (section 10): the recipient's host for a delivery (its rules ask before it delivers), the sender's host for a send (its rules ask before it sends). A message through two hosts can wait on either, or on both, one after the other.
-- **A person on another host** sees every request: `GET /api/policy/requests` asks each peer for its own (`?localOnly=1`, so two hosts never ask each other in a loop) and lists them with their `host`. The dashboard posts the answer to its own host with `host` set, and that host passes it to the owning host's `POST /api/policy/requests/:id/answer`. A phone can post to the owning host directly.
+### 17.1 The quarantine store
 
-### 17.2 Approvers
+- One store per host: `~/.aimaestro/policy/quarantine.json`, mode 600, written atomically (`lib/atomic-write.mjs`).
+- An entry has the AMP 07 metadata: `quarantine_id` (`qtn_<unix-ts>_<hex>`), `reason: "policy"`, `rules_triggered` (the ask rule ids), `reason_text` (the plain reason), `reviewers` (AMP addresses of the approvers: `p-<id>@<domain>` for a person, `<name>@<domain>` for an agent; `person:*` has no address and is not listed), `quarantined_at`, `expires_at`, `status`. `severity` is left out, as 07 allows for reason `policy`.
+- AI Maestro's own fields: `host`, `action`, `from` and `to` (labels), `approvers` (the reviewers with names and the rule pattern each came from, 17.2), `unresolved`, `proof`, `sender` (the sender's AMP address, for the outcome notice), `held` (the path that holds the message and, when there is one, its AMP `message_id`, `from`, `to`, `subject`), `requests` (the approval request notice sent to each reviewer: `to`, `id`, `at`; not shown by the API), `decided` (`by`, `at`, `via`: `rest` or `signed-message`, and for a signed decision the signed `answer`) and `delivery`.
+- `status` is exactly `pending` → `approved` | `rejected` | `expired`, one way (07 Quarantine States).
+- A quarantined message's payload is in its own file, `~/.aimaestro/policy/quarantine/<id>.json`, mode 600, never in the store or the decision log. It is removed when the entry is rejected or expires, and read and removed in one step when it is approved, so it is delivered at most once (a crash between that step and the delivery loses it, and the entry says "not delivered").
+- Decided and expired entries are kept 30 days.
+- **The host that decided keeps the entry** (section 10): the recipient's host for a delivery, the sender's host for a send.
+- The store of 0.106.230 (`approvals.json`, `held/`) is not read any more. Its requests expired 30 minutes after they were made.
+
+### 17.2 Approvers (AMP `reviewers`)
 
 | Pattern | Resolves to |
 |---|---|
@@ -426,62 +431,104 @@ Juan did not answer the open questions, so this step takes the recommendations o
 | `person:<id>` | That person |
 | `person:*` | Any person (F037's rule, written explicitly) |
 | `agent:<name>` | That agent, only because the rule names it. Never the agent that asked |
-| `role:`, `org:` (and `team:`, `host:`, `*`, `agent:*`) | Not resolved yet. The file still loads; lint reports `approver`; a request that only they could answer is refused: "…, but no approver could be found (role:x: not supported yet), so it is refused" |
+| `role:`, `org:` (and `team:`, `host:`, `*`, `agent:*`) | Not resolved yet. The file still loads; lint reports `approver`; an ask that only they could approve is a block: "…, but no approver could be found (role:x: not supported yet), so it is refused" |
 
-`rel:` relations need the target in this host's registry, so they resolve on the recipient's host, which is where a delivery rule should live anyway. Any approver of any deciding rule may answer (not one per rule).
+07 Policy Holds, reviewers rule 3: the sender never decides on its own entry (403 `forbidden`).
 
 ### 17.3 The send paths
 
 | Path | Ask becomes |
 |---|---|
-| AMP route (`/api/v1/route`, `routeMessage`) | Held. The route has checked the sender, its signature and found the recipient; it stores what the rest of the route needs (`RoutedDelivery`) and answers 202. On approval `deliverRouted` runs the same delivery code the route runs right after its check (person mailbox, mesh forward, local delivery, relay queue). A forward to a host that holds it answers 202 there, and the sending host passes that on |
-| Dashboard and API sends (`sendFromUI`, `forwardFromUI`, through `POST /api/messages` and the agent message routes) | Held; the options of the send are the payload. On approval the same function runs again with `approved: <id>` |
-| Dashboard chat (`server.mjs` `sendChatMessage`) and REST chat (`agents-chat-service`) | Held (the chat shows the reason in place of "sent"). On approval the text goes through `__deliverChatLine` (the server's chat path) or, without the server, the REST chat path, with the pass |
-| Calls (`POST /api/calls`) | Refused at once (403 `policy_denied`) with a request in `details.request`. An approval lets the same caller call the same callee: once within the rule's expiry window, or until the end of a "for" answer |
+| AMP route (`/api/v1/route`, `routeMessage`) | Quarantined. The route has checked the sender, its signature and found the recipient; it stores what the rest of the route needs (`RoutedDelivery`) and answers 202. On approval `deliverRouted` runs the same delivery code the route runs right after its check ("routes the message as if it had just arrived", 08). A forward to a host that quarantines it answers 202 there, and the sending host passes that on |
+| Dashboard and API sends (`sendFromUI`, `forwardFromUI`) | Quarantined; the options of the send are the payload. On approval the same function runs again with `approved: <quarantine id>` |
+| Dashboard chat (`server.mjs` `sendChatMessage`) and REST chat (`agents-chat-service`) | Quarantined. The chat socket answers `chat:quarantined` (the reason and the entry) and the bubble shows "Held for approval" with no Retry; `chat:quarantineOutcome` (`quarantineId`, `delivered`, `rejected`, `expired` or `failed`) updates it. These are the dashboard's own socket events, not AMP |
+| Calls (`POST /api/calls`, not AMP) | Refused at once: 403 `forbidden` with `details.quarantine_id` and `details.expires_at`. Same store, ids and states. Approving lets the same caller call the same callee once, within the rule's expiry window |
 | Device input (`lib/device-events.ts`) | Refused: "…, which is not possible here (a device input has no screen to wait for an approval)" |
-| Federation (`/api/v1/federation/deliver`) | Refused: "… not possible here (a message from another provider cannot wait for an approval yet)". F043's held mail will be the ask path there |
+| Federation (`/api/v1/federation/deliver`) | Refused: "… not possible here (a message from another provider cannot wait for an approval yet)" |
 
-The answer to the sender of a held message: 202 `{ error: "approval_pending", status: "held", message: "Held for approval by Alice (request apr-…, expires 2026-11-20 14:30 UTC): …", request: { id, approvers, expiresAt, held: true } }`. `amp-send` already treats 202 as sent and prints `Status: held`; it does not print `message` yet (an upstream change in agentmessaging/claude-plugin). The agent learns the outcome anyway: on approval, refusal or expiry an agent sender gets a notification from AI Maestro in its inbox ("Your message to agent:payroll was refused by …"). A person sender sees the request in Settings > Approvals.
+**The route response** (05 Status Values, policy hold): HTTP 202
 
-**Exactly once.** A path that checks again on the replay (dashboard sends, chat) gets one pass: `checkPolicy(…, { approved: id })` allows the ask only if that request is approved, was answered less than 5 minutes ago, has the same parties and action, and its pass is unused; the pass is then used. The AMP route replays after its check, so it needs no pass. A second answer to the same request gets 409.
+```json
+{
+  "id": "<message id>",
+  "status": "quarantined",
+  "quarantine": { "quarantine_id": "qtn_…", "reason": "policy", "rules_triggered": ["payroll-asks"], "reason_text": "Held for approval by Alice (…): …", "reviewers": ["p-alice@acme.aimaestro.local"], "expires_at": "…" },
+  "message": "Held for approval by Alice (quarantine qtn_…, expires 2026-11-20 14:30 UTC): …"
+}
+```
 
-### 17.4 Answers and proof
+`message` repeats the plain reason for the dashboard. 07 allows the sender to see `reason_text`, `rules_triggered` and `reviewers` for a policy hold (a policy is not a secret detector).
 
-`POST /api/policy/requests/:id/answer` with `{ answer, for?, by?, keyId?, signature?, signedAt?, host? }`:
+**A deny** is a block: 403 `{ error: "forbidden", message: <the plain reason>, details: { rule, ruleIds, effect, host } }` (08 Error Codes). A host reads a peer's 403 `forbidden` (or the `policy_denied` of a host before 0.106.233) as final, never retried.
 
-- `once`: a held message is delivered; a call gets a one-use grant for the rule's expiry window.
-- `for` (`"30m"`, `"1h"`, `"7d"`, at most 30 days): a grant `{ from, to, action, rules, until }`. `checkPolicy` consults grants after the rules: a grant turns an ask covered by the same rule ids into an allow and never opens a deny. A "why" question (`GET /api/policy/check`) uses no grant. A held message is also delivered.
-- `always`: an `except` entry `{ from: [<sender>], to: [<target>], actions: [<action>], note: "approved always by <by> on <date> (request <id>)" }` goes into each ask rule that decided, in this host's file, written atomically after the new file validates, and logged as `policy.edit`. Refused, and the request stays pending, when the file is version 1 ("Convert it to version 2 first"), when the sender cannot be named (a dashboard person), or when the rule is gone. Exceptions may now carry `note`.
-- `refuse`: never needs a signature.
-- `by` is what the person typed; it is recorded as `"<by> (unverified)"`, or `"an unverified person"`. Whoever asked cannot answer, and `by: "agent:x"` must be one of the approvers.
+**Exactly once.** A path that checks again on the release (dashboard sends, chat) gets one pass: `checkPolicy(…, { approved: id })` allows the ask only if that entry is approved, was approved less than 5 minutes ago, has the same parties and action, and its pass is unused. The AMP route releases after its check, so it needs no pass. A second decision gets 409 `quarantine_decided`.
 
-**Signed proof (`"proof": "signed"`).** A dashboard click is refused with 403 `signature_required` and a plain reason. The server checks a signature from a device key that a person paired (spec 13 keys: `lib/person-devices-registry`, looked up with `personKeyFor`):
+### 17.4 The quarantine API (08 Quarantine Management)
 
-- The app signs, with the device's Ed25519 key (the same key it signs messages with), the UTF-8 string
-  `aimaestro-approval/1|<host>|<request id>|<answer>|<for or empty>|<signedAt>`,
-  where `<host>` is the request's `host`, `<answer>` is `once`, `for`, `always` or `refuse`, `<for>` is the duration text exactly as sent (empty unless the answer is `for`), and `<signedAt>` is RFC 3339, the same text as in the body.
-- It posts `{ answer, for?, keyId, signature (base64, 64 bytes), signedAt }` to the owning host.
-- The host accepts it when the key exists and is `active`, belongs to a person who is an approver of the request (or the approvers include `person:*`), the signature verifies over that string, and `signedAt` is within 5 minutes of the server clock. The answer is then recorded as `by: person:<id>`, `how: signed`, with the `keyId`. One answer per request, so no nonce is needed.
-- **Missing on the app side:** the app has no approvals screen, does not handle the `approval` push, and does not sign answers. It must: list `GET /api/policy/requests?state=pending` on each host it is connected to (show those whose approvers name the person), open a request from the push's `data.requestId` and `data.hostId`, build and sign the string above, and post the answer. Until then a `signed` rule can only be refused, or answered by a client that signs.
+Under the AMP provider prefix, also in headless mode:
 
-### 17.5 Expiry, escalation, records, Doctor
+- `GET /api/v1/quarantine?status=pending&limit=20` — `{ items, count, total }`. `status` defaults to `pending`; `limit` is 1 to 100. This host's entries and every peer's: each peer is asked with `localOnly=1` (AI Maestro's own parameter), so two hosts never ask each other in a loop; peers that do not answer are in `unreachable`.
+- `GET /api/v1/quarantine/{id}[?host=]` — one entry; for a message held at the AMP route, `message: { envelope, payload }` while it is pending.
+- `POST /api/v1/quarantine/{id}/approve` — releases the message, once: 200 `{ quarantine_id, status: "approved", message_id, delivered }`. A call entry answers `message_id: null, delivered: false` (the next identical call goes through).
+- `POST /api/v1/quarantine/{id}/reject` — 200 `{ quarantine_id, status: "rejected" }`. The message is never delivered.
+- Errors: 410 `quarantine_expired`, 409 `quarantine_decided`, 404 `not_found`, 400 `invalid_field` (a bad id, status or limit), 403 `forbidden` (the sender, an agent that is not a reviewer, or a `signed` rule).
+- Body of approve and reject: `{ by?, host? }`. `host` sends the decision to the host that keeps the entry. `by` is what the person typed, recorded as `"<by> (unverified)"`, or `"an unverified person"` (no login). There are no other answers: "for a time" and "always" are rule changes, not approvals, and come back as policy edits in F118 step 3.
 
-- Expiry: the rule's `"expires"` (`"30m"`, `"2h"`, `"1d"`; only on an ask rule), else 30 minutes; the shortest of the deciding rules. An expired request is refused: its held message is dropped, the decision log gets `expired`, and an agent sender is told. The server sweeps once a minute and once at startup; listing and answering sweep too.
-- Escalation in this step: one push, type `approval`, to the paired devices of the approvers that are people, when the request is created: title "Approval needed", body "<from> wants to <action> <to>. Open AI Maestro to answer.", `data { type: approval, requestId, hostId }`. It goes to devices that opted in to `approval`, or to `needs_you` (apps from before this type). `person:*` notifies every such device. **Next steps, not built:** ringing the approver (`call-a-person`) when the push gets no answer, then the coordinator agent; reminders before expiry.
-- Records: the decision log gets one line per `ask`, `answer` (with `by` and `proof`), `expired`, `delivered` and `policy.edit` (with the request id), never message text.
-- Doctor `policy-approvals`: fail when the store cannot be read (every ask is then refused, and nothing overwrites the file); warn for each pending request more than a minute past its expiry (the sweeper did not run).
+**`"proof": "signed"`.** An approve from the dashboard is refused (403 `forbidden`, with a plain reason). Rejecting needs no proof. Only a signed reply (17.8) approves it.
+
+### 17.5 Expiry, notifications, records, Doctor
+
+- Expiry: the rule's `"expires"` (`"30m"`, `"2h"`, `"1d"`; only on an ask rule), else 30 minutes; the shortest of the deciding rules. 07 lets a policy hold have a shorter TTL than 72 hours and puts the time in `expires_at`. An expired entry is not delivered, the decision log gets `expired`, and an agent sender is told. The server sweeps once a minute and once at startup; listing and deciding sweep too.
+- Notifications: AMP provider notices (17.8): an `approval_request` to each reviewer when the entry is made, and a `quarantine_outcome` to the sender (agent or person) when it is approved, rejected or expires. These replace the unsigned "maestro" inbox message of 0.106.233. People reviewers also get a push, type `approval`, on their paired devices, `data { type: approval, quarantine_id, hostId }`.
+- Records: the decision log gets one line per `quarantined`, `approved`, `rejected` (with `by`), `expired` and `delivered`, with the entry id, never message text.
+- Doctor `policy-approvals`: fail when the store cannot be read (every ask is then refused, and nothing overwrites the file); warn for each pending entry more than a minute past its expiry.
 
 ### 17.6 Not in this step: moving F033 and F037 into the store
 
 The store is ready to take other kinds, but secret requests and SQL write approvals keep their own files and cards for now. Plan:
 
-1. **SQL writes (F037)** first, because it is an approval tied to one exact statement with an expiry, the same shape as a held message. Add an action `sql.write` (section 4.3) and a default rule `{ effect: ask, actions: [sql.write], approvers: [person:*] }` that reproduces today's "any person", so nothing changes until someone edits it. The F037 approval step calls `holdForApproval` with a held payload of kind `sql` (statement hash, database, the agent), and the card answers through `POST /api/policy/requests/:id/answer`. Its own store is read once at startup and pending items are copied in; then it is removed.
+1. **SQL writes (F037)** first, because it is an approval tied to one exact statement with an expiry, the same shape as a held message. Add an action `sql.write` (section 4.3) and a default rule `{ effect: ask, actions: [sql.write], approvers: [person:*] }` that reproduces today's "any person", so nothing changes until someone edits it. The F037 approval step calls `holdForApproval` with a held payload of kind `sql` (statement hash, database, the agent), and the card decides through `POST /api/v1/quarantine/{id}/approve` or `/reject`. Its own store is read once at startup and pending items are copied in; then it is removed.
 2. **Secret requests (F033)**: a request for a secret is not a message to hold; it asks a person to store a value. Keep its flow (the person types the secret into the dashboard, never into the store), and record only the approval part in the store as action `secret.grant` with no payload, so that F065's manager approval and proof rules apply. The value never enters the store or the log.
 3. One card list: Settings > Approvals shows every kind, and the existing cards become views of store entries. The phone gets one list.
 4. Each move has its own test that the old behaviour (who may approve, expiry) is unchanged with no rules file.
 
 ### 17.7 Limits
 
-- No login: an unsigned answer proves nothing about who clicked. Only `"proof": "signed"` does.
-- A held message keeps the envelope it had when it was held; its time is the time it was sent, not the time it was approved.
-- Grants are matched on labels (`agent:dev@host-a`); an agent that moves to another host is a new party for its old grants.
+- No login: a dashboard decision proves nothing about who clicked. A signed reply (17.8) does.
+- 08 says the quarantine endpoints need the tenant admin or a reviewer. AI Maestro has no app-level login by design (the network is the trust boundary), so anyone on the network can list and decide; a reviewer-only list needs reviewer authentication.
+- A quarantined message keeps the envelope it had when it was quarantined; its time is the time it was sent, not the time it was approved.
+- A call pass is matched on labels (`agent:dev@host-a`); an agent that moves to another host is a new party.
+
+### 17.8 Provider notices and approval by signed message (0.106.235)
+
+Spec: [07 Security, Policy Holds and Provider Notices](https://github.com/agentmessaging/protocol/blob/main/spec/07-security.md#policy-holds-normative), [13.6 rule 5](https://github.com/agentmessaging/protocol/blob/main/spec/13-person-principals.md#136-authority-normative), [13.3](https://github.com/agentmessaging/protocol/blob/main/spec/13-person-principals.md#133-sending-as-a-person-normative), [03 Reserved names](https://github.com/agentmessaging/protocol/blob/main/spec/03-registration.md), [06 Provider Authentication](https://github.com/agentmessaging/protocol/blob/main/spec/06-federation.md#provider-authentication), [08 Provider Info](https://github.com/agentmessaging/protocol/blob/main/spec/08-api.md). Code: `lib/provider-key.ts`, `services/provider-notices.ts`, `answerProviderMessage` in `services/policy-service.ts`, the `_provider` branches of `routeMessage` and `deliverFederated` in `services/amp-service.ts`. Tests: `tests/provider-notices.test.ts`.
+
+**The provider key.** Each host has an Ed25519 provider key, `~/.aimaestro/amp/provider-key.pem` (mode 600, made on first use). It is published as `public_key` and `fingerprint` in `/api/v1/info` and `/.well-known/agent-messaging.json`, which also list `quarantine:policy` (08) once the key exists.
+
+**`_provider` is reserved** (03, 07 rule 1). `POST /v1/register` with that name answers 409 `name_taken`; the registry refuses it too. A message to `_provider` is for the provider: it is never delivered to anyone.
+
+**A notice** is an ordinary AMP message from `_provider@<tenant>.aimaestro.local`, `payload.type: "system"`, `payload.context.provider: "aimaestro.local"` and `payload.context.amp_notice`, signed with the canonical signature (07 Signature Format) and the provider key. It goes through the normal route as this host's own traffic, so it reaches an agent's inbox or a person's mailbox (13.5) on whichever host holds them. The rules file does not apply to a verified notice (the provider is not a principal the rules are about).
+
+- `approval_request`, to each reviewer when the entry is made. `payload.context`: `provider`, `amp_notice`, `quarantine_id`, `reason_text`, `rules_triggered`, `held` (`from`, `to`, `subject` of the held message; left out for a call) and `expires_at`. The id the reviewer's host gives the notice is that reviewer's approval request, kept in the entry's `requests`.
+- `quarantine_outcome`, to the sender on approved, rejected or expired, with `in_reply_to` the held message's id. `payload.context`: `provider`, `amp_notice`, `quarantine_id`, `status`, `reason_text`, and `decided_by` (the reviewer's address) only for a signed decision.
+
+**Checking a notice** (07 rule 4). A message from `_provider@…` counts as a verified notice only when `from` ends with `.` + `payload.context.provider`, that provider is the one expected, and the signature verifies with the provider key of the host that wrote it: this host's own key, or for one forwarded by a mesh peer, the key that peer publishes in its `/api/v1/info` (cached an hour). A key sent along with the message (`sender_public_key`) is never used, and `_provider` is never resolved. A notice that fails is refused (403 `invalid_signature`), as every bad signature is on the route; one whose key cannot be found is delivered `untrusted`. From another provider (`/api/v1/federation/deliver`), a `_provider` notice is checked with the provider key that just authenticated the request (found by discovery), and only when `payload.context.provider` names that provider.
+
+**Approval by signed message** (07 "Approval by message", 13.6 rule 5). A reviewer sends a message to `_provider@<tenant>.aimaestro.local` with `in_reply_to` = the id of its approval request and `payload.context` `{ decision: "approve" | "reject", quarantine_id }`; a person also signs `sent_at` and `nonce` (13.3, checked by the route exactly as for any person's message). The provider applies it only when:
+
+1. the route verified it for its sender (an agent's registered key; for a person steps 1 to 5 of 13.3);
+2. `from` is the reviewer the request was sent to;
+3. `in_reply_to` is that request, and `quarantine_id` is the entry it names;
+4. the entry is `pending` and not expired, the sender is a listed reviewer and not the sender of the held message.
+
+Then it does what `POST …/approve` or `/reject` does (delivery once, chat, outcome notice) and keeps the signed answer in `decided.answer` (`id`, the signed fields, `signature`, `key_id`). The route answers 200 `{ id, status: "delivered", method: "local" }`. Refusals: 400 `invalid_field` (no `decision` in `payload.context`: a decision is never read from the text, so "ok" is refused; or a bad `quarantine_id`), 400 `missing_field` (no `in_reply_to`), 403 `forbidden` (not verified, another reviewer's request, another entry, not a reviewer, the sender itself), 404 `not_found`, 409 `quarantine_decided`, 410 `quarantine_expired`. The entry lives on the host whose rules asked: a host that does not know the request passes the message to each peer until one does (a peer never passes it on again). A REST body can never carry a signed decision.
+
+An agent answers with `amp-send.sh _provider@<tenant>.aimaestro.local "Re: approval" "approve" --reply-to <notice id> --context '{"decision":"approve","quarantine_id":"qtn_…"}'`.
+
+**Gaps in the spec, and what AI Maestro does:**
+
+- A mesh is one provider name (`aimaestro.local`) with one key per host. 07 assumes one key per provider; AI Maestro checks a notice against the key of the host that forwarded it, and the `.local` name has no DNS or well-known discovery of its own.
+- `/api/v1/info` says `provider: "<tenant>.aimaestro.local"` while notices say `aimaestro.local` (07 rule 4 needs `from` to end with `.` + provider, so the tenant cannot be in it). The info field is left as it was.
+- 07 does not say what the route answers for a message to `_provider`, nor the error codes of a refused answer; AI Maestro uses the 08 quarantine and validation codes above.
+- A call or a chat message has no AMP message id, so its outcome notice has no `in_reply_to`; a call's approval request has no `held`.
+- 07 does not say how a reviewer finds which provider instance keeps the entry; AI Maestro asks its peers.

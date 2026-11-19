@@ -1,99 +1,59 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-We release patches for security vulnerabilities for the following versions:
+Only the latest release gets security fixes. Releases are continuous (0.106.x and later). Update each host with `./update-aimaestro.sh -y`.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
-| < 1.0   | :x:                |
+## Security model
 
-## Security Considerations
+- **No app-level login, by design.** AI Maestro binds `0.0.0.0:23000` so that phones, tablets and other hosts on your network can open the dashboard.
+- **The network is the trust boundary:** your LAN plus Tailscale. Anyone who can reach port 23000 can do what you can, including typing into every agent's terminal.
+- To keep it to one machine, start it with `HOSTNAME=127.0.0.1`.
+- "Add a login" and "bind to localhost only" are not on the roadmap (B005). An opt-in access token for a host exposed to the internet is a separate experiment (F058).
+- Input validation still matters: network trust keeps outsiders out, but not a malformed request from a device that is legitimately inside (a compromised laptop, a phone, a misbehaving agent). Injection and code-execution bugs are fixed on their own merits.
 
-### Network Access Configuration
+## What the operator must do
 
-**⚠️ IMPORTANT: AI Maestro runs on 0.0.0.0:23000 by default**
+- Never forward port 23000 from a router to the internet.
+- Check what the port listens on: `lsof -nP -iTCP:23000 -sTCP:LISTEN` (macOS) or `ss -ltn | grep 23000` (Linux).
+- Use Tailscale ACLs to limit which devices reach the hosts.
+- Behind a reverse proxy, list its origin in `AIMAESTRO_TRUSTED_ORIGINS` (see below).
 
-This means it's accessible from ANY device on your local network:
-- **Accessible from other machines on your network** (tablets, phones, other computers)
-- **No authentication required** - anyone on your WiFi can access it
-- **Full terminal access** - anyone connected can run commands with your permissions
-- **Unencrypted** - WebSocket connections use ws:// (not wss://)
+## Requests from other web pages
 
-**Safe for:**
-- Home networks (trusted WiFi)
-- Private office networks
-- Development on trusted LANs
+A web page open in your browser could otherwise send requests to the server or open its WebSockets. The server checks the browser `Origin` on WebSocket upgrades and on every request that changes something (B044, `lib/origin-guard.mjs`):
 
-**NOT safe for:**
-- Public WiFi
-- Shared/untrusted networks
-- Exposing port 23000 to the internet
+- `AIMAESTRO_ORIGIN_GUARD=enforce` (the default): a request from a page that is not AI Maestro itself, a known host or a trusted origin is refused with 403.
+- `audit`: log what would be refused, refuse nothing. `off`: no check.
+- `AIMAESTRO_TRUSTED_ORIGINS`: a comma list of extra origins, for example `https://maestro.example.com`.
+- The Doctor's `cross-origin` check shows what was refused.
 
-**To run localhost-only (more secure):**
-```bash
-HOSTNAME=localhost PORT=3000 yarn dev
-```
+Requests without an `Origin` (the CLI, scripts, agents, other hosts) are not affected.
 
-**By design, there is no application-level authentication.** The trust boundary
-is the *network*: AI Maestro is meant to run on a trusted local network with
-Tailscale as the perimeter. The `0.0.0.0` bind is intentional — it is what lets a
-tablet or phone on the same network open the dashboard. This is the model, not a
-gap, so "add auth" and "bind to localhost only" are deliberately *not* on the
-roadmap (see CLAUDE.md, "Localhost-Only Security Model").
+## Known design limits
 
-**The one condition the model depends on: 23000 must not be reachable from
-outside the trusted network** — in particular, never port-forward it through a
-router to the public internet. Verify per host (four seconds, no privileges):
+Each of these is known and is not a new finding:
 
-```bash
-ss -ltn | awk '$4 ~ /23000$/'   # confirm what interface it's bound to
-ufw status                       # (Linux) confirm the host firewall posture
-```
+- No authentication on the API or the WebSockets (B005, by design; F058 for internet exposure).
+- Traffic on the LAN is plain HTTP and `ws://`. Tailscale encrypts between devices; a LAN without Tailscale does not.
+- All agents on one host run as one OS user and can read each other's files, keys and secrets (B021). Use containers to isolate agents.
+- An agent can run in a permission-bypass mode (`--dangerously-skip-permissions` or another program's equivalent) when the operator chooses it. Such an agent runs any command with the user's rights.
+- Messages from other agents and from outside providers reach the model. A valid signature proves which key sent a message, not that its content is safe (OWASP LLM01). Messages from outside senders are wrapped as untrusted content.
 
-Because the network is the perimeter, input-validation fixes still matter *more*,
-not less: network trust keeps outsiders out, but does nothing about a malformed
-request from a device that is legitimately inside — a compromised laptop, a phone,
-a misbehaving agent. Arbitrary-code-execution bugs (e.g. GHSA-2vm8-3q4q-wqv3) are
-fixed on their own merits regardless of the trust model. See "Resolved
-Advisories" below.
+## Data on disk
 
-### Data Storage
+Everything stays on your hosts unless you connect an outside AMP provider.
 
-**Local Data Only:**
-- Agent notes stored in browser localStorage
-- No data transmitted over the internet
-- No cloud sync or backup
-- Clearing browser data will delete all notes
+| What | Where |
+|---|---|
+| Agent registry | `~/.aimaestro/agents/registry.json` |
+| Agent memory, documents, canvases | `~/.aimaestro/agents/<id>/` |
+| Messages and agent keys | `~/.agent-messaging/agents/` |
+| Policy rules, decision log, quarantine | `~/.aimaestro/policy.json`, `~/.aimaestro/policy/` |
+| Secrets | the OS keychain (macOS Keychain, libsecret), else an encrypted file in `~/.aimaestro/vault/` |
+| Claude Code transcripts | `~/.claude/projects/` |
 
-**Sensitive Information:**
-- Do NOT store passwords or API keys in agent notes
-- Do NOT expose sensitive environment variables in terminal sessions
-- Session content is stored in memory only (not persisted)
-
-### tmux Session Security
-
-**Important:**
-- Anyone with access to your Mac can view/attach to tmux sessions
-- tmux sessions run with your user permissions
-- Sessions persist even after closing the dashboard
-- Always kill sensitive sessions when done: `tmux kill-session -t <name>`
-
-### WebSocket Connection
-
-**Local Communication:**
-- WebSocket connections are unencrypted (ws://)
-- Only accepts connections from localhost
-- WebSocket upgrades and non-GET requests are checked for the browser `Origin` (B044, `lib/origin-guard.mjs`). This release logs what it would refuse (`AIMAESTRO_ORIGIN_GUARD=audit`); `enforce` refuses it. Clients that send no `Origin` (curl, scripts, other hosts) are not affected.
-
-**NOT SECURE for remote access:**
-- Do NOT expose port 3000 to the internet
-- Do NOT run on a public server without adding:
-  - HTTPS/TLS encryption
-  - Authentication layer
-  - CORS protection
-  - Rate limiting
+Private keys and secret files are written with mode `0600`.
 
 ## Resolved Advisories
 
@@ -122,7 +82,7 @@ Verified against the live fleet before shipping: 124 registry names and 36 live
 tmux sessions across three hosts, none rejected by the new validator.
 
 **These are defense-in-depth on top of, not a replacement for, the network
-posture below.** The root exposure is still an unauthenticated listener; see
+posture above.** The root exposure is still an unauthenticated listener; see
 the next section.
 
 ## Reporting a Vulnerability
@@ -146,89 +106,11 @@ the next section.
 - We will provide a detailed response within 7 days
 - We will release a patch as soon as possible
 
-## Security Best Practices for Users
-
-### Running Safely
-
-```bash
-# ✅ Safe: Localhost only
-yarn dev
-
-# ❌ Unsafe: Exposing to network
-HOST=0.0.0.0 yarn dev  # Don't do this without security measures!
-```
-
-### Port Security
-
-```bash
-# Check what's using port 3000
-lsof -i :3000
-
-# Verify localhost-only binding
-netstat -an | grep 3000
-# Should show: 127.0.0.1:3000 (NOT 0.0.0.0:3000)
-```
-
-### Session Hygiene
-
-```bash
-# List all sessions
-tmux ls
-
-# Kill sensitive sessions when done
-tmux kill-session -t sensitive-work
-
-# Kill all sessions (end of day)
-tmux kill-server
-```
-
-### Browser Security
-
-- Use a modern, updated browser
-- Clear browser data regularly if storing sensitive notes
-- Use private/incognito mode for sensitive work (notes won't persist)
-- Don't share your browser session while dashboard is open
-
-## Future Security Enhancements
-
-**Planned for Phase 2+:**
-- [ ] HTTPS/TLS support
-- [ ] User authentication
-- [ ] Agent-level access control
-- [ ] Encrypted note storage
-- [ ] Audit logging
-- [ ] Rate limiting
-- [ ] CORS protection
-
 ## Dependencies
 
-**Security Updates:**
-- We monitor dependencies for security vulnerabilities
-- Run `yarn audit` to check for known vulnerabilities
-- Update dependencies regularly: `yarn upgrade-interactive --latest`
-
-**Critical Dependencies:**
-- xterm.js - Terminal emulator
-- ws - WebSocket library
-- node-pty - PTY bindings
-- Next.js - Web framework
+- Run `yarn audit` to check for known vulnerabilities.
+- Main runtime dependencies: Next.js, ws, node-pty, xterm.js.
 
 ## Disclaimer
 
-**THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND.**
-
-The authors are not responsible for:
-- Data loss
-- Security breaches
-- Unauthorized access to your system
-- Any damages resulting from use of this software
-
-**Use at your own risk. Always:**
-- Keep sensitive work in secure, dedicated environments
-- Back up important data
-- Follow security best practices
-- Keep software updated
-
----
-
-For general questions about security, open a GitHub issue with the `security` label.
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.

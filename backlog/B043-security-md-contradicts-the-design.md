@@ -1,6 +1,6 @@
 # B043 - SECURITY.md contradicts the design and itself
 
-**Status:** Todo (spec: `docs/SPEC-SECURITY-POSTURE.md`, part A)
+**Status:** Done (0.106.234: SECURITY.md rewritten to the design; `tests/security-md.test.ts` stops the drift)
 **Type:** Bug (documentation)
 **Created:** 2026-11-18
 **Source:** CamiloCaceres/lolad (MIT), reviewed 2026-11-18 at `2649a3f`.

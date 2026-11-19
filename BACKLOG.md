@@ -172,9 +172,12 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B035** — [Agent directory sync is never started](./backlog/B035-agent-directory-sync-never-started.md) — `Done` (v0.106.125, reads /mesh)
 - **B036** — [Hearing on the host guesses the language, and can write English as Russian](./backlog/B036-hearing-guesses-the-wrong-language.md) — `Done`
 - **B037** — [Words from a device reached the agent 15 seconds after they were ready (to check)](./backlog/B037-device-words-reached-agent-late.md) — `Todo`
+- **B042** — [The registry and the trust flag are written in place; an unreadable registry reads as empty](./backlog/B042-registry-and-claude-json-writes-not-atomic.md) — `Done` (0.106.226)
+- **B043** — [SECURITY.md contradicts the design and itself](./backlog/B043-security-md-contradicts-the-design.md) — `Done`
+- **B044** — [Any web page in the operator's browser can reach the server (no Origin check)](./backlog/B044-cross-origin-requests-reach-the-server.md) — `Done`
 - **B042** — [The registry and the trust flag are written in place; an unreadable registry reads as empty](./backlog/B042-registry-and-claude-json-writes-not-atomic.md) — `Todo` (spec: `docs/SPEC-ATOMIC-STATE-WRITES.md`)
 - **B043** — [SECURITY.md contradicts the design and itself](./backlog/B043-security-md-contradicts-the-design.md) — `Todo` (spec: `docs/SPEC-SECURITY-POSTURE.md`, part A)
-- **B044** — [Any web page in the operator's browser can reach the server (no Origin check)](./backlog/B044-cross-origin-requests-reach-the-server.md) — `Todo` (spec: `docs/SPEC-SECURITY-POSTURE.md`, part B)
+- **B044** — [Any web page in the operator's browser can reach the server (no Origin check)](./backlog/B044-cross-origin-requests-reach-the-server.md) — `In Progress` (audit mode in 0.106.225; enforce next)
 
 ## Unfiled
 

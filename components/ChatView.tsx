@@ -19,7 +19,7 @@ import { primaryAmpAddress } from '@/lib/status-format'
 import { accountOf } from '@/lib/credential-words'
 import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, useMemo, type KeyboardEvent, type ChangeEvent } from 'react'
-import { User, Bot, Wrench, Loader2, Send, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye, Info } from 'lucide-react'
+import { User, Bot, Wrench, Loader2, Send, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye, Info, Clock } from 'lucide-react'
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
 import ToolBurstGroup from '@/components/chat/ToolBurstGroup'
 import LoadEarlierMessages from '@/components/chat/LoadEarlierMessages'
@@ -28,7 +28,7 @@ import { useKeepScrollOnPrepend } from '@/hooks/useKeepScrollOnPrepend'
 import { withDividers, groupMessages, getToolPreview, type ToolBurst } from '@/lib/chat-utils'
 import { useChatFind } from '@/hooks/useChatFind'
 import { ChatFind, ChatDividerLine } from '@/components/chat/ChatFind'
-import { reconcilePending } from '@/lib/pending-reconcile.mjs'
+import { reconcilePending, markQuarantined, quarantineOutcome, expireQuarantined } from '@/lib/pending-reconcile.mjs'
 import {
   isQuestionAnswered as sharedIsAnswered,
   isQuestionCurrent as sharedIsCurrent,
@@ -129,7 +129,12 @@ interface PendingMessage {
   text: string
   timestamp: string
   /** delivered: the server read the pane and saw it submitted (chat:sent) */
-  status: 'sending' | 'delivered' | 'failed'
+  /** quarantined: a policy rule waits for an approver (F118, AMP 07); rejected: rejected, expired or not delivered after approval */
+  status: 'sending' | 'delivered' | 'failed' | 'quarantined' | 'rejected'
+  /** The server's words for quarantined / rejected */
+  note?: string
+  quarantineId?: string
+  expiresAt?: string
 }
 
 /** Extract the plain text of a message for pending-echo matching. */
@@ -521,6 +526,16 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
               break
             }
 
+            case 'chat:quarantined': {
+              setPendingMessages(prev => markQuarantined(prev, data) as PendingMessage[])
+              break
+            }
+
+            case 'chat:quarantineOutcome': {
+              setPendingMessages(prev => quarantineOutcome(prev, data) as PendingMessage[])
+              break
+            }
+
             case 'chat:activity': {
               setLiveActivity(data.data || null)
               break
@@ -705,7 +720,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           }
           return p
         })
-        return changed ? next : prev
+        return expireQuarantined(changed ? next : prev, now) as PendingMessage[]
       })
     }, 5000)
     return () => clearInterval(timer)
@@ -1464,12 +1479,16 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           <div key={pending.id} className="flex justify-end">
             <div className="max-w-[85%] min-w-0 overflow-hidden">
               <div className={`rounded-2xl px-4 py-3 text-white border ${
-                pending.status === 'failed'
+                pending.status === 'failed' || pending.status === 'rejected'
                   ? 'bg-red-900/60 border-red-600/60'
-                  : 'bg-blue-600/70 border-blue-500/50'
+                  : pending.status === 'quarantined'
+                    ? 'bg-amber-900/60 border-amber-600/60'
+                    : 'bg-blue-600/70 border-blue-500/50'
               }`}>
                 <div className="flex items-center gap-2 mb-1">
-                  {pending.status === 'failed' ? (
+                  {pending.status === 'quarantined' ? (
+                    <Clock className="w-3.5 h-3.5 text-amber-300" />
+                  ) : pending.status === 'failed' || pending.status === 'rejected' ? (
                     <AlertCircle className="w-3.5 h-3.5 text-red-300" />
                   ) : pending.status === 'delivered' ? (
                     <Check className="w-3.5 h-3.5" />
@@ -1477,21 +1496,24 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   )}
                   <span className="text-xs opacity-70">
-                    {pending.status === 'failed' ? 'Not delivered yet — it may not have reached the agent' : pending.status === 'delivered' ? 'Delivered' : 'Sending...'}
+                    {pending.status === 'quarantined' ? 'Held for approval' : pending.status === 'rejected' ? 'Not delivered' : pending.status === 'failed' ? 'Not delivered yet — it may not have reached the agent' : pending.status === 'delivered' ? 'Delivered' : 'Sending...'}
                   </span>
                   <span className="text-xs opacity-50 ml-auto">
                     {formatTimestamp(pending.timestamp)}
                   </span>
                 </div>
                 <div className="text-sm whitespace-pre-wrap break-words">{pending.text}</div>
-                {pending.status === 'failed' && (
+                {pending.note && <div className="text-xs opacity-80 mt-1 break-words">{pending.note}</div>}
+                {(pending.status === 'failed' || pending.status === 'quarantined' || pending.status === 'rejected') && (
                   <div className="flex items-center gap-2 mt-2">
-                    <button
-                      onClick={() => retryPendingMessage(pending.id)}
-                      className="px-2 py-1 text-xs rounded bg-red-700/60 hover:bg-red-600/60 border border-red-500/50 transition-colors"
-                    >
-                      Retry
-                    </button>
+                    {pending.status === 'failed' && (
+                      <button
+                        onClick={() => retryPendingMessage(pending.id)}
+                        className="px-2 py-1 text-xs rounded bg-red-700/60 hover:bg-red-600/60 border border-red-500/50 transition-colors"
+                      >
+                        Retry
+                      </button>
+                    )}
                     <button
                       onClick={() => dismissPendingMessage(pending.id)}
                       className="px-2 py-1 text-xs rounded bg-gray-800/60 hover:bg-gray-700/60 border border-gray-600/50 transition-colors"

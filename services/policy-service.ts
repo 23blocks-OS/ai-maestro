@@ -6,9 +6,11 @@
  * GET /api/policy/check?from=&to=[&action=call]     — the decision on this host, and on the sender's and recipient's
  *                                                     hosts when they are other hosts (each host enforces its own rules)
  *     &localOnly=1                                  — this host only; what a peer asks, so two hosts never ask each other in a loop
- * GET  /api/policy/requests[?state=][&localOnly=1]  — approval requests (F118 step 2): this host's, and every peer's
- * POST /api/policy/requests/:id/answer              — answer one: { answer: once|for|always|refuse, for?, by?, keyId?,
- *                                                     signature?, signedAt?, host? } (host: the host that keeps it)
+ * GET  /api/v1/quarantine?status=&limit=[&localOnly=1] — quarantine entries of `ask` rules (F118 step 2, AMP 08):
+ *                                                     this host's, and every peer's
+ * GET  /api/v1/quarantine/{id}[?host=]              — one entry, with the held AMP message when there is one
+ * POST /api/v1/quarantine/{id}/approve | /reject     — { by?, host? } (host: the host that keeps it)
+ * A message to `_provider` answering an approval request (AMP 07 "Approval by message") — answerProviderMessage
  */
 import { getHostById, getPeerHosts, getSelfHostId, isSelf } from '@/lib/hosts-config'
 import {
@@ -17,11 +19,9 @@ import {
 } from '@/lib/policy'
 import { checkPolicy, resolveParty, teamsOf } from '@/lib/policy-check'
 import {
-  answerApproval, listApprovals, recordDelivery, sweepApprovals,
-  type AnswerResult, type ApprovalRequest, type HeldPath, type RequestState,
+  decideQuarantine, findApprovalRequest, listQuarantine, peekHeld, recordDelivery, sweepQuarantine, QUARANTINE_ID, QUARANTINE_STATES,
+  type DecideResult, type HeldPath, type QuarantineEntry, type QuarantineStatus, type SignedAnswer,
 } from '@/lib/policy-approvals'
-import { personKeyFor } from '@/lib/person-keys'
-import type { DeviceKey } from '@/lib/person-signing'
 import { type ServiceResult, missingField, invalidField, notFound, operationFailed } from '@/services/service-errors'
 
 const PEER_TIMEOUT_MS = 5_000
@@ -122,154 +122,273 @@ export async function explainPolicy(
   }
 }
 
-// ── Approvals (F118 step 2, spec section 17) ─────────────────────────────────
+// ── Quarantine (F118 step 2, AMP 07 "Message Quarantine", 08 "Quarantine Management"; spec section 17) ─────
 
-export type ApprovalView = Omit<ApprovalRequest, 'pass' | 'fromParty' | 'toParty'>
+/** An entry as the API shows it: AMP 07 metadata plus AI Maestro's fields, without the internal parties and pass */
+export type QuarantineView = Omit<QuarantineEntry, 'pass_until' | 'fromParty' | 'toParty' | 'requests'>
 
-const view = (r: ApprovalRequest): ApprovalView => {
-  const { pass: _pass, fromParty: _f, toParty: _t, ...rest } = r
+const view = (r: QuarantineEntry): QuarantineView => {
+  const { pass_until: _pass, fromParty: _f, toParty: _t, requests: _q, ...rest } = r
   return rest
 }
 
-const STATES: RequestState[] = ['pending', 'approved', 'refused', 'expired']
+const peerUrl = (h: { url: string }) => h.url.replace(/\/$/, '')
 
-/** This host's requests and, unless localOnly, every peer's (asked with localOnly=1, so hosts never ask each other in a loop) */
-export async function listPolicyRequests(
-  q: { state?: string | null; localOnly?: boolean },
+/**
+ * GET /api/v1/quarantine?status=&limit= — this host's entries and, unless localOnly, every peer's (asked with
+ * localOnly=1, so hosts never ask each other in a loop). status defaults to pending, limit to 20 (1-100), as in AMP 08.
+ */
+export async function listPolicyQuarantine(
+  q: { status?: string | null; limit?: string | null; localOnly?: boolean },
   fetchImpl: typeof fetch = fetch,
-): Promise<ServiceResult<{ host: string; requests: ApprovalView[]; unreachable?: { host: string; error: string }[] }>> {
-  const state = (q.state || undefined) as RequestState | undefined
-  if (state && !STATES.includes(state)) return invalidField('state', `state must be ${STATES.join(', ')}`)
+): Promise<ServiceResult<{ items: QuarantineView[]; count: number; total: number; unreachable?: { host: string; error: string }[] }>> {
+  const status = (q.status || 'pending') as QuarantineStatus
+  if (!QUARANTINE_STATES.includes(status)) return invalidField('status', `status must be ${QUARANTINE_STATES.join(', ')}`)
+  const limit = q.limit ? Number(q.limit) : 20
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) return invalidField('limit', 'limit must be 1 to 100')
   // Expire first through the sweep that tells the senders
-  await sweepPolicyRequests()
-  let requests: ApprovalView[]
-  try { requests = listApprovals(state).map(view) } catch (e) { return operationFailed('read the approval store', (e as Error).message) }
+  await sweepPolicyQuarantine()
+  let items: QuarantineView[]
+  try { items = listQuarantine(status).map(view) } catch (e) { return operationFailed('read the quarantine store', (e as Error).message) }
   const unreachable: { host: string; error: string }[] = []
   if (!q.localOnly) {
     await Promise.all(getPeerHosts().filter(h => h.enabled !== false && h.url).map(async h => {
       try {
-        const qs = new URLSearchParams({ localOnly: '1', ...(state ? { state } : {}) })
-        const res = await fetchImpl(`${h.url.replace(/\/$/, '')}/api/policy/requests?${qs}`, { signal: AbortSignal.timeout(PEER_TIMEOUT_MS) })
-        // A host older than F118 step 2 keeps no requests
+        const qs = new URLSearchParams({ localOnly: '1', status, limit: '100' })
+        const res = await fetchImpl(`${peerUrl(h)}/api/v1/quarantine?${qs}`, { signal: AbortSignal.timeout(PEER_TIMEOUT_MS) })
+        // A host without quarantine keeps no entries
         if (res.status === 404) return
-        const body = await res.json().catch(() => null) as { requests?: ApprovalView[] } | null
-        if (!res.ok || !Array.isArray(body?.requests)) return unreachable.push({ host: h.id, error: `answered ${res.status}` })
-        requests.push(...body!.requests.map(r => ({ ...r, host: r.host || h.id })))
+        const body = await res.json().catch(() => null) as { items?: QuarantineView[] } | null
+        if (!res.ok || !Array.isArray(body?.items)) return unreachable.push({ host: h.id, error: `answered ${res.status}` })
+        items.push(...body!.items.map(r => ({ ...r, host: r.host || h.id })))
       } catch (e) {
         unreachable.push({ host: h.id, error: (e as Error).message })
       }
     }))
   }
-  requests.sort((a, b) => b.created.localeCompare(a.created))
-  return { data: { host: getSelfHostId(), requests, ...(unreachable.length ? { unreachable } : {}) }, status: 200 }
+  items.sort((a, b) => b.quarantined_at.localeCompare(a.quarantined_at))
+  const total = items.length
+  items = items.slice(0, limit)
+  return { data: { items, count: items.length, total, ...(unreachable.length ? { unreachable } : {}) }, status: 200 }
+}
+
+/** The AMP message of an entry held at the route (08: `message` is its envelope and payload); other paths have none */
+function heldMessage(r: QuarantineEntry): { envelope: unknown; payload: unknown } | undefined {
+  if (r.status !== 'pending' || r.held?.path !== 'amp-route') return undefined
+  const p = peekHeld(r.quarantine_id) as { envelope?: unknown; body?: { payload?: unknown } } | null
+  return p?.envelope ? { envelope: p.envelope, payload: p.body?.payload } : undefined
+}
+
+/** GET /api/v1/quarantine/{id}[?host=] — one entry; with host, from the host that keeps it */
+export async function getPolicyQuarantine(id: string, host?: string | null, fetchImpl: typeof fetch = fetch): Promise<ServiceResult<QuarantineView & { message?: unknown }>> {
+  if (!QUARANTINE_ID.test(id || '')) return invalidField('id', 'not a quarantine id (qtn_<timestamp>_<hex>)')
+  if (host && !isSelf(host)) {
+    const peer = getHostById(host)
+    if (!peer?.url) return notFound('Host', host)
+    try {
+      const res = await fetchImpl(`${peerUrl(peer)}/api/v1/quarantine/${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(PEER_TIMEOUT_MS) })
+      return { data: await res.json(), status: res.status }
+    } catch (e) { return operationFailed(`read the entry on ${host}`, (e as Error).message) }
+  }
+  await sweepPolicyQuarantine()
+  let r: QuarantineEntry | undefined
+  try { r = listQuarantine().find(x => x.quarantine_id === id) } catch (e) { return operationFailed('read the quarantine store', (e as Error).message) }
+  if (!r) return notFound('Quarantine entry', id)
+  const message = heldMessage(r)
+  return { data: { ...view(r), ...(message ? { message } : {}) }, status: 200 }
 }
 
 export interface ApprovalDeps {
   /** Delivers an approved held message through the path that held it */
-  deliver: (held: { path: HeldPath; payload: unknown }, request: ApprovalRequest) => Promise<{ ok: boolean; status?: number; message?: string }>
+  deliver: (held: { path: HeldPath; payload: unknown }, entry: QuarantineEntry) => Promise<{ ok: boolean; status?: number; message?: string; message_id?: string }>
   /** Tells the sender (an agent) what became of its message or call */
-  notify: (request: ApprovalRequest, text: string) => Promise<void>
-  keyFor: (keyId: string) => Promise<DeviceKey | null>
+  notify: (entry: QuarantineEntry, text: string) => Promise<void>
   fetch: typeof fetch
 }
 
-/** The normal send path again, with this request's one pass through its policy check */
-export async function deliverHeld(held: { path: HeldPath; payload: unknown }, request: ApprovalRequest): Promise<{ ok: boolean; status?: number; message?: string }> {
+/** The normal send path again, with this entry's one pass through its policy check (08: "as if it had just arrived") */
+export async function deliverHeld(held: { path: HeldPath; payload: unknown }, entry: QuarantineEntry): Promise<{ ok: boolean; status?: number; message?: string; message_id?: string }> {
   const p = held.payload as any
+  const id = entry.quarantine_id
   try {
     if (held.path === 'amp-route') {
       // After the route's policy check: the same delivery code the route runs
       const { deliverRouted } = await import('@/services/amp-service')
       const r = await deliverRouted(p)
-      return { ok: r.status < 300, status: r.status, message: (r.data as any)?.message || (r.data as any)?.status }
+      const d = r.data as any
+      return { ok: r.status < 300, status: r.status, message: d?.message || d?.status, ...(d?.id ? { message_id: d.id } : {}) }
     }
     if (held.path === 'ui-send' || held.path === 'ui-forward') {
       const ms = await import('@/lib/message-send')
-      await (held.path === 'ui-send' ? ms.sendFromUI({ ...p, approved: request.id }) : ms.forwardFromUI({ ...p, approved: request.id }))
-      return { ok: true }
+      const out = await (held.path === 'ui-send' ? ms.sendFromUI({ ...p, approved: id }) : ms.forwardFromUI({ ...p, approved: id }))
+      return { ok: true, ...(out?.message?.id ? { message_id: out.message.id } : {}) }
     }
     // chat: the dashboard chat's own path when the server runs (server.mjs), else the REST chat path
     const line = (globalThis as { __deliverChatLine?: (s: string, t: string, a?: string) => Promise<{ ok: boolean; error?: string }> }).__deliverChatLine
     if (line && p.sessionName) {
-      const r = await line(p.sessionName, p.message, request.id)
+      const r = await line(p.sessionName, p.message, id)
       return { ok: r.ok, ...(r.error ? { message: r.error } : {}) }
     }
     const { sendChatMessage } = await import('@/services/agents-chat-service')
-    const r = await sendChatMessage(p.agentId, p.message, { approved: request.id })
+    const r = await sendChatMessage(p.agentId, p.message, { approved: id })
     return { ok: r.status < 300, status: r.status, message: (r.data as any)?.message || (r.data as any)?.error }
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }
 }
 
-/** A notification from AI Maestro into the sender's inbox. Only an agent has one; a person sees the request in the dashboard. */
-async function notifySender(request: ApprovalRequest, text: string): Promise<void> {
-  const f = request.fromParty
-  if (f.kind !== 'agent' || !(f.name || f.id)) return
-  try {
-    const { sendFromUI } = await import('@/lib/message-send')
-    const to = f.host && !isSelf(f.host) ? `${f.name || f.id}@${f.host}` : (f.id || f.name)!
-    await sendFromUI({ from: 'maestro', fromAlias: 'AI Maestro', to, subject: `Approval ${request.state}: your ${request.action} to ${request.to}`, content: { type: 'notification', message: text } })
-  } catch (e) {
-    console.warn(`[Policy] could not tell ${partyLabel(f)} about request ${request.id}: ${(e as Error).message}`)
-  }
+/** The outcome as a signed provider notice to the sender (AMP 07 "Outcome notice"), agent or person */
+async function notifySender(entry: QuarantineEntry, text: string): Promise<void> {
+  const { sendOutcomeNotice } = await import('@/services/provider-notices')
+  await sendOutcomeNotice(entry, text)
 }
 
-const defaultDeps: ApprovalDeps = { deliver: deliverHeld, notify: notifySender, keyFor: id => personKeyFor(id), fetch: (...a) => fetch(...a) }
+/** The dashboard chat shows a held bubble until this says what became of it (server.mjs `__chatQuarantineOutcome`) */
+function tellChat(r: QuarantineEntry, outcome: 'delivered' | 'rejected' | 'expired' | 'failed', text: string): void {
+  if (r.held?.path !== 'chat') return
+  try { (globalThis as { __chatQuarantineOutcome?: (id: string, o: string, t: string) => void }).__chatQuarantineOutcome?.(r.quarantine_id, outcome, text) } catch { /* the chat is a view */ }
+}
 
-/** Expires overdue requests and tells their senders. Never throws (the sweeper and startup call it). */
-export async function sweepPolicyRequests(deps: Pick<ApprovalDeps, 'notify'> = defaultDeps): Promise<number> {
-  let due: ApprovalRequest[] = []
-  try { due = sweepApprovals() } catch (e) { console.warn(`[Policy] sweep: ${(e as Error).message}`); return 0 }
+const defaultDeps: ApprovalDeps = { deliver: deliverHeld, notify: notifySender, fetch: (...a) => fetch(...a) }
+
+/** Expires overdue entries and tells their senders. Never throws (the sweeper and startup call it). */
+export async function sweepPolicyQuarantine(deps: Pick<ApprovalDeps, 'notify'> = defaultDeps): Promise<number> {
+  let due: QuarantineEntry[] = []
+  try { due = sweepQuarantine() } catch (e) { console.warn(`[Policy] sweep: ${(e as Error).message}`); return 0 }
   for (const r of due) {
-    await deps.notify(r, `Your ${r.action} to ${r.to} was not ${r.held ? 'delivered' : 'approved'}: nobody answered request ${r.id} before it expired at ${r.expiresAt} (rule ${r.rules.join(', ')}).`)
+    const text = `Your ${r.action} to ${r.to} was not ${r.held ? 'delivered' : 'approved'}: quarantine entry ${r.quarantine_id} expired at ${r.expires_at} before anyone approved it (rule ${r.rules_triggered.join(', ')}).`
+    tellChat(r, 'expired', text)
+    await deps.notify(r, text)
   }
   return due.length
 }
 
-export async function answerPolicyRequest(
+type ApproveResponse = { quarantine_id: string; status: 'approved'; message_id: string | null; delivered: boolean }
+type RejectResponse = { quarantine_id: string; status: 'rejected' }
+
+/**
+ * POST /api/v1/quarantine/{id}/approve and /reject (AMP 08). Body: { by?, host? } (host: the host that keeps it).
+ * Approve releases the one message, once: 200 { quarantine_id, status: "approved", message_id, delivered }. 410
+ * quarantine_expired, 409 when already decided.
+ */
+export async function decidePolicyQuarantine(
   id: string,
+  decision: 'approve' | 'reject',
   body: Record<string, unknown> | null,
   deps: ApprovalDeps = defaultDeps,
-): Promise<ServiceResult<{ request: ApprovalView; delivery?: { ok: boolean; status?: number; message?: string } }>> {
-  if (!/^apr-[a-z0-9-]{1,64}$/.test(id || '')) return invalidField('id', 'not an approval request id')
+): Promise<ServiceResult<ApproveResponse | RejectResponse>> {
+  if (!QUARANTINE_ID.test(id || '')) return invalidField('id', 'not a quarantine id (qtn_<timestamp>_<hex>)')
   const input = body && typeof body === 'object' ? body : {}
-  // The request lives on the host whose rules asked: pass the answer on to it
+  // The entry lives on the host whose rules asked: pass the decision on to it
   const host = typeof input.host === 'string' ? input.host : ''
   if (host && !isSelf(host)) {
     const peer = getHostById(host)
     if (!peer?.url) return notFound('Host', host)
     try {
       const { host: _h, ...rest } = input
-      const res = await deps.fetch(`${peer.url.replace(/\/$/, '')}/api/policy/requests/${encodeURIComponent(id)}/answer`, {
+      const res = await deps.fetch(`${peerUrl(peer)}/api/v1/quarantine/${encodeURIComponent(id)}/${decision}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rest), signal: AbortSignal.timeout(PEER_TIMEOUT_MS * 3),
       })
       return { data: await res.json(), status: res.status }
     } catch (e) {
-      return operationFailed(`pass the answer to ${host}`, (e as Error).message)
+      return operationFailed(`pass the ${decision} to ${host}`, (e as Error).message)
     }
   }
 
-  let result: AnswerResult
-  await sweepPolicyRequests(deps)
-  try { result = await answerApproval(id, input, { keyFor: deps.keyFor }) } catch (e) { return operationFailed('answer the request', (e as Error).message) }
+  await sweepPolicyQuarantine(deps)
+  let result: DecideResult
+  try { result = decideQuarantine(id, decision, { by: input.by }) } catch (e) { return operationFailed(`${decision} the entry`, (e as Error).message) }
+  return finishDecision(result, deps)
+}
+
+/** After approve or reject: deliver what was held (once), tell the chat and the sender */
+async function finishDecision(result: DecideResult, deps: ApprovalDeps): Promise<ServiceResult<ApproveResponse | RejectResponse>> {
   if (!result.ok) return { data: { error: result.error, message: result.message } as any, status: result.status }
-  const r = result.request
-  const by = r.answer!.by
-  let delivery: { ok: boolean; status?: number; message?: string } | undefined
+  const r = result.entry
+  const by = r.decided!.by
+  if (r.status === 'rejected') {
+    const text = `Your ${r.action} to ${r.to} was rejected by ${by} (quarantine ${r.quarantine_id}, rule ${r.rules_triggered.join(', ')}).`
+    tellChat(r, 'rejected', text)
+    await deps.notify(r, text)
+    return { data: { quarantine_id: r.quarantine_id, status: 'rejected' }, status: 200 }
+  }
+  let delivery: { ok: boolean; status?: number; message?: string; message_id?: string } | undefined
   if (result.held) {
     delivery = await deps.deliver(result.held, r)
-    recordDelivery(r.id, delivery)
-    r.delivery = { at: new Date().toISOString(), ...delivery }
+    recordDelivery(r.quarantine_id, delivery)
   }
-  const how = r.answer!.answer === 'for' ? `for ${r.answer!.for}` : r.answer!.answer
-  const text = r.state === 'refused'
-    ? `Your ${r.action} to ${r.to} was refused by ${by} (request ${r.id}, rule ${r.rules.join(', ')}).`
-    : r.held
-      ? delivery?.ok
-        ? `Your message to ${r.to} was approved by ${by} (${how}) and delivered (request ${r.id}).`
-        : `Your message to ${r.to} was approved by ${by} (${how}), but it could not be delivered: ${delivery?.message || r.delivery?.message || 'unknown error'} (request ${r.id}).`
-      : `Your ${r.action} to ${r.to} was approved by ${by} (${how})${r.answer!.until ? `: try again before ${r.answer!.until}` : ''} (request ${r.id}).`
+  const text = r.held
+    ? delivery?.ok
+      ? `Your message to ${r.to} was approved by ${by} and delivered (quarantine ${r.quarantine_id}).`
+      : `Your message to ${r.to} was approved by ${by}, but it could not be delivered: ${delivery?.message || r.delivery?.message || 'unknown error'} (quarantine ${r.quarantine_id}).`
+    : `Your ${r.action} to ${r.to} was approved by ${by}: try again before ${r.pass_until} (quarantine ${r.quarantine_id}).`
+  if (r.held) tellChat(r, delivery?.ok ? 'delivered' : 'failed', text)
   await deps.notify(r, text)
-  return { data: { request: view(r), ...(delivery ? { delivery } : {}) }, status: 200 }
+  return { data: { quarantine_id: r.quarantine_id, status: 'approved', message_id: delivery?.message_id ?? null, delivered: !!delivery?.ok }, status: 200 }
+}
+
+// ── Approval by message (AMP 07 "Policy Holds", 13.6 rule 5) ─────────────────
+
+export interface ProviderMessage {
+  /** The id and time this host gave the message */
+  id: string
+  timestamp: string
+  /** The fields as signed (from, the full to, subject, priority, in_reply_to, payload) */
+  signed: { from: string; to: string; subject: string; priority: string; in_reply_to: string; payload: unknown }
+  signature?: string
+  key_id?: string
+  /** The route verified it for its sender: the agent's key, or for a person steps 1 to 5 of 13.3 */
+  verified: boolean
+  /** Forwarded by a peer: never passed on again */
+  fromPeer: boolean
+  /** The route body to pass it to the host that keeps the entry */
+  forward: Record<string, unknown>
+}
+
+const refuse = (status: number, error: string, message: string) => ({ data: { error, message } as any, status })
+
+/**
+ * A message to `_provider` is for the provider only (07 "Provider Notices" rule 1). The one kind it acts on is a
+ * reviewer's signed answer to an approval request; it applies the same result as POST approve / reject after the
+ * checks of 07 "Approval by message", and keeps the signed answer as proof. A decision is never read from text.
+ */
+export async function answerProviderMessage(m: ProviderMessage, deps: ApprovalDeps = defaultDeps): Promise<ServiceResult<{ id: string; status: 'delivered'; method: 'local'; delivered_at: string }>> {
+  const ctx = (m.signed.payload as { context?: { decision?: unknown; quarantine_id?: unknown } } | null)?.context
+  const decision = ctx?.decision
+  if (decision !== 'approve' && decision !== 'reject') {
+    return refuse(400, 'invalid_field', 'A message to _provider answers an approval request: payload.context.decision must be "approve" or "reject" (the provider never reads a decision from text)')
+  }
+  const qid = typeof ctx?.quarantine_id === 'string' ? ctx.quarantine_id : ''
+  if (!QUARANTINE_ID.test(qid)) return refuse(400, 'invalid_field', 'payload.context.quarantine_id must be the quarantine id the approval request names')
+  if (!m.signed.in_reply_to) return refuse(400, 'missing_field', 'in_reply_to must be the id of the approval request notice')
+  if (!m.verified) return refuse(403, 'forbidden', 'The answer must be a verified, signed message from the reviewer')
+
+  let found: ReturnType<typeof findApprovalRequest>
+  try { found = findApprovalRequest(m.signed.in_reply_to) } catch (e) { return operationFailed('read the quarantine store', (e as Error).message) }
+  if (!found) return m.fromPeer ? refuse(404, 'not_found', `No approval request ${m.signed.in_reply_to} on this host`) : passToPeers(m, deps.fetch)
+  if (found.entry.quarantine_id !== qid) return refuse(403, 'forbidden', `in_reply_to is the approval request for ${found.entry.quarantine_id}, not ${qid}`)
+  if (found.to.toLowerCase() !== m.signed.from.toLowerCase()) return refuse(403, 'forbidden', 'That approval request was sent to another reviewer; only they can answer it')
+
+  const answer: SignedAnswer = { id: m.id, ...m.signed, signature: m.signature || '', ...(m.key_id ? { key_id: m.key_id } : {}), verified_at: m.timestamp }
+  await sweepPolicyQuarantine(deps)
+  let result: DecideResult
+  try { result = decideQuarantine(qid, decision, { signed: answer }) } catch (e) { return operationFailed(`${decision} the entry`, (e as Error).message) }
+  const done = await finishDecision(result, deps)
+  if (done.status !== 200) return done as any
+  return { data: { id: m.id, status: 'delivered', method: 'local', delivered_at: m.timestamp }, status: 200 }
+}
+
+/** The entry is on the host whose rules asked: try each peer until one knows the approval request */
+async function passToPeers(m: ProviderMessage, fetchImpl: typeof fetch) {
+  for (const h of getPeerHosts().filter(x => x.enabled !== false && x.url)) {
+    try {
+      const res = await fetchImpl(`${peerUrl(h)}/api/v1/route`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-From': getSelfHostId() },
+        body: JSON.stringify(m.forward), signal: AbortSignal.timeout(PEER_TIMEOUT_MS * 3),
+      })
+      if (res.status === 404) continue
+      return { data: await res.json().catch(() => ({ error: 'internal_error', message: `${h.id} answered ${res.status}` })), status: res.status }
+    } catch { /* next peer */ }
+  }
+  return refuse(404, 'not_found', `No host knows the approval request ${m.signed.in_reply_to}`)
 }

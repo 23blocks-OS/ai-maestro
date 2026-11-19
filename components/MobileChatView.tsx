@@ -17,8 +17,8 @@ import AccountChip from './AccountChip'
 import type { accountOf } from '@/lib/credential-words'
 import AgentIdentityLine from './AgentIdentityLine'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { SendHorizontal, ChevronDown, ChevronRight, Loader2, Wrench, Copy, Check, AlertCircle } from 'lucide-react'
-import { reconcilePending } from '@/lib/pending-reconcile.mjs'
+import { SendHorizontal, ChevronDown, ChevronRight, Loader2, Wrench, Copy, Check, AlertCircle, Clock } from 'lucide-react'
+import { reconcilePending, markQuarantined, quarantineOutcome, expireQuarantined } from '@/lib/pending-reconcile.mjs'
 import {
   isQuestionAnswered as sharedIsAnswered,
   isQuestionCurrent as sharedIsCurrent,
@@ -302,8 +302,10 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const chatReactions = useChatReactions(agentId, baseUrl, messages, setError)
-  // delivered: the server read the pane and saw it submitted (chat:sent); failed: no confirmation in time (B038)
-  const [pendingMessages, setPendingMessages] = useState<Array<{ text: string; timestamp: string; status: 'sending' | 'delivered' | 'failed' }>>([])
+  // delivered: the server read the pane and saw it submitted (chat:sent); failed: no confirmation in time (B038);
+  // quarantined: a policy rule waits for an approver (F118, AMP 07); rejected: rejected, expired or not delivered after approval
+  type Pending = { text: string; timestamp: string; status: 'sending' | 'delivered' | 'failed' | 'quarantined' | 'rejected'; note?: string; quarantineId?: string; expiresAt?: string }
+  const [pendingMessages, setPendingMessages] = useState<Pending[]>([])
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set())
   const [liveActivity, setLiveActivity] = useState<{ label: string; detail?: string } | null>(null)
   const attach = useAttachFiles(agentId, baseUrl)
@@ -475,6 +477,16 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
               break
             }
 
+            case 'chat:quarantined': {
+              setPendingMessages(prev => markQuarantined(prev, data) as Pending[])
+              break
+            }
+
+            case 'chat:quarantineOutcome': {
+              setPendingMessages(prev => quarantineOutcome(prev, data) as Pending[])
+              break
+            }
+
             case 'chat:activity': {
               setLiveActivity(data.data || null)
               break
@@ -625,7 +637,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
 
   // No confirmation in time: show it as not delivered, with Retry (B038). Same 15 s as ChatView.
   useEffect(() => {
-    if (!pendingMessages.some(p => p.status === 'sending')) return
+    if (!pendingMessages.some(p => p.status === 'sending' || p.status === 'quarantined')) return
     const timer = setInterval(() => {
       const now = Date.now()
       setPendingMessages(prev => {
@@ -634,7 +646,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
           if (p.status === 'sending' && now - new Date(p.timestamp).getTime() > 15000) { changed = true; return { ...p, status: 'failed' as const } }
           return p
         })
-        return changed ? next : prev
+        return expireQuarantined(changed ? next : prev, now) as Pending[]
       })
     }, 5000)
     return () => clearInterval(timer)
@@ -1002,19 +1014,21 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
         {pendingMessages.map((pending, idx) => (
           <div key={`pending-${idx}`} className="flex justify-end mx-3 my-1.5">
             <div className="max-w-[85%]">
-              <div className="px-3 py-2 rounded-2xl rounded-br-sm bg-blue-600/70 text-white text-sm border border-blue-500/50 select-text">
+              <div className={`px-3 py-2 rounded-2xl rounded-br-sm text-white text-sm border select-text ${pending.status === 'quarantined' ? 'bg-amber-900/60 border-amber-600/60' : pending.status === 'rejected' ? 'bg-red-900/60 border-red-600/60' : 'bg-blue-600/70 border-blue-500/50'}`}>
                 <div className="flex items-center gap-1.5 mb-1">
-                  {pending.status === 'failed' ? <AlertCircle className="w-3 h-3 text-red-300" />
+                  {pending.status === 'quarantined' ? <Clock className="w-3 h-3 text-amber-300" />
+                    : pending.status === 'failed' || pending.status === 'rejected' ? <AlertCircle className="w-3 h-3 text-red-300" />
                     : pending.status === 'delivered' ? <Check className="w-3 h-3" />
                     : <Loader2 className="w-3 h-3 animate-spin" />}
                   <span className="text-xs opacity-70">
-                    {pending.status === 'failed' ? 'Not delivered yet' : pending.status === 'delivered' ? 'Delivered' : 'Sending...'}
+                    {pending.status === 'quarantined' ? 'Held for approval' : pending.status === 'rejected' ? 'Not delivered' : pending.status === 'failed' ? 'Not delivered yet' : pending.status === 'delivered' ? 'Delivered' : 'Sending...'}
                   </span>
                 </div>
                 <p className="whitespace-pre-wrap">{pending.text}</p>
-                {pending.status === 'failed' && (
+                {pending.note && <p className="text-xs opacity-80 mt-1 break-words">{pending.note}</p>}
+                {(pending.status === 'failed' || pending.status === 'quarantined' || pending.status === 'rejected') && (
                   <div className="flex items-center gap-2 mt-2">
-                    <button onClick={() => retryPending(pending.timestamp)} className="px-2 py-1 text-xs rounded bg-blue-800/60 border border-blue-400/50">Retry</button>
+                    {pending.status === 'failed' && <button onClick={() => retryPending(pending.timestamp)} className="px-2 py-1 text-xs rounded bg-blue-800/60 border border-blue-400/50">Retry</button>}
                     <button onClick={() => setPendingMessages(prev => prev.filter(p => p.timestamp !== pending.timestamp))} className="px-2 py-1 text-xs rounded bg-gray-800/60 border border-gray-600/50">Dismiss</button>
                   </div>
                 )}

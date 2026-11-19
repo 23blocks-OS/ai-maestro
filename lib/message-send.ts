@@ -103,19 +103,22 @@ function buildAMPEnvelope(message: Message): { envelope: AMPEnvelope; payload: A
   return { envelope, payload }
 }
 
-/** The other host's policy refused it (F042): pass its reason on as it is. */
+/** The other host's policy refused it (F042): pass its reason on as it is. policy_denied: a host before 0.106.233 */
 function throwIfPolicyDenied(status: number, text: string, host: string | null): void {
   if (status !== 403) return
   let d: { error?: string; message?: string } = {}
   try { d = JSON.parse(text) } catch { return }
-  if (d.error === 'policy_denied' && typeof d.message === 'string') throw new PolicyDeniedError({ allowed: false, reason: d.message, host: host || undefined })
+  if ((d.error === 'forbidden' || d.error === 'policy_denied') && typeof d.message === 'string') throw new PolicyDeniedError({ allowed: false, reason: d.message, host: host || undefined })
 }
 
-/** The other host's rules hold it for approval (F118): say so, with its request, instead of "delivered". */
+/** The other host's rules quarantine it (F118, AMP 07): say so, with its entry, instead of "delivered". */
 async function throwIfHeld(res: Response, host: string | null): Promise<void> {
   if (res.status !== 202) return
-  const d = await res.json().catch(() => null) as { status?: string; message?: string; request?: { id: string; approvers: string[]; expiresAt: string; held: boolean } } | null
-  if (d?.status === 'held' && d.request) throw new PolicyDeniedError({ allowed: false, effect: 'ask', reason: d.message || `Held for approval on ${host}`, request: d.request, host: host || undefined })
+  const d = await res.json().catch(() => null) as { status?: string; message?: string; quarantine?: { quarantine_id?: string; expires_at?: string; reason_text?: string; reviewers?: string[] } } | null
+  const q = d?.quarantine
+  if (d?.status === 'quarantined' && q?.quarantine_id) {
+    throw new PolicyDeniedError({ allowed: false, effect: 'ask', reason: d.message || q.reason_text || `Held for approval on ${host}`, quarantine: { id: q.quarantine_id, expiresAt: q.expires_at || '', held: true, reviewers: q.reviewers }, host: host || undefined })
+  }
 }
 
 // ============================================================================
@@ -154,7 +157,7 @@ export interface SendFromUIOptions {
   fromVerified?: boolean
   /** Who is sending, for the policy (F042), when `from` is not an agent: a person at a device. Resolved from `from` otherwise */
   fromParty?: PolicyParty
-  /** An approved request this send delivers (F118): its one pass through the policy check */
+  /** An approved quarantine entry this send delivers (F118): its one pass through the policy check */
   approved?: string
   amp?: {
     signature?: string
@@ -410,7 +413,7 @@ export interface ForwardFromUIOptions {
   toAgent: string
   forwardNote?: string
   providedOriginalMessage?: Message
-  /** An approved request this forward delivers (F118) */
+  /** An approved quarantine entry this forward delivers (F118) */
   approved?: string
 }
 

@@ -7,7 +7,7 @@ import { getSelfHostId, isSelf } from '@/lib/hosts-config'
 import { personIdFromAddress } from '@/lib/person-address'
 import { getPerson, loadPeople } from '@/lib/people-registry'
 import { decide, loadPolicy, logPolicyDecision, partyLabel, shouldLog, type PolicyAction, type PolicyDecision, type PolicyParty } from '@/lib/policy'
-import { createRequest, takeGrant, takePass, type ApproverLookup, type HeldPath } from '@/lib/policy-approvals'
+import { createQuarantine, takePass, type ApproverLookup, type HeldPath } from '@/lib/policy-approvals'
 
 const hostOf = (hostId?: string) => (!hostId || hostId === 'local' || isSelf(hostId) ? getSelfHostId() : hostId)
 
@@ -50,9 +50,9 @@ export function teamsOf(p: PolicyParty): string[] {
 
 /**
  * This host's decision. Never throws: with no rules file (or a broken one that never loaded) everyone may reach
- * everyone. An ask that an earlier answer covers (a grant from "for <duration>", a call approved once, or the one
- * replay pass of an approved held message, `approved`) is allowed; a grant never opens a deny. Refusals, asks and
- * audit hits go to the decision log; `log: false` for a "why" question, which decides nothing and uses no grant.
+ * everyone. An ask that an approved quarantine entry covers is allowed, once: the replay of that held message
+ * (`approved: <quarantine id>`), or the next identical call. An approval never opens a deny. Refusals, asks and audit
+ * hits go to the decision log; `log: false` for a "why" question, which decides nothing and uses no pass.
  */
 export function checkPolicy(from: PolicyParty, to: PolicyParty, action: PolicyAction = 'message', opts: { log?: boolean; approved?: string } = {}): PolicyDecision {
   const { policy, hash } = loadPolicy()
@@ -60,12 +60,8 @@ export function checkPolicy(from: PolicyParty, to: PolicyParty, action: PolicyAc
   if (!policy) return { allowed: true, effect: 'allow', reason: `Allowed: host ${host} has no rules, so everyone may reach everyone`, host }
   let d = decide(policy, from, to, action, { host, teamsOf })
   if (d.effect === 'ask' && opts.log !== false) {
-    if (opts.approved && takePass(opts.approved, from, to, action)) {
-      d = { ...d, allowed: true, effect: 'allow', reason: `Allowed: approved request ${opts.approved} (${d.ruleIds?.join(', ')})` }
-    } else {
-      const g = takeGrant(from, to, action, d.ruleIds || [])
-      if (g) d = { ...d, allowed: true, effect: 'allow', reason: `Allowed: ${g.by} approved it until ${g.until}${g.uses !== undefined ? ' (once)' : ''} (request ${g.request}, ${d.ruleIds?.join(', ')})` }
-    }
+    const id = takePass(from, to, action, opts.approved)
+    if (id) d = { ...d, allowed: true, effect: 'allow', reason: `Allowed: approved quarantine entry ${id} (${d.ruleIds?.join(', ')})` }
   }
   if (opts.log !== false && shouldLog(d, policy)) {
     logPolicyDecision({
@@ -88,37 +84,39 @@ export const approverLookup: ApproverLookup = {
 
 const g = globalThis as { _policySweeper?: ReturnType<typeof setInterval> }
 
-/** Expires overdue requests once a minute and tells their senders (services/policy-service). Started by the first hold and at startup. */
+/** Expires overdue quarantine entries once a minute and tells their senders (services/policy-service). Started by the first hold and at startup. */
 export function ensureApprovalSweeper(): void {
   if (g._policySweeper || process.env.VITEST) return
   g._policySweeper = setInterval(() => {
-    import('@/services/policy-service').then(m => m.sweepPolicyRequests()).catch(e => console.warn(`[Policy] sweep failed: ${e.message}`))
+    import('@/services/policy-service').then(m => m.sweepPolicyQuarantine()).catch(e => console.warn(`[Policy] sweep failed: ${e.message}`))
   }, 60_000)
   g._policySweeper.unref?.()
 }
 
 /**
- * An ask at a send path becomes an approval request. With `held`, the message waits in the request until the answer,
- * and the decision says so (policyDeniedResult turns it into 202 approval_pending). Without (a call), the request is
- * created and the call is refused now; an approval lets the next identical call through. With no approver, or a
- * store that cannot be used, it is a plain refusal with the reason. A decision that is not an ask is returned as is.
+ * An ask at a send path becomes an AMP quarantine entry. With `held`, the message waits in it until approved, and the
+ * decision says so (policyDeniedResult turns it into 202 `quarantined`). Without (a call), the entry is created and the
+ * call is refused now; an approval lets the next identical call through. With no approver, or a store that cannot be
+ * used, it is a plain refusal with the reason. A decision that is not an ask is returned as is.
  */
 export function holdForApproval(d: PolicyDecision, from: PolicyParty, to: PolicyParty, action: PolicyAction, held?: { path: HeldPath; payload: unknown }): PolicyDecision {
   if (d.effect !== 'ask') return d
-  const made = createRequest({ decision: d, from, to, action, host: d.host || getSelfHostId(), held, look: approverLookup })
+  const made = createQuarantine({ decision: d, from, to, action, host: d.host || getSelfHostId(), held, look: approverLookup })
   if ('refused' in made) return { ...d, reason: `${d.reason}, but ${made.refused}, so it is refused` }
   ensureApprovalSweeper()
-  const r = made.request
+  const r = made.entry
   const who = r.approvers.map(a => a.label).join(' or ')
-  const when = r.expiresAt.slice(0, 16).replace('T', ' ') + ' UTC'
+  const when = r.expires_at.slice(0, 16).replace('T', ' ') + ' UTC'
   const pushTo = r.approvers.filter(a => a.ref.startsWith('person:')).map(a => a.ref.slice(7))
   if (pushTo.length && !process.env.VITEST) {
-    import('@/lib/push-expo').then(m => m.pushApproval({ personIds: pushTo, requestId: r.id, from: r.from, to: r.to, action })).catch(() => {})
+    import('@/lib/push-expo').then(m => m.pushApproval({ personIds: pushTo, quarantineId: r.quarantine_id, from: r.from, to: r.to, action })).catch(() => {})
   }
-  const request = { id: r.id, approvers: r.approvers.map(a => a.ref), expiresAt: r.expiresAt, held: !!held }
+  // AMP 07 "Approval request": a signed provider notice to each reviewer, which a signed reply answers
+  if (!process.env.VITEST) import('@/services/provider-notices').then(m => m.sendApprovalRequests(r)).catch(e => console.warn(`[Policy] approval requests for ${r.quarantine_id}: ${e.message}`))
+  const quarantine = { id: r.quarantine_id, expiresAt: r.expires_at, held: !!held, reviewers: r.reviewers }
   return held
-    ? { ...d, request, reason: `Held for approval by ${who} (request ${r.id}, expires ${when}): ${d.reason}` }
-    : { ...d, request, reason: `${d.reason}. Request ${r.id} went to ${who}; once approved, the same ${action} goes through until ${when}` }
+    ? { ...d, quarantine, reason: `Held for approval by ${who} (quarantine ${r.quarantine_id}, expires ${when}): ${d.reason}` }
+    : { ...d, quarantine, reason: `${d.reason}. Quarantine entry ${r.quarantine_id} went to ${who} (expires ${when}); once approved, the same ${action} goes through once` }
 }
 
 /** An ask where nobody can wait for the answer (a device input has no screen; federation in this phase): spec 11.3 item 7 */

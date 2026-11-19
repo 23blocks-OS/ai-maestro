@@ -78,6 +78,7 @@ import type {
 } from '@/lib/types/amp'
 import { type ServiceResult } from '@/services/service-errors'
 import { personIdFromAddress } from '@/lib/person-address'
+import { checkProviderNotice, getProviderKey, isProviderAddress, providerKeyOfHost, PROVIDER_NAME } from '@/lib/provider-key'
 import { personKeyFor, personHostFor } from '@/lib/person-keys'
 import { personAddress } from '@/lib/person-address'
 import { saveMessage as savePersonMessage } from '@/lib/person-mailbox'
@@ -398,8 +399,8 @@ async function forwardToHost(
     }
 
     const result = await response.json()
-    // The other host's rules hold it for approval (F118): it waits there, nothing to retry
-    if (response.status === 202 && result?.status === 'held') return { ok: true, result, held: result }
+    // The other host's rules quarantine it (F118, AMP 07): it waits there, nothing to retry
+    if (response.status === 202 && result?.status === 'quarantined') return { ok: true, result, held: result }
     return { ok: true, result }
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
@@ -411,19 +412,19 @@ async function forwardToHost(
   }
 }
 
-/** The other host's policy refused it (F042): a final answer with its reason, never queued for a retry. */
+/** The other host's policy refused it (F042): a final answer with its reason, never queued for a retry. policy_denied: a host before 0.106.233 */
 function policyDenial(status: number, text: string): { error: string; message: string } | undefined {
   if (status !== 403) return undefined
   try {
     const d = JSON.parse(text)
-    return d?.error === 'policy_denied' && typeof d.message === 'string' ? { error: d.error, message: d.message } : undefined
+    return (d?.error === 'forbidden' || d?.error === 'policy_denied') && typeof d.message === 'string' ? { error: 'forbidden', message: d.message } : undefined
   } catch { return undefined }
 }
 
 /**
- * F042: this host's rules for a sender and recipient; a 403 the sender can read, or null. An ask (F118) holds the
- * message with everything deliverRouted needs, and answers 202 approval_pending; with no `hold` (federation) an ask
- * is refused, because nothing can wait for it there yet.
+ * F042: this host's rules for a sender and recipient; a 403 the sender can read, or null. An ask (F118) quarantines
+ * the message with everything deliverRouted needs, and answers 202 `quarantined` (AMP 05/07); with no `hold`
+ * (federation) an ask is refused, because nothing can wait for it there yet.
  */
 function policyRefusal(from: PolicyParty, to: PolicyParty, envelopeFrom: string, hold?: RoutedDelivery): ServiceResult<AMPRouteResponse> | null {
   let decision = checkPolicy(from, to, 'message')
@@ -433,9 +434,10 @@ function policyRefusal(from: PolicyParty, to: PolicyParty, envelopeFrom: string,
       ? holdForApproval(decision, from, to, 'message', { path: 'amp-route', payload: hold })
       : askNotPossible(decision, 'a message from another provider cannot wait for an approval yet')
   }
-  console.warn(`[AMP Route] ${decision.request?.held ? 'HELD' : 'REJECTED'} — policy: ${decision.reason}`)
+  console.warn(`[AMP Route] ${decision.quarantine?.held ? 'QUARANTINED' : 'REJECTED'} — policy: ${decision.reason}`)
   const refused = policyDeniedResult(decision)
-  return { ...refused, data: { ...refused.data, ...(decision.request?.held && hold ? { id: hold.envelope.id } : {}), details: { ...refused.data.details, from: envelopeFrom } } }
+  if (decision.quarantine?.held && hold) return { ...refused, data: { id: hold.envelope.id, ...refused.data } }
+  return { ...refused, data: { ...refused.data, details: { ...refused.data.details, from: envelopeFrom } } }
 }
 
 /**
@@ -565,13 +567,15 @@ export function getHealthStatus(): ServiceResult<AMPHealthResponse> {
 export function getProviderInfo(): ServiceResult<AMPInfoResponse> {
   const organization = getOrganization() || undefined
   const providerDomain = getAMPProviderDomain(organization)
+  // 07 "Provider Notices": the key that signs the provider's own messages, found by discovery
+  const providerKey = getProviderKey()
 
   return {
     data: {
       provider: providerDomain,
       version: `amp/${AMP_PROTOCOL_VERSION}`,
-      public_key: undefined,
-      fingerprint: undefined,
+      public_key: providerKey?.publicPem,
+      fingerprint: providerKey?.fingerprint,
       capabilities: [
         'registration',
         'local-delivery',
@@ -582,6 +586,8 @@ export function getProviderInfo(): ServiceResult<AMPInfoResponse> {
         // that references an Agent Files Protocol object and never fetches,
         // scans or rewrites it.
         'attachments:afp',
+        // 07 "Policy Holds": reason `policy`, reviewers, decisions by REST or signed reply, signed provider notices
+        ...(providerKey ? ['quarantine:policy'] : []),
       ],
       // Spec section 9: providers advertise their attachment limits here, and
       // section 5 REQUIRES a provider without antivirus infrastructure to
@@ -691,6 +697,14 @@ export async function registerAgent(
 
     // Normalize name to lowercase
     const normalizedName = body.name.toLowerCase()
+
+    // 03 "Reserved names": _provider is the provider's own address (07 "Provider Notices")
+    if (normalizedName === PROVIDER_NAME) {
+      return {
+        data: { error: 'name_taken', message: `The name '${PROVIDER_NAME}' is reserved for the provider's own notices` } as any,
+        status: 409
+      }
+    }
 
     // Validate name format
     if (!isValidAgentName(normalizedName)) {
@@ -1062,7 +1076,8 @@ async function routeMessageUnrecorded(
       || (isMeshForwarded && body.from ? body.from.split('@')[0] : 'unknown')
 
     // ── Sender Address Validation for Mesh (D16) ──────────────────────
-    if (isMeshForwarded && body.from) {
+    // A provider notice is checked with the provider key below instead
+    if (isMeshForwarded && body.from && !isProviderAddress(body.from)) {
       const senderParsed = parseAMPAddress(body.from)
       if (senderParsed) {
         const fwdHost = getHostById(forwardedFrom!)
@@ -1179,7 +1194,20 @@ async function routeMessageUnrecorded(
     // A person's message (AMP spec 13): signed by one of their device keys, never an agent key. Every
     // host runs the whole check itself, with its own nonce store, whoever forwarded it.
     const personSender = personIdFromAddress(envelope.from)
-    if (personSender || typeof body.key_id === 'string') {
+    // A provider notice (AMP 07 "Provider Notices"): only the provider key of the host that wrote it, found by
+    // discovery (its /api/v1/info), counts; never a key sent along with it, never resolution of `_provider`
+    let providerNotice = false
+    if (isProviderAddress(envelope.from)) {
+      const keyHex = isMeshForwarded ? await providerKeyOfHost(forwardedFrom!) : null
+      signatureCheck = checkProviderNotice(signedFields, body.signature, keyHex)
+      if (signatureCheck === 'bad' || (STRICT && signatureCheck !== 'verified')) {
+        console.warn(`[AMP Route] REJECTED — provider notice from ${envelope.from} does not verify with the provider key of ${forwardedFrom}`)
+        return { data: { error: 'invalid_signature', message: 'Provider notice signature failed verification with the provider key', details: { from: envelope.from } }, status: 403 }
+      }
+      providerNotice = signatureCheck === 'verified'
+      checkKeyHex = keyHex
+      if (body.signature) envelope.signature = body.signature
+    } else if (personSender || typeof body.key_id === 'string') {
       const key = typeof body.key_id === 'string' ? await personKeyFor(body.key_id, forwardedFrom) : null
       const check = checkPersonSend({ fields: signedFields, signature: body.signature, personId: personSender ?? '', key, now: Date.parse(now), nonces: personNonces() })
       if (!check.ok) {
@@ -1275,7 +1303,26 @@ async function routeMessageUnrecorded(
       }
     }
 
+    // ── A message to `_provider` is for the provider only (AMP 07 "Provider Notices" rule 1): an approval answer ──
+    if (isProviderAddress(fwdMeta?.original_to ?? body.to)) {
+      const { answerProviderMessage } = await import('@/services/policy-service')
+      return await answerProviderMessage({
+        id: messageId, timestamp: now,
+        signed: { ...signedFields, priority: signedFields.priority, in_reply_to: signedFields.in_reply_to },
+        ...(body.signature ? { signature: body.signature } : {}), ...(typeof body.key_id === 'string' ? { key_id: body.key_id } : {}),
+        verified: signatureCheck === 'verified',
+        fromPeer: !!isMeshForwarded && !fromThisHost,
+        forward: {
+          from: envelope.from, to: PROVIDER_NAME, subject: body.subject, payload: body.payload, priority: signedFields.priority, in_reply_to: body.in_reply_to,
+          signature: body.signature, ...(typeof body.key_id === 'string' ? { key_id: body.key_id, sender_kind: 'person' } : {}),
+          ...(senderKeyPair?.publicPem ? { sender_public_key: senderKeyPair.publicPem } : {}),
+          _forwarded: { original_from: envelope.from, original_to: signedFields.to, forwarded_by: getSelfHostId(), forwarded_at: now },
+        },
+      }) as unknown as ServiceResult<AMPRouteResponse>
+    }
+
     // ── Who may reach whom (F042): each host checks its own rules, the sender's before sending, the recipient's before delivering ──
+    // A verified provider notice is the provider itself, not a principal the rules are about
     const senderParty: PolicyParty = senderAgent ? agentParty(senderAgent) : resolveParty(envelope.from, forwardedFrom || getSelfHostId())
 
     // ── A person recipient (AMP spec 13.5): their mailbox, on the host that holds them ──
@@ -1286,7 +1333,7 @@ async function routeMessageUnrecorded(
     }
     if (personRecipient) {
       routed.personRecipient = personRecipient
-      const refused = policyRefusal(senderParty, { kind: 'person', id: personRecipient }, envelope.from, routed)
+      const refused = providerNotice ? null : policyRefusal(senderParty, { kind: 'person', id: personRecipient }, envelope.from, routed)
       if (refused) return refused
       return await deliverRouted(routed, rateLimitHeaders)
     }
@@ -1337,7 +1384,7 @@ async function routeMessageUnrecorded(
 
     const recipientAgent = resolvedAgentId ? getAgent(resolvedAgentId) : null
     Object.assign(routed, { recipientName, resolvedHostId, resolvedAgentId })
-    const refused = policyRefusal(senderParty, recipientAgent ? agentParty(recipientAgent) : { kind: 'agent', id: resolvedAgentId, name: recipientName, host: resolvedHostId || selfHostIdValue }, envelope.from, routed)
+    const refused = providerNotice ? null : policyRefusal(senderParty, recipientAgent ? agentParty(recipientAgent) : { kind: 'agent', id: resolvedAgentId, name: recipientName, host: resolvedHostId || selfHostIdValue }, envelope.from, routed)
     if (refused) return refused
     return await deliverRouted(routed, rateLimitHeaders)
 
@@ -2258,7 +2305,12 @@ async function deliverFederatedUnrecorded(
         status: 403
       }
     }
-    const fwdKeyHex = typeof sender_public_key === 'string' ? publicHexFromPem(sender_public_key) : null
+    // A provider notice (07 "Provider Notices" rule 4) is checked with the forwarding provider's discovered key, the one
+    // that just authenticated this request, and only when it names that provider; never with sender_public_key
+    const notice = isProviderAddress(envelope.from)
+    const fwdKeyHex = notice
+      ? (checkProviderNotice({ from: envelope.from, to: envelope.to, subject: envelope.subject, priority: envelope.priority || 'normal', in_reply_to: envelope.in_reply_to || '', payload }, envelope.signature, providerAuth.fingerprintHex, providerName) === 'verified' ? providerAuth.fingerprintHex : null)
+      : typeof sender_public_key === 'string' ? publicHexFromPem(sender_public_key) : null
     if (!envelope.signature || !fwdKeyHex) {
       return {
         data: { error: 'invalid_signature', message: 'A signed message and the sender public key are required', details: { from: envelope.from } },

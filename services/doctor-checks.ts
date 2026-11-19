@@ -597,13 +597,13 @@ export function checkPolicyRules(p: PolicyCheckInput): DiagnosticCheck {
 }
 
 // ---------------------------------------------------------------------------
-// policy-approvals (F118 step 2): the approval store reads, and no request outlived its expiry unswept
+// policy-approvals (F118 step 2): the quarantine store reads, and no entry outlived its expiry unswept
 // ---------------------------------------------------------------------------
 
 export function checkPolicyApprovals(h: { file: string; pending: number; overdue: string[]; error?: string }): DiagnosticCheck {
   const items: DiagnosticItem[] = []
   if (h.error) items.push({ key: 'policy-approvals:store', status: 'fail', path: h.file, message: h.error })
-  for (const id of h.overdue) items.push({ key: `policy-approvals:overdue:${id}`, status: 'warn', message: `Request ${id} is past its expiry and still pending: the sweeper has not run (it runs once a minute in the server)` })
-  return check('policy-approvals', 'host', items, `The approval store reads (${h.pending} pending)`, `The approval store has ${items.length} problem(s)`,
-    `The store is ${h.file || '~/.aimaestro/policy/approvals.json'}. While it cannot be read, every ask is refused. GET /api/policy/requests lists the requests (and expires overdue ones).`)
+  for (const id of h.overdue) items.push({ key: `policy-approvals:overdue:${id}`, status: 'warn', message: `Quarantine entry ${id} is past its expiry and still pending: the sweeper has not run (it runs once a minute in the server)` })
+  return check('policy-approvals', 'host', items, `The quarantine store reads (${h.pending} pending)`, `The quarantine store has ${items.length} problem(s)`,
+    `The store is ${h.file || '~/.aimaestro/policy/quarantine.json'}. While it cannot be read, every ask is refused. GET /api/v1/quarantine lists the entries (and expires overdue ones).`)
 }

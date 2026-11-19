@@ -152,7 +152,7 @@ import { getSelfHostId } from '@/lib/hosts-config'
 import { listDevices, pairDevice, unpairDevice, setDeviceKey } from '@/services/person-devices-service'
 import { sendAsPerson, listPersonMessages, getPersonMessage, updatePersonMessage } from '@/services/person-messages-service'
 import { getCalls, getCallById, startCall, sendCallEvent } from '@/services/calls-service'
-import { getPolicy, explainPolicy, listPolicyRequests, answerPolicyRequest } from '@/services/policy-service'
+import { getPolicy, explainPolicy, listPolicyQuarantine, getPolicyQuarantine, decidePolicyQuarantine } from '@/services/policy-service'
 import { linkAgentManagers } from '@/services/agents-manager-links-service'
 import { listPeople, getPersonById, createPerson, updatePerson, deletePerson } from '@/services/people-service'
 import { listContacts, addContact, removeContact } from '@/services/contacts-service'
@@ -1939,12 +1939,20 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/policy$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getPolicy())
   }},
-  { method: 'GET', pattern: /^\/api\/policy\/requests$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await listPolicyRequests({ state: qp(query, 'state'), localOnly: qp(query, 'localOnly') === '1' }))
+  // AMP 08 quarantine (F118 step 2)
+  { method: 'GET', pattern: /^\/api\/v1\/quarantine$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    sendServiceResult(res, await listPolicyQuarantine({ status: qp(query, 'status'), limit: qp(query, 'limit'), localOnly: qp(query, 'localOnly') === '1' }))
   }},
-  { method: 'POST', pattern: /^\/api\/policy\/requests\/([^/]+)\/answer$/, paramNames: ['id'], handler: async (req, res, params) => {
+  { method: 'GET', pattern: /^\/api\/v1\/quarantine\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    sendServiceResult(res, await getPolicyQuarantine(params.id, qp(query, 'host')))
+  }},
+  { method: 'POST', pattern: /^\/api\/v1\/quarantine\/([^/]+)\/approve$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req).catch(() => ({}))
-    sendServiceResult(res, await answerPolicyRequest(params.id, body))
+    sendServiceResult(res, await decidePolicyQuarantine(params.id, 'approve', body))
+  }},
+  { method: 'POST', pattern: /^\/api\/v1\/quarantine\/([^/]+)\/reject$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, await decidePolicyQuarantine(params.id, 'reject', body))
   }},
   { method: 'GET', pattern: /^\/api\/policy\/check$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, await explainPolicy({ from: qp(query, 'from'), to: qp(query, 'to'), action: qp(query, 'action'), localOnly: qp(query, 'localOnly') === '1' }))

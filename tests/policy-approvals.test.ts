@@ -1,16 +1,15 @@
 /**
- * F118 step 2: approvals for `ask`. Approver resolution, held messages delivered exactly once, grants for a time,
- * "always" as an except entry, signed proof, the store across a restart, and no change at all with no rules file.
+ * F118 step 2: `ask` is AMP quarantine (spec 07 "Message Quarantine", 08 "Quarantine Management"). Approver resolution,
+ * 202 quarantined, qtn_ ids and AMP states, a quarantined message delivered exactly once on approve, 409 / 410, expiry,
+ * calls, signed proof refused, the store across a restart, cross-host list and decisions, and no change with no rules.
  */
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest'
-import crypto from 'crypto'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { lintPolicy, validatePolicy, type PolicyParty } from '@/lib/policy'
-import { approvalSigningString, resolveApprovers, type ApproverLookup } from '@/lib/policy-approvals'
+import { resolveApprovers, type ApproverLookup } from '@/lib/policy-approvals'
 import { checkPolicyApprovals } from '@/services/doctor-checks'
-import type { DeviceKey } from '@/lib/person-signing'
 
 const payroll: PolicyParty = { kind: 'agent', id: 'id-payroll', name: 'payroll', host: 'host-b' }
 const dev: PolicyParty = { kind: 'agent', id: 'id-dev', name: 'dev', host: 'host-b' }
@@ -65,17 +64,18 @@ const writeRules = (home: string, rules: unknown[], extra: Record<string, unknow
   fs.writeFileSync(ruleFile(home), JSON.stringify({ version: 2, rules, ...extra }, null, 2))
 
 const ASK_PAYROLL = { id: 'payroll-asks', effect: 'ask', from: '*', to: 'agent:payroll', approvers: ['person:alice'], note: 'Payroll messages need Alice' }
+const QTN = /^qtn_\d+_[0-9a-f]+$/
 const ASK_CALL = { id: 'calls-to-bob', effect: 'ask', from: 'agent:*', to: 'person:bob', actions: ['call'], approvers: ['person:bob'], expires: '10m' }
 
-describe('approval requests at the send paths', () => {
+describe('quarantine at the send paths (AMP 07/08)', () => {
   let home: string
   const notify = vi.fn(async () => {})
   const deliver = vi.fn(async () => ({ ok: true }))
-  const keyFor = vi.fn(async (): Promise<DeviceKey | null> => null)
-  const deps = () => ({ deliver, notify, keyFor, fetch })
+  const deps = () => ({ deliver, notify, fetch })
+  const policy = () => path.join(home, '.aimaestro', 'policy')
 
   beforeAll(() => {
-    home = fs.mkdtempSync(path.join(os.tmpdir(), 'policy-approvals-home-'))
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'policy-quarantine-home-'))
     vi.stubEnv('HOME', home)
     fs.mkdirSync(path.join(home, '.aimaestro'), { recursive: true })
   })
@@ -84,8 +84,8 @@ describe('approval requests at the send paths', () => {
     fs.rmSync(home, { recursive: true, force: true })
   })
   beforeEach(() => {
-    notify.mockClear(); deliver.mockClear(); keyFor.mockClear()
-    fs.rmSync(path.join(home, '.aimaestro', 'policy'), { recursive: true, force: true })
+    notify.mockClear(); deliver.mockClear()
+    fs.rmSync(policy(), { recursive: true, force: true })
     writeRules(home, [ASK_PAYROLL, ASK_CALL])
   })
 
@@ -93,180 +93,163 @@ describe('approval requests at the send paths', () => {
     const { sendMessage } = await import('@/services/messages-service')
     const r = await sendMessage({ from: 'bob', to: 'payroll', subject: 'Invoice', content: { type: 'request', message: text } })
     expect(r.status).toBe(202)
-    expect(r.data).toMatchObject({ error: 'approval_pending', status: 'held' })
-    expect((r.data as any).message).toMatch(/^Held for approval by alice \(request apr-/)
-    return (r.data as any).request as { id: string; approvers: string[]; expiresAt: string; held: boolean }
+    expect(r.data).toMatchObject({
+      status: 'quarantined',
+      quarantine: { quarantine_id: expect.stringMatching(QTN), reason: 'policy', rules_triggered: ['payroll-asks'], reviewers: [expect.stringMatching(/^p-alice@/)], expires_at: expect.any(String) },
+    })
+    expect((r.data as any).message).toMatch(/^Held for approval by alice \(quarantine qtn_/)
+    return (r.data as any).quarantine.quarantine_id as string
   }
 
-  it('a message is held, never in the decision log, and delivered exactly once on approve', async () => {
-    const req = await holdOne()
-    expect(req).toMatchObject({ approvers: ['person:alice'], held: true })
-    const held = path.join(home, '.aimaestro', 'policy', 'held', `${req.id}.json`)
+  it('a message is quarantined with AMP metadata, never in the decision log, and delivered exactly once on approve', async () => {
+    const id = await holdOne()
+    const held = path.join(policy(), 'quarantine', `${id}.json`)
     expect(fs.statSync(held).mode & 0o777).toBe(0o600)
-    expect(fs.statSync(path.join(home, '.aimaestro', 'policy', 'approvals.json')).mode & 0o777).toBe(0o600)
-    expect(fs.readFileSync(path.join(home, '.aimaestro', 'policy', 'approvals.json'), 'utf8')).not.toContain('pay the invoice')
-    expect(fs.readFileSync(path.join(home, '.aimaestro', 'policy', 'decisions.jsonl'), 'utf8')).not.toContain('pay the invoice')
+    expect(fs.statSync(path.join(policy(), 'quarantine.json')).mode & 0o777).toBe(0o600)
+    expect(fs.readFileSync(path.join(policy(), 'quarantine.json'), 'utf8')).not.toContain('pay the invoice')
+    expect(fs.readFileSync(path.join(policy(), 'decisions.jsonl'), 'utf8')).not.toContain('pay the invoice')
 
-    const { answerPolicyRequest } = await import('@/services/policy-service')
-    const ok = await answerPolicyRequest(req.id, { answer: 'once', by: 'Alice' }, deps())
-    expect(ok.status).toBe(200)
-    expect(ok.data!.request).toMatchObject({ state: 'approved', answer: { answer: 'once', by: 'Alice (unverified)', how: 'dashboard' }, delivery: { ok: true } })
+    const { decidePolicyQuarantine, getPolicyQuarantine } = await import('@/services/policy-service')
+    expect((await getPolicyQuarantine(id)).data).toMatchObject({
+      quarantine_id: id, reason: 'policy', rules_triggered: ['payroll-asks'], reason_text: expect.stringContaining('Payroll messages need Alice'), status: 'pending',
+      quarantined_at: expect.any(String), expires_at: expect.any(String), approvers: [{ ref: 'person:alice' }],
+    })
+    const ok = await decidePolicyQuarantine(id, 'approve', { by: 'Alice' }, deps())
+    expect(ok).toMatchObject({ status: 200, data: { quarantine_id: id, status: 'approved', message_id: null, delivered: true } })
     expect(deliver).toHaveBeenCalledTimes(1)
     expect((deliver.mock.calls[0] as any[])[0]).toMatchObject({ path: 'ui-send', payload: { to: 'payroll', content: { message: 'please pay the invoice' } } })
     expect(fs.existsSync(held)).toBe(false)
+    expect((await getPolicyQuarantine(id)).data).toMatchObject({ status: 'approved', decided: { by: 'Alice (unverified)' }, delivery: { ok: true } })
 
-    const again = await answerPolicyRequest(req.id, { answer: 'once' }, deps())
-    expect(again.status).toBe(409)
+    // Already decided: 409 quarantine_decided, and nothing is delivered again
+    expect(await decidePolicyQuarantine(id, 'approve', {}, deps())).toMatchObject({ status: 409, data: { error: 'quarantine_decided' } })
+    expect((await decidePolicyQuarantine(id, 'reject', {}, deps())).status).toBe(409)
     expect(deliver).toHaveBeenCalledTimes(1)
-    const log = fs.readFileSync(path.join(home, '.aimaestro', 'policy', 'decisions.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l))
-    expect(log.map(l => l.event).filter(Boolean)).toEqual(['ask', 'answer', 'delivered'])
+    const log = fs.readFileSync(path.join(policy(), 'decisions.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l))
+    expect(log.map(l => l.event).filter(Boolean)).toEqual(['quarantined', 'approved', 'delivered'])
   })
 
-  it('the replay goes through the normal send path with a pass for that request only', async () => {
-    const req = await holdOne()
-    const { answerPolicyRequest, deliverHeld, listPolicyRequests } = await import('@/services/policy-service')
+  it('the release goes through the normal send path with a pass for that entry only', async () => {
+    const id = await holdOne()
+    const { decidePolicyQuarantine, deliverHeld, listPolicyQuarantine } = await import('@/services/policy-service')
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const r = await answerPolicyRequest(req.id, { answer: 'once' }, { ...deps(), deliver: deliverHeld })
+    const r = await decidePolicyQuarantine(id, 'approve', {}, { ...deps(), deliver: deliverHeld })
     error.mockRestore()
-    // Payroll is not registered in this HOME, so delivery fails, but it got past the policy: no second request
-    expect(r.data!.delivery!.ok).toBe(false)
-    expect(r.data!.delivery!.message).not.toMatch(/held/i)
-    expect((await listPolicyRequests({ localOnly: true })).data!.requests).toHaveLength(1)
-    // The pass was used: the same send again is held again
+    // Payroll is not registered in this HOME, so delivery fails, but it got past the policy: no second entry
+    expect(r.data).toMatchObject({ status: 'approved', delivered: false })
+    expect((await listPolicyQuarantine({ status: 'approved', localOnly: true })).data!.items.map(i => i.quarantine_id)).toEqual([id])
+    expect((await listPolicyQuarantine({ localOnly: true })).data!.items).toEqual([])
+    // The pass was used: the same send again is quarantined again
     await holdOne()
-    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ id: req.id }), expect.stringContaining('could not be delivered'))
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ quarantine_id: id }), expect.stringContaining('could not be delivered'))
   })
 
-  it('a refused or expired message is never delivered, and the sender is told', async () => {
-    const { answerPolicyRequest, sweepPolicyRequests } = await import('@/services/policy-service')
+  it('a rejected or expired message is never delivered; expired answers 410 quarantine_expired', async () => {
+    const { decidePolicyQuarantine, sweepPolicyQuarantine } = await import('@/services/policy-service')
     const a = await holdOne()
-    const no = await answerPolicyRequest(a.id, { answer: 'refuse' }, deps())
-    expect(no.data!.request.state).toBe('refused')
-    expect(fs.existsSync(path.join(home, '.aimaestro', 'policy', 'held', `${a.id}.json`))).toBe(false)
+    const no = await decidePolicyQuarantine(a, 'reject', {}, deps())
+    expect(no).toMatchObject({ status: 200, data: { quarantine_id: a, status: 'rejected' } })
+    expect(fs.existsSync(path.join(policy(), 'quarantine', `${a}.json`))).toBe(false)
 
     const b = await holdOne()
-    const { sweepApprovals } = await import('@/lib/policy-approvals')
-    expect(sweepApprovals(Date.now() + 31 * 60_000).map(r => r.id)).toEqual([b.id])
-    expect((await answerPolicyRequest(b.id, { answer: 'once' }, deps())).status).toBe(409)
-    expect(await sweepPolicyRequests({ notify })).toBe(0) // already expired, told once by the sweep that expired it
+    const { sweepQuarantine } = await import('@/lib/policy-approvals')
+    expect(sweepQuarantine(Date.now() + 31 * 60_000).map(r => r.quarantine_id)).toEqual([b])
+    const late = await decidePolicyQuarantine(b, 'approve', {}, deps())
+    expect(late).toMatchObject({ status: 410, data: { error: 'quarantine_expired' } })
+    expect(await sweepPolicyQuarantine({ notify })).toBe(0) // already expired, told once by the sweep that expired it
     expect(deliver).not.toHaveBeenCalled()
-    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ id: a.id, state: 'refused' }), expect.stringContaining('was refused by an unverified person'))
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ quarantine_id: a, status: 'rejected' }), expect.stringContaining('was rejected by an unverified person'))
   })
 
-  it('a call is refused at once with a request; "once" lets the next identical call through, one time', async () => {
+  it('the list follows AMP 08: status (default pending), limit 1-100, { items, count, total }', async () => {
+    const { listPolicyQuarantine, getPolicyQuarantine, decidePolicyQuarantine } = await import('@/services/policy-service')
+    const a = await holdOne(), b = await holdOne()
+    const r = await listPolicyQuarantine({ limit: '1', localOnly: true })
+    expect(r.data).toMatchObject({ count: 1, total: 2 })
+    expect([a, b]).toContain(r.data!.items[0].quarantine_id)
+    expect(r.data!.items[0]).not.toHaveProperty('pass_until')
+    expect((await listPolicyQuarantine({ status: 'refused', localOnly: true })).status).toBe(400)
+    expect((await listPolicyQuarantine({ limit: '0', localOnly: true })).status).toBe(400)
+    expect((await getPolicyQuarantine('apr-1')).status).toBe(400)
+    expect((await getPolicyQuarantine('qtn_1_abcdef')).status).toBe(404)
+    expect((await decidePolicyQuarantine('qtn_1_abcdef', 'approve', {}, deps())).status).toBe(404)
+  })
+
+  it('a call is refused at once (403 forbidden) with an entry; approving lets the next identical call through, once', async () => {
     const { startCall } = await import('@/services/calls-service')
-    const { answerPolicyRequest } = await import('@/services/policy-service')
+    const { decidePolicyQuarantine } = await import('@/services/policy-service')
     const r = startCall({ caller: 'agent:backend', callee: 'person:bob' })
-    expect(r.status).toBe(403)
-    const id = (r.data as any).details.request.id
-    expect((await answerPolicyRequest(id, { answer: 'once' }, deps())).status).toBe(200)
+    expect(r).toMatchObject({ status: 403, data: { error: 'forbidden', details: { quarantine_id: expect.stringMatching(QTN) } } })
+    const id = (r.data as any).details.quarantine_id
+    expect((await decidePolicyQuarantine(id, 'approve', {}, deps())).data).toMatchObject({ status: 'approved', delivered: false })
+    expect(startCall({ caller: 'agent:frontend', callee: 'person:bob' }).status).toBe(403)
     expect(startCall({ caller: 'agent:backend', callee: 'person:bob' }).status).toBe(201)
     expect(startCall({ caller: 'agent:backend', callee: 'person:bob' }).status).toBe(403)
-  })
-
-  it('"for 1h" is a grant checkPolicy consults until it ends, for those parties only', async () => {
-    const { startCall } = await import('@/services/calls-service')
-    const { answerPolicyRequest } = await import('@/services/policy-service')
+    // A "why" question uses no pass
     const { checkPolicy, resolveParty } = await import('@/lib/policy-check')
-    const id = (startCall({ caller: 'agent:backend', callee: 'person:bob' }).data as any).details.request.id
-    expect((await answerPolicyRequest(id, { answer: 'for', for: 'nonsense' }, deps())).status).toBe(400)
-    const ok = await answerPolicyRequest(id, { answer: 'for', for: '1h' }, deps())
-    expect(ok.data!.request.answer).toMatchObject({ answer: 'for', for: '1h' })
-    expect(startCall({ caller: 'agent:backend', callee: 'person:bob' }).status).toBe(201)
-    expect(startCall({ caller: 'agent:backend', callee: 'person:bob' }).status).toBe(201)
-    expect(checkPolicy(resolveParty('agent:backend'), resolveParty('person:bob'), 'call').reason).toContain(`request ${id}`)
-    expect(startCall({ caller: 'agent:frontend', callee: 'person:bob' }).status).toBe(403)
-    // A "why" question uses no grant
     expect(checkPolicy(resolveParty('agent:backend'), resolveParty('person:bob'), 'call', { log: false }).effect).toBe('ask')
   })
 
-  it('"always" adds an except entry to the ask rule, and the next check allows', async () => {
-    const { startCall } = await import('@/services/calls-service')
-    const { answerPolicyRequest } = await import('@/services/policy-service')
-    const id = (startCall({ caller: 'agent:backend', callee: 'person:bob' }).data as any).details.request.id
-    const r = await answerPolicyRequest(id, { answer: 'always', by: 'Bob' }, deps())
-    expect(r.data!.request.answer!.exceptAdded).toEqual(['calls-to-bob'])
-    const file = JSON.parse(fs.readFileSync(ruleFile(home), 'utf8'))
-    const rule = file.rules.find((x: any) => x.id === 'calls-to-bob')
-    expect(rule.except).toHaveLength(1)
-    expect(rule.except[0]).toMatchObject({ actions: ['call'], to: ['person:bob'] })
-    expect(rule.except[0].from[0]).toMatch(/^agent:backend/)
-    expect(rule.except[0].note).toContain('approved always by Bob (unverified)')
-    expect(startCall({ caller: 'agent:backend', callee: 'person:bob' }).status).toBe(201)
-    expect(startCall({ caller: 'agent:frontend', callee: 'person:bob' }).status).toBe(403)
-    expect(fs.readFileSync(path.join(home, '.aimaestro', 'policy', 'decisions.jsonl'), 'utf8')).toContain('"event":"policy.edit"')
+  it('proof "signed": a dashboard approval is refused with a plain reason; rejecting needs no proof', async () => {
+    writeRules(home, [{ ...ASK_PAYROLL, proof: 'signed' }])
+    const { decidePolicyQuarantine } = await import('@/services/policy-service')
+    const id = await holdOne()
+    const r = await decidePolicyQuarantine(id, 'approve', { by: 'Alice' }, deps())
+    expect(r).toMatchObject({ status: 403, data: { error: 'forbidden' } })
+    expect((r.data as any).message).toContain('proof "signed"')
+    expect(deliver).not.toHaveBeenCalled()
+    expect((await decidePolicyQuarantine(id, 'reject', {}, deps())).status).toBe(200)
   })
 
-  it('"always" is refused on a version 1 file, and the request stays pending', async () => {
-    const { startCall } = await import('@/services/calls-service')
-    const { answerPolicyRequest } = await import('@/services/policy-service')
-    const id = (startCall({ caller: 'agent:backend', callee: 'person:bob' }).data as any).details.request.id
-    fs.writeFileSync(ruleFile(home), JSON.stringify({ rules: [{ from: '*', to: '*', allow: true }] }))
-    const r = await answerPolicyRequest(id, { answer: 'always' }, deps())
-    expect(r.status).toBe(409)
-    expect((r.data as any).message).toContain('Convert it to version 2 first')
-    expect((await answerPolicyRequest(id, { answer: 'once' }, deps())).status).toBe(200)
-  })
-
-  it('"always" needs a sender the host can name', async () => {
-    const id = (await holdOne()).id
-    const { answerPolicyRequest } = await import('@/services/policy-service')
-    // bob is not a registered agent here, so the sender is agent:bob, which can be named; an unidentified person cannot
-    const { createRequest } = await import('@/lib/policy-approvals')
-    const { approverLookup } = await import('@/lib/policy-check')
-    const made = createRequest({ decision: { allowed: false, effect: 'ask', reason: 'r', ruleIds: ['payroll-asks'], approvers: ['person:alice'] }, from: { kind: 'person' }, to: payroll, action: 'message', host: 'host-b', look: approverLookup })
-    const r = await answerPolicyRequest((made as any).request.id, { answer: 'always' }, deps())
-    expect((r.data as any).message).toContain('cannot name')
-    expect((await answerPolicyRequest(id, { answer: 'refuse' }, deps())).status).toBe(200)
-  })
-
-  it('signed proof: a dashboard click is not enough; a valid signature from an approver\'s device is', async () => {
-    writeRules(home, [{ ...ASK_CALL, proof: 'signed' }])
-    const { startCall } = await import('@/services/calls-service')
-    const { answerPolicyRequest } = await import('@/services/policy-service')
-    const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519')
-    const raw = publicKey.export({ format: 'der', type: 'spki' }).subarray(12).toString('base64')
-    keyFor.mockImplementation(async (keyId: string) => (keyId === 'k-bob' ? { keyId, personId: 'bob', publicKey: raw, status: 'active' } : keyId === 'k-alice' ? { keyId, personId: 'alice', publicKey: raw, status: 'active' } : null))
-    const id = (startCall({ caller: 'agent:backend', callee: 'person:bob' }).data as any).details.request.id
-
-    const unsigned = await answerPolicyRequest(id, { answer: 'once' }, deps())
-    expect(unsigned.status).toBe(403)
-    expect((unsigned.data as any).error).toBe('signature_required')
-
-    const signedAt = new Date().toISOString()
-    const { getSelfHostId } = await import('@/lib/hosts-config')
-    const text = approvalSigningString({ host: getSelfHostId(), request: id, answer: 'once', signedAt })
-    const signature = crypto.sign(null, Buffer.from(text), privateKey).toString('base64')
-    expect((await answerPolicyRequest(id, { answer: 'once', keyId: 'k-alice', signature, signedAt }, deps())).status).toBe(403) // not an approver
-    expect((await answerPolicyRequest(id, { answer: 'once', keyId: 'k-bob', signature: Buffer.alloc(64).toString('base64'), signedAt }, deps())).status).toBe(403)
-    const ok = await answerPolicyRequest(id, { answer: 'once', keyId: 'k-bob', signature, signedAt }, deps())
-    expect(ok.status).toBe(200)
-    expect(ok.data!.request.answer).toMatchObject({ by: 'person:bob', how: 'signed', keyId: 'k-bob' })
-
-    // Refusing needs no signature
-    const other = (startCall({ caller: 'agent:frontend', callee: 'person:bob' }).data as any).details.request.id
-    expect((await answerPolicyRequest(other, { answer: 'refuse' }, deps())).status).toBe(200)
-  })
-
-  it('the store and the held message survive a restart', async () => {
-    const req = await holdOne()
+  it('the store and the quarantined message survive a restart', async () => {
+    const id = await holdOne()
     vi.resetModules()
-    const { listApprovals } = await import('@/lib/policy-approvals')
-    expect(listApprovals('pending').map(r => r.id)).toEqual([req.id])
-    const { answerPolicyRequest } = await import('@/services/policy-service')
-    expect((await answerPolicyRequest(req.id, { answer: 'once' }, deps())).status).toBe(200)
+    const { listQuarantine } = await import('@/lib/policy-approvals')
+    expect(listQuarantine('pending').map(r => r.quarantine_id)).toEqual([id])
+    const { decidePolicyQuarantine } = await import('@/services/policy-service')
+    expect((await decidePolicyQuarantine(id, 'approve', {}, deps())).status).toBe(200)
     expect(deliver).toHaveBeenCalledTimes(1)
   })
 
-  it('an ask nobody can approve is a plain refusal with the reason', async () => {
+  it('a quarantined chat message tells the chat what became of it: delivered, rejected or expired', async () => {
+    const { checkPolicy, resolveParty, holdForApproval } = await import('@/lib/policy-check')
+    const { decidePolicyQuarantine, sweepPolicyQuarantine } = await import('@/services/policy-service')
+    const outcome = vi.fn()
+    ;(globalThis as any).__chatQuarantineOutcome = outcome
+    const hold = () => {
+      const from = { kind: 'person' as const }, to = resolveParty('agent:payroll')
+      const d = holdForApproval(checkPolicy(from, to, 'message'), from, to, 'message', { path: 'chat', payload: { sessionName: 'payroll', message: 'hi' } })
+      expect(d.reason).toMatch(/^Held for approval by alice \(quarantine qtn_/)
+      return d.quarantine!.id
+    }
+    try {
+      const a = hold(), b = hold(), c = hold()
+      await decidePolicyQuarantine(a, 'approve', {}, deps())
+      await decidePolicyQuarantine(b, 'reject', {}, deps())
+      expect(outcome).toHaveBeenCalledWith(a, 'delivered', expect.stringContaining('delivered'))
+      expect(outcome).toHaveBeenCalledWith(b, 'rejected', expect.stringContaining('was rejected'))
+      expect(outcome).toHaveBeenCalledTimes(2)
+      vi.useFakeTimers({ now: Date.now() + 31 * 60_000, toFake: ['Date'] })
+      try { await sweepPolicyQuarantine({ notify }) } finally { vi.useRealTimers() }
+      expect(outcome).toHaveBeenCalledWith(c, 'expired', expect.stringContaining('expired'))
+      // A quarantined message on another path never reaches the chat
+      outcome.mockClear()
+      await decidePolicyQuarantine(await holdOne(), 'approve', {}, deps())
+      expect(outcome).not.toHaveBeenCalled()
+    } finally {
+      delete (globalThis as any).__chatQuarantineOutcome
+    }
+  })
+
+  it('an ask nobody can approve is a block: 403 forbidden with the reason', async () => {
     writeRules(home, [{ ...ASK_PAYROLL, approvers: ['role:payroll-lead'] }])
     const { sendMessage } = await import('@/services/messages-service')
     const r = await sendMessage({ from: 'bob', to: 'payroll', subject: 'Hi', content: { type: 'request', message: 'x' } })
-    expect(r.status).toBe(403)
+    expect(r).toMatchObject({ status: 403, data: { error: 'forbidden' } })
     expect((r.data as any).message).toContain('no approver could be found (role:payroll-lead: not supported yet)')
   })
 
-  it('a message through the AMP route is held on the host whose rules asked, and answered 202', async () => {
+  it('the AMP route answers 202 quarantined on the host whose rules asked, and GET shows the held message', async () => {
     const { routeMessage } = await import('@/services/amp-service')
     const { getSelfHostId } = await import('@/lib/hosts-config')
     const self = getSelfHostId()
@@ -275,17 +258,50 @@ describe('approval requests at the send paths', () => {
     const r = await routeMessage({ from: `dev@${self}.aimaestro.local`, to: 'payroll', subject: 'Hi', payload: { type: 'request', message: 'x' } } as any, null, self, null, null, null)
     warn.mockRestore(); log.mockRestore()
     expect(r.status).toBe(202)
-    expect(r.data).toMatchObject({ status: 'held', error: 'approval_pending' })
-    const { listApprovals } = await import('@/lib/policy-approvals')
-    expect(listApprovals('pending')[0]).toMatchObject({ held: { path: 'amp-route' }, from: expect.stringMatching(/^agent:dev/) })
+    expect(r.data).toMatchObject({ id: expect.any(String), status: 'quarantined', quarantine: { quarantine_id: expect.stringMatching(QTN), reason: 'policy', expires_at: expect.any(String) } })
+    expect(r.data).not.toHaveProperty('error')
+    const id = (r.data as any).quarantine.quarantine_id
+    const { getPolicyQuarantine } = await import('@/services/policy-service')
+    const entry = (await getPolicyQuarantine(id)).data as any
+    expect(entry).toMatchObject({ held: { path: 'amp-route' }, from: expect.stringMatching(/^agent:dev/), message: { envelope: { id: (r.data as any).id }, payload: { message: 'x' } } })
   })
 
-  it('device input cannot wait for an answer: refused, no request', async () => {
+  it('across hosts: the list includes peers (localOnly=1), and a decision goes to the host that keeps the entry', async () => {
+    const { clearHostsCache } = await import('@/lib/hosts-config')
+    vi.stubEnv('AIMAESTRO_HOSTS', JSON.stringify([{ id: 'peer-b', name: 'peer-b', url: 'http://peer-b.test:23000' }]))
+    clearHostsCache()
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const peerItem = { quarantine_id: 'qtn_1763650000_abcdef', status: 'pending', quarantined_at: '2099-01-01T00:00:00.000Z', host: 'peer-b' }
+    const calls: { url: string; body?: string }[] = []
+    const peerFetch = (async (url: string, init?: RequestInit) => {
+      calls.push({ url, body: init?.body as string | undefined })
+      const body = url.includes('/approve') ? { quarantine_id: peerItem.quarantine_id, status: 'approved', message_id: 'msg_1', delivered: true } : { items: [peerItem], count: 1, total: 1 }
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }) as unknown as typeof fetch
+    try {
+      const { listPolicyQuarantine, decidePolicyQuarantine } = await import('@/services/policy-service')
+      const mine = await holdOne()
+      const r = await listPolicyQuarantine({}, peerFetch)
+      expect(calls[0].url).toBe('http://peer-b.test:23000/api/v1/quarantine?localOnly=1&status=pending&limit=100')
+      expect(r.data!.items.map(i => i.quarantine_id)).toEqual([peerItem.quarantine_id, mine])
+      const d = await decidePolicyQuarantine(peerItem.quarantine_id, 'approve', { by: 'Alice', host: 'peer-b' }, { ...deps(), fetch: peerFetch })
+      expect(d).toMatchObject({ status: 200, data: { status: 'approved', delivered: true } })
+      expect(calls[1].url).toBe(`http://peer-b.test:23000/api/v1/quarantine/${peerItem.quarantine_id}/approve`)
+      expect(JSON.parse(calls[1].body!)).toEqual({ by: 'Alice' })
+      expect(deliver).not.toHaveBeenCalled()
+    } finally {
+      log.mockRestore()
+      vi.stubEnv('AIMAESTRO_HOSTS', '')
+      clearHostsCache()
+    }
+  })
+
+  it('device input cannot wait for a decision: refused, no entry', async () => {
     const { askNotPossible, checkPolicy, resolveParty } = await import('@/lib/policy-check')
     const d = askNotPossible(checkPolicy({ kind: 'person' }, resolveParty('agent:payroll'), 'message'), 'a device input has no screen to wait for an approval')
     expect(d.allowed).toBe(false)
     expect(d.reason).toContain('not possible here')
-    expect(fs.existsSync(path.join(home, '.aimaestro', 'policy', 'approvals.json'))).toBe(false)
+    expect(fs.existsSync(path.join(policy(), 'quarantine.json'))).toBe(false)
   })
 
   it('with no rules file nothing changes on any path, and no store is written', async () => {
@@ -296,14 +312,14 @@ describe('approval requests at the send paths', () => {
     expect(checkPolicy(resolveParty('person:bob'), resolveParty('agent:payroll')).allowed).toBe(true)
     const { sendChatMessage } = await import('@/services/agents-chat-service')
     expect((await sendChatMessage('no-such-agent', 'hi')).status).toBe(404)
-    expect(fs.existsSync(path.join(home, '.aimaestro', 'policy', 'approvals.json'))).toBe(false)
+    expect(fs.existsSync(path.join(policy(), 'quarantine.json'))).toBe(false)
   })
 })
 
 describe('Doctor', () => {
-  it('fails when the store cannot be read, warns on overdue requests', () => {
+  it('fails when the store cannot be read, warns on overdue entries', () => {
     expect(checkPolicyApprovals({ file: 'a.json', pending: 0, overdue: [] }).status).toBe('pass')
-    expect(checkPolicyApprovals({ file: 'a.json', pending: 1, overdue: ['apr-1'] }).status).toBe('warn')
+    expect(checkPolicyApprovals({ file: 'a.json', pending: 1, overdue: ['qtn_1_abcdef'] }).status).toBe('warn')
     expect(checkPolicyApprovals({ file: 'a.json', pending: 0, overdue: [], error: 'bad json' }).status).toBe('fail')
   })
 })

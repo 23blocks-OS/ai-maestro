@@ -587,6 +587,8 @@ export function createAgent(request: CreateAgentRequest): Agent {
   if (!/^[a-zA-Z0-9/_.-]+$/.test(agentName)) {
     throw new Error('Agent name must only contain alphanumeric characters, hyphens, underscores, dots, and forward slashes')
   }
+  // AMP 03 "Reserved names": _provider is the provider's own address
+  if (agentName === '_provider') throw new Error("The name '_provider' is reserved for the provider's own notices")
 
   // Determine deployment type
   const deploymentType: DeploymentType = request.deploymentType || 'local'

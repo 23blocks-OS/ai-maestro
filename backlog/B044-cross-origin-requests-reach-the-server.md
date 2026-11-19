@@ -1,9 +1,9 @@
 # B044 - Any web page in the operator's browser can reach the server (no Origin check)
 
-**Status:** Todo (spec: `docs/SPEC-SECURITY-POSTURE.md`, part B)
+**Status:** Done (audit mode in 0.106.225, `enforce` the default in 0.106.234)
 **Type:** Bug (security)
 **Created:** 2026-11-18
-**Source:** found while checking the lolad review (lolad refuses cross-origin writes with Go's `http.CrossOriginProtection`, `internal/web/web.go` line 152). Evaluation: `docs/research/LOLAD-ADOPTION-REVIEW.md`.
+**Source:** found while checking the lolad review (lolad refuses cross-origin writes with Go's `http.CrossOriginProtection`, `internal/web/web.go` line 152).
 
 ## Description
 

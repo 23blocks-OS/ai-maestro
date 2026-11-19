@@ -8,6 +8,7 @@
 
 import { AMP_PROTOCOL_VERSION, getAMPProviderDomain } from '@/lib/types/amp'
 import { getSelfHost, getSelfHostId, getOrganization } from '@/lib/hosts-config-server.mjs'
+import { getProviderKey } from '@/lib/provider-key'
 import type { ServiceResult } from '@/services/service-errors'
 
 export interface WellKnownResponse {
@@ -29,6 +30,7 @@ export function getWellKnownDocument(): ServiceResult<WellKnownResponse> {
   const providerDomain = getAMPProviderDomain(organization)
 
   // In production this should be the externally accessible URL
+  const providerKey = getProviderKey()
   const endpoint = selfHost?.url ? `${selfHost.url}/api/v1` : `http://localhost:23000/api/v1`
 
   return {
@@ -37,16 +39,16 @@ export function getWellKnownDocument(): ServiceResult<WellKnownResponse> {
       endpoint,
       provider: `${selfHostId}.${providerDomain}`,
 
-      // Provider-level public key (for signing federation requests)
-      // TODO: Implement provider-level keypair
-      public_key: undefined,
-      fingerprint: undefined,
+      // The provider key (06 "Provider Authentication", 07 "Provider Notices")
+      public_key: providerKey?.publicPem,
+      fingerprint: providerKey?.fingerprint,
 
       capabilities: [
         'registration',       // Agent registration via /v1/register
         'local-delivery',     // Local delivery to agents
         'relay-queue',        // Store-and-forward for offline agents
         'mesh-routing',       // Cross-host routing within local network
+        ...(providerKey ? ['quarantine:policy'] : []), // 07 "Policy Holds"
         // 'federation',      // Cross-provider routing (planned)
         // 'websockets',      // Real-time delivery (planned)
       ],

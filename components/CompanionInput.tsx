@@ -60,6 +60,12 @@ export default function CompanionInput({
       })
       if (res.ok) {
         setText('')
+        // 202: a policy rule holds it for an approver (F118); the approver's answer delivers it, so do not resend
+        if (res.status === 202) {
+          if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current)
+          setFeedback('Held for approval')
+          feedbackTimerRef.current = setTimeout(() => setFeedback(null), 4000)
+        }
         // Notify voice subsystem of the user's message
         onMessageSent?.(trimmed)
         // Re-focus for next WhisperFlow input

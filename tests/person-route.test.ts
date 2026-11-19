@@ -190,14 +190,14 @@ describe('who may reach whom (F042) on the AMP route', () => {
     const r = await send()
     warn.mockRestore()
     expect(r.status).toBe(403)
-    expect(r.data).toMatchObject({ error: 'policy_denied' })
+    expect(r.data).toMatchObject({ error: 'forbidden' })
     expect((r.data as any).message).toContain('Bob takes work from his manager only')
     expect(deliverMock).not.toHaveBeenCalled()
   })
 
   it('passes on the other host\'s refusal as final, never queued for a retry', async () => {
     keyMock.mockReset().mockResolvedValue(active)
-    const refusal = { error: 'policy_denied', message: 'person may not message agent:carol@mini: blocked by rule 1 on host mini' }
+    const refusal = { error: 'forbidden', message: 'person may not message agent:carol@mini: blocked by rule 1 on host mini' }
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(refusal), { status: 403 })))
     const fields = { from: FROM, to: 'carol@acme.aimaestro.local', subject: 'hi', priority: 'normal' as const, payload: { type: 'request', message: 'hi', context: { sent_at: new Date().toISOString(), nonce: crypto.randomBytes(16).toString('hex') } } }
     const signature = crypto.sign(null, Buffer.from(signingString({ ...fields, in_reply_to: '' })), privateKey).toString('base64')

@@ -3,6 +3,71 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.230] - 2026-11-18 - Approvals for ask rules
+
+### Added
+- F118 step 2 (`docs/SPEC-POLICY-RULES.md` section 17). A rule with `"effect": "ask"` now asks a person instead of refusing. A message it covers is **held**: it is not delivered, and the sender gets "Held for approval by Alice (request apr-…, expires 14:30 UTC)" (HTTP 202 `approval_pending`). When someone approves, the message is delivered once, through the same path it came by. When someone refuses, or nobody answers before it expires (30 minutes, or the rule's `"expires"`), it is not delivered and an agent sender gets a message saying why.
+- A call cannot wait, so an ask on a call is refused at once and creates a request. When it is approved, the same call goes through.
+- Answers: **once**; **for a time** (`for: "1h"`: the same sender may do the same thing until then); **always** (adds an exception for that sender to the rule in `~/.aimaestro/policy.json`; refused for a version 1 file, with "convert it to version 2 first").
+- Who approves: the rule's `approvers`. `rel:manager` is the target agent's human manager, else its manager agent; `rel:owner` its owner; `person:<id>` a person; `person:*` any person; `agent:<name>` an agent, never the agent that asked. `role:` and `org:` load but do not resolve yet: lint reports them, and an ask nobody can approve is refused with the reason.
+- `"proof": "signed"`: a click in the dashboard is not enough; the answer must carry an Ed25519 signature from a device key paired to an approver. The server side is built; the phone app does not sign approvals yet (the contract it must follow is in the spec). Refusing never needs a signature.
+- Settings > Approvals: the pending requests of every host, with Approve once, For 1 hour, Always and Refuse. The answer goes to the host that keeps the request. There is no login, so an answer there is recorded as "an unverified person", under the name you type if any.
+- API: `GET /api/policy/requests[?state=pending]` and `POST /api/policy/requests/:id/answer` (also in headless mode). A push (type `approval`) goes to the approvers' paired phones when a request is created.
+- Every ask, answer, expiry, delivery and "always" edit goes to the decision log, never the message text. The requests are in `~/.aimaestro/policy/approvals.json`, a held message in its own file under `~/.aimaestro/policy/held/` (both readable only by you). A new Doctor check, `policy-approvals`, fails when the store cannot be read and warns about requests past their expiry.
+
+### Changed
+- A device input with no screen, and a message from another provider (federation), cannot wait for an answer: an ask there is still refused, now with the reason "not possible here".
+- With no rules file nothing changes on any path.
+
+## [0.106.229] - 2026-11-18 - Policy rules, version 2: deny, ask and allow
+
+### Added
+- F118 step 1 (F042 phases 2a and 2b, `docs/SPEC-POLICY-RULES.md` section 16). The rules file (`~/.aimaestro/policy.json`) can now be version 2: every rule has an id and an effect, `allow`, `deny` or `ask`. The order of rules does not matter: if any rule that applies says deny, the answer is deny; otherwise ask; otherwise allow; otherwise the file's `default` (`allow` unless the file says `"default": "deny"`). An exception goes inside the rule (`"except": [{ "from": "person:alice" }]`).
+- **Ask does not ask anyone yet.** In this release an `ask` is refused on every send path, like a deny, with the reason "needs approval (approvals arrive in F118 step 2)". `GET /api/policy/check` reports it as `ask`. Approvals come in the next step.
+- Audit mode: `"mode": "audit"` on a rule or on the whole file. The rule is evaluated and logged but not applied, and the reason says what it would do.
+- A decision log per host, `~/.aimaestro/policy/decisions.jsonl`: one line per refusal, ask and audit hit, with both parties, the rule ids and the file's hash, never the message. Allowed decisions only when the file sets `"logAllows"`. It is kept under 10 MB.
+- Tests inside the rules file (`"tests": [{ "from", "to", "action", "expect" }]`), and lint warnings (an allow a deny always covers, a redundant rule, and for version 1 files a rule an earlier rule hides). Both are in `GET /api/policy` and in a new Doctor check, `policy`.
+- Reasons name the deciding rules by id, and the answer lists every rule that matched.
+
+### Changed
+- Version 1 files (no `version`, rules in order) keep exactly the same decisions: they are turned into version 2 rules when they load, and a test compares both on thousands of random rule lists. Reasons still say "rule 3". With no rules file, nothing changes: everyone may reach everyone.
+- A rules file that stops loading (a typo) no longer switches the rules off: the host keeps the last version that loaded until the file is fixed. That version is saved next to the file (`policy.json.last-good`), so a restart keeps it too. Only when no good version exists, in memory or saved, do no rules apply. The Doctor reports the error in both cases.
+- `GET /api/policy` returns the rules as version 2 rules, with the version, default, mode, hash, lint warnings and test results.
+
+## [0.106.226] - 2026-11-18 - The agent registry can no longer be wiped by a bad write
+
+### Fixed
+- The agent registry (`~/.aimaestro/agents/registry.json`) is written to a temporary file first and then moved into place, so a crash, restart or full disk in the middle of a save leaves the old file or the new one, never a cut-short file (B042).
+- When `registry.json` is there but cannot be read, AI Maestro no longer treats it as "no agents". Before, the next change (a new agent, a rename, a status update) saved a list with only that agent, and every other agent on the host was lost. Now saves are refused until the file reads again, the bad file is copied to `registry.json.corrupt-<time>`, creating an agent fails with a clear error, and the Doctor's `agent-registry` check fails with the path, the parse error and how to restore it. Readers keep the last list that read correctly. Saving resumes on its own once the file is fixed.
+- Before its first save, each server run keeps a copy of the registry as `registry.json.last-good`.
+- The "trust this folder" flag for a new or woken agent goes to the `.claude.json` that the agent's Claude Code reads: the agent's own login folder (a `config-dir` profile), else `$CLAUDE_CONFIG_DIR`, else the home folder. The folder is written under its real path, as Claude Code keys it. The file is re-read just before it is replaced, so a change that a running Claude Code made in between is not lost; it is written atomically; and it is left alone when it is missing, a symbolic link, or not valid JSON.
+## [0.106.225] - 2026-11-18 - The server checks which web page a request comes from (log only for now)
+
+### Security
+- B044: any web page open in your browser could open `ws://<host>:23000/term` and type into an agent's terminal, or send a POST to the server. The browser always says which page a request comes from (the `Origin` header). The server now checks it on every WebSocket upgrade and on every request that is not GET, HEAD or OPTIONS, in `lib/origin-guard.mjs` (full and headless mode).
+- Allowed: requests with no `Origin` (curl, scripts, the hook, the CLI, other hosts' servers and the mesh), the dashboard itself (`Origin` equal to the request's `Host`; the phone app's socket library sends the address it connects to, so it should match here, and the audit log will show it if not), `localhost`, `127.0.0.1` and `::1`, the dashboard of any host in Settings > Hosts (its address or aliases), and the origins in `AIMAESTRO_TRUSTED_ORIGINS` (a comma list, for a reverse proxy).
+- DNS rebinding: a request whose `Host` is a name the server does not know (not localhost, not an IP address, not `.local` or `.ts.net`, not this machine or a configured host, not a trusted origin) is also refused.
+- **This release only logs** (`AIMAESTRO_ORIGIN_GUARD=audit`, the default). One line per page and path per hour: `[origin-guard] would refuse (audit) ...`. The Doctor has a new `cross-origin` check that lists what would have been refused. Set `AIMAESTRO_ORIGIN_GUARD=enforce` to refuse now (403, and the WebSocket is closed); `off` turns the check off. The next release makes `enforce` the default.
+- CORS on `/api/*` moved from `next.config.js` to `server.mjs`. In audit mode it stays `*`; in enforce mode it names only an allowed origin.
+- A call forwarded to the host that owns an agent no longer carries the browser's `Origin` (this host already checked it).
+
+### Tests
+- `tests/origin-guard.test.ts`: the decision (no Origin, same origin, configured host and alias, trusted list, `evil.example`, `null`, rebinding `Host`, IPv6 localhost), audit against enforce, one log line per hour, the counts and the Doctor check.
+- `tests/headless-smoke.test.ts` now runs the real server in enforce mode: every route still answers clients without `Origin`, a WebSocket upgrade or POST from `https://evil.example` gets 403, and an upgrade with a rebinding `Host` gets 403.
+
+## [0.106.223] - 2026-11-18 - A spec for the policy rules and governance
+
+### Added
+- [Policy rules and governance](docs/SPEC-POLICY-RULES.md), a spec that builds on F042 phase 1 (who may reach whom). It proposes version 2 rule files: deny, ask and allow with no order (deny wins, as in AWS IAM, Cedar and Claude Code), exceptions inside a rule, and phase 1 files compiled at load with the same decisions. It adds a decision log, audit mode, lint for shadowed rules, test cases in the file, layers (organization, host, agent) kept the same across hosts, and governance actions with approvals. It ends with a research appendix (XACML, AWS IAM, Cedar, Google Cloud IAM, Kubernetes, Casbin, OPA, Gatekeeper, Zanzibar, firewall rule anomalies, Claude Code, MCP, A2A, OWASP, AgentCore Policy) and open questions.
+- Backlog F118: governance actions and approvals through the policy engine. F042 points to the spec.
+## [0.106.222] - 2026-11-18 - Who may reach whom, with a reason
+
+### Added
+- Rules for who may message or call whom (F042), per host, in `~/.aimaestro/policy.json`. Rules go in order and the first one that matches decides; when no rule matches, the message goes through. With no file, everything works as before: every person may talk to every agent and every agent may message every agent. A rule names a person (`person:alice`), an agent (`agent:backend`, or `agent:backend@host-b` for the one on that host), a team, a host, or everyone (`*`, `person:*`, `agent:*`), and can apply to messages or calls only. Example: `{ "rules": [ { "from": "*", "to": "agent:payroll", "allow": false, "note": "Payroll answers the finance team only" } ] }`.
+- A refused message is not delivered and the sender gets the reason, for example "agent:backend@host-a may not message agent:payroll@host-b: blocked by rule 1 on host host-b (* -> agent:payroll): Payroll answers the finance team only". The check runs on AMP messages (`/api/v1/route`, including messages from people and from other providers), messages sent from the dashboard and its API (`/api/messages`, forwards), the chat, the companion, device input and new calls. The refusal is recorded with the other AMP refusals (Doctor).
+- Each host checks its own rules: the sender's host before it sends, the recipient's host before it delivers. A refusal from the other host comes back to the sender as it is; before, a 403 from a peer was queued for a retry.
+- `GET /api/policy` shows this host's rules (and the error, when the file is broken: then no rules apply). `GET /api/policy/check?from=person:alice&to=agent:payroll[&action=call]` answers "why can't A reach B" on this host and on the sender's and recipient's hosts.
+- The message composer shows the reason when a send is refused, instead of "Failed to send message".
 ## [0.106.221] - 2026-11-18 - Neutral test data
 
 ### Changed
@@ -5593,7 +5658,6 @@ The long-standing "messages arrive but agents never read them" problem. Root cau
 ### Tests & hardening [0.36.12]
 - Extracted the Stop-hook delivery decision into a pure `decideStopDelivery()` (+ `filterFreshMessages`, `buildAmpBlockReason`) so the core logic is unit-testable without stdin/fetch plumbing; guarded `main()` behind `require.main === module`. Added `tests/ai-maestro-hook.test.ts` (loop guard, claude-only gate, dedup, urgent formatting, 10-message cap) and `tests/streaming-bridge.test.ts` (push into live session, skip closed/exited, error-swallow). Suite: 812 passing.
 - Fixed `scripts/bump-version.sh`: the `package.json` update keyed on the *previous* version string, so once `package.json` drifted it was silently skipped on every bump (it had sat at 0.29.16 for many releases). Now sets the root version via `node` regardless of prior value — never touches dependency versions.
-
 
 ### Fixed
 - **AMP notifications now reach agents without manual "check your inbox"** — The single most common daily annoyance: a message would arrive, but the agent wouldn't act on it until the operator manually typed "check your inbox." Root cause: inbox delivery relied on injecting `additionalContext` at the `idle_prompt` notification, which **cannot start a turn on an already-idle agent** — so the nudge sat there unseen. Two fixes:

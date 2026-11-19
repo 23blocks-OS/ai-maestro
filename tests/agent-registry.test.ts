@@ -45,6 +45,7 @@ let fileStore: Record<string, string> = {}
 let fileMtimes: Record<string, number> = {}
 let dirStore: Set<string> = new Set()
 let mtimeCounter = 0
+let openFds: string[] = []
 
 vi.mock('fs', () => {
   return {
@@ -61,10 +62,32 @@ vi.mock('fs', () => {
         }
         return fileStore[p]
       },
-      writeFileSync: (p: string, data: string, _encoding?: string) => {
-        fileStore[p] = data
-        fileMtimes[p] = ++mtimeCounter
+      writeFileSync: (p: string | number, data: string, _encoding?: string) => {
+        const file = typeof p === 'number' ? openFds[p] : p
+        fileStore[file] = data
+        fileMtimes[file] = ++mtimeCounter
       },
+      // lib/atomic-write.mjs: temp file, fsync, rename
+      lstatSync: (p: string) => {
+        if (fileStore[p] === undefined) throw Object.assign(new Error(`ENOENT: lstat '${p}'`), { code: 'ENOENT' })
+        return { isSymbolicLink: () => false, mode: 0o100644, mtimeMs: fileMtimes[p] || 0 }
+      },
+      openSync: (p: string, flag: string) => {
+        if (flag === 'wx' && fileStore[p] !== undefined) throw Object.assign(new Error('EEXIST'), { code: 'EEXIST' })
+        if (flag === 'wx') fileStore[p] = ''
+        openFds.push(p)
+        return openFds.length - 1
+      },
+      fchmodSync: () => {},
+      fsyncSync: () => {},
+      closeSync: () => {},
+      renameSync: (from: string, to: string) => {
+        fileStore[to] = fileStore[from]
+        delete fileStore[from]
+        fileMtimes[to] = ++mtimeCounter
+      },
+      unlinkSync: (p: string) => { delete fileStore[p] },
+      copyFileSync: (from: string, to: string) => { fileStore[to] = fileStore[from] },
       statSync: (p: string) => {
         if (fileStore[p] === undefined) {
           throw new Error(`ENOENT: no such file or directory, stat '${p}'`)

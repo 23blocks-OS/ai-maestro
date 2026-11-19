@@ -23,6 +23,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { writeFileAtomicSync } from '../lib/atomic-write.mjs'
 
 const APPLY = process.argv.includes('--apply')
 const ONLY = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7) // optional single agent id, for piloting
@@ -206,9 +207,7 @@ for (const ra of registry) {
 }
 
 // write registry back atomically
-const tmp = `${REGISTRY}.tmp-${stamp}`
-fs.writeFileSync(tmp, JSON.stringify(registry, null, 2))
-fs.renameSync(tmp, REGISTRY)
+writeFileAtomicSync(REGISTRY, JSON.stringify(registry, null, 2))
 
 // write the conflict-detection ledger atomically (updated for every re-minted key)
 fs.mkdirSync(path.dirname(LEDGER), { recursive: true })

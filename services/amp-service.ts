@@ -30,6 +30,8 @@
  */
 
 import { recordAmpRefusal } from '@/lib/amp-refusals'
+import { agentParty, askNotPossible, checkPolicy, holdForApproval, resolveParty } from '@/lib/policy-check'
+import { policyDeniedResult, type PolicyParty } from '@/lib/policy'
 import crypto from 'crypto'
 import {
   MAX_ATTACHMENT_SIZE,
@@ -355,7 +357,7 @@ async function forwardToHost(
   body: AMPRouteRequest,
   selfHostId: string,
   senderPublicPem?: string
-): Promise<{ ok: boolean; result?: Record<string, unknown>; error?: string }> {
+): Promise<{ ok: boolean; result?: Record<string, unknown>; error?: string; denied?: { error: string; message: string }; held?: Record<string, unknown> }> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), FORWARD_TIMEOUT_MS)
 
@@ -392,10 +394,12 @@ async function forwardToHost(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'unknown')
-      return { ok: false, error: `Remote host returned ${response.status}: ${errorText}` }
+      return { ok: false, error: `Remote host returned ${response.status}: ${errorText}`, denied: policyDenial(response.status, errorText) }
     }
 
     const result = await response.json()
+    // The other host's rules hold it for approval (F118): it waits there, nothing to retry
+    if (response.status === 202 && result?.status === 'held') return { ok: true, result, held: result }
     return { ok: true, result }
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
@@ -405,6 +409,55 @@ async function forwardToHost(
   } finally {
     clearTimeout(timeoutId)
   }
+}
+
+/** The other host's policy refused it (F042): a final answer with its reason, never queued for a retry. */
+function policyDenial(status: number, text: string): { error: string; message: string } | undefined {
+  if (status !== 403) return undefined
+  try {
+    const d = JSON.parse(text)
+    return d?.error === 'policy_denied' && typeof d.message === 'string' ? { error: d.error, message: d.message } : undefined
+  } catch { return undefined }
+}
+
+/**
+ * F042: this host's rules for a sender and recipient; a 403 the sender can read, or null. An ask (F118) holds the
+ * message with everything deliverRouted needs, and answers 202 approval_pending; with no `hold` (federation) an ask
+ * is refused, because nothing can wait for it there yet.
+ */
+function policyRefusal(from: PolicyParty, to: PolicyParty, envelopeFrom: string, hold?: RoutedDelivery): ServiceResult<AMPRouteResponse> | null {
+  let decision = checkPolicy(from, to, 'message')
+  if (decision.allowed) return null
+  if (decision.effect === 'ask') {
+    decision = hold
+      ? holdForApproval(decision, from, to, 'message', { path: 'amp-route', payload: hold })
+      : askNotPossible(decision, 'a message from another provider cannot wait for an approval yet')
+  }
+  console.warn(`[AMP Route] ${decision.request?.held ? 'HELD' : 'REJECTED'} — policy: ${decision.reason}`)
+  const refused = policyDeniedResult(decision)
+  return { ...refused, data: { ...refused.data, ...(decision.request?.held && hold ? { id: hold.envelope.id } : {}), details: { ...refused.data.details, from: envelopeFrom } } }
+}
+
+/**
+ * Everything the route knows once it has checked the sender and found the recipient: what deliverRouted needs to
+ * deliver. Plain data, so a message held for approval (F118) is delivered later through this same code.
+ */
+export interface RoutedDelivery {
+  envelope: AMPEnvelope
+  body: AMPRouteRequest
+  senderAgentId?: string
+  senderName: string
+  forwardedFrom: string | null
+  isMeshForwarded: boolean
+  fromThisHost: boolean
+  personSender: string | null
+  personKeyHex?: string
+  verification: VerificationRecord
+  /** A person recipient (AMP spec 13.5) */
+  personRecipient?: string
+  recipientName?: string
+  resolvedHostId?: string
+  resolvedAgentId?: string
 }
 
 /** Options for deliverLocally() */
@@ -1222,31 +1275,20 @@ async function routeMessageUnrecorded(
       }
     }
 
+    // ── Who may reach whom (F042): each host checks its own rules, the sender's before sending, the recipient's before delivering ──
+    const senderParty: PolicyParty = senderAgent ? agentParty(senderAgent) : resolveParty(envelope.from, forwardedFrom || getSelfHostId())
+
     // ── A person recipient (AMP spec 13.5): their mailbox, on the host that holds them ──
     const personRecipient = personIdFromAddress(fwdMeta?.original_to ?? body.to)
+    const routed: RoutedDelivery = {
+      envelope, body, senderAgentId: senderAgent?.id, senderName, forwardedFrom, isMeshForwarded: !!isMeshForwarded, fromThisHost: !!fromThisHost,
+      personSender, ...(personKeyHex ? { personKeyHex } : {}), verification,
+    }
     if (personRecipient) {
-      const person = getPerson(personRecipient)
-      if (person && person.active !== false) {
-        savePersonMessage(personRecipient, {
-          id: messageId, box: 'inbox', from: envelope.from, to: personAddress(personRecipient),
-          subject: envelope.subject, priority: envelope.priority, ...(body.in_reply_to ? { in_reply_to: body.in_reply_to } : {}),
-          timestamp: now, payload: body.payload as any, ...(envelope.signature ? { signature: envelope.signature } : {}),
-          sender_kind: personSender ? 'person' : 'agent', verified: verification.state === 'verified', status: 'unread',
-        })
-        const agentId = senderAgent?.id || (personSender ? undefined : getAgentByNameAnyHost(senderName)?.id)
-        pushMessage({ personId: personRecipient, messageId, agentAddress: envelope.from, agentId, senderName }).catch(() => {})
-        return { data: { id: messageId, status: 'delivered', method: 'local', delivered_at: now } as AMPRouteResponse, status: 200, headers: rateLimitHeaders }
-      }
-      // A forwarded message stops here: the host that forwarded it already asked every peer
-      const home = isMeshForwarded && !fromThisHost ? null : await personHostFor(personRecipient)
-      if (!home) {
-        return { data: { error: 'not_found', message: `No host holds the person ${personRecipient}` }, status: 404 }
-      }
-      const fwd = await forwardToHost(home, `p-${personRecipient}`, envelope, body, getSelfHostId(), senderKeyPair?.publicPem)
-      if (!fwd.ok) {
-        return { data: { error: 'internal_error', message: `Delivery to ${home.id} failed: ${fwd.error}` }, status: 502 }
-      }
-      return { data: { id: (fwd.result?.id as string) || messageId, status: 'delivered', method: 'mesh', delivered_at: now, remote_host: home.id } as AMPRouteResponse, status: 200, headers: rateLimitHeaders }
+      routed.personRecipient = personRecipient
+      const refused = policyRefusal(senderParty, { kind: 'person', id: personRecipient }, envelope.from, routed)
+      if (refused) return refused
+      return await deliverRouted(routed, rateLimitHeaders)
     }
 
     // ── Recipient Resolution ───────────────────────────────────────────
@@ -1293,6 +1335,64 @@ async function routeMessageUnrecorded(
       }
     }
 
+    const recipientAgent = resolvedAgentId ? getAgent(resolvedAgentId) : null
+    Object.assign(routed, { recipientName, resolvedHostId, resolvedAgentId })
+    const refused = policyRefusal(senderParty, recipientAgent ? agentParty(recipientAgent) : { kind: 'agent', id: resolvedAgentId, name: recipientName, host: resolvedHostId || selfHostIdValue }, envelope.from, routed)
+    if (refused) return refused
+    return await deliverRouted(routed, rateLimitHeaders)
+
+  } catch (error) {
+    console.error('[AMP Route] Error:', error)
+    return {
+      data: { error: 'internal_error', message: error instanceof Error ? error.message : 'Internal server error' },
+      status: 500
+    }
+  }
+}
+
+/**
+ * Delivers a routed message: to a person's mailbox, to another host, or to a local agent. The route calls it right
+ * after the policy check; an approved held message (F118) calls it later with the same data, so it is delivered
+ * exactly as it would have been.
+ */
+export async function deliverRouted(c: RoutedDelivery, rateLimitHeaders?: Record<string, string>): Promise<ServiceResult<AMPRouteResponse>> {
+  const { envelope, body, senderName, forwardedFrom, isMeshForwarded, fromThisHost, personSender, personKeyHex, verification } = c
+  const messageId = envelope.id
+  const now = envelope.timestamp
+  const senderAgent = c.senderAgentId ? getAgent(c.senderAgentId) : null
+  const senderKeyPair = c.senderAgentId && !isMeshForwarded ? loadKeyPair(c.senderAgentId) : null
+  try {
+    if (c.personRecipient) {
+      const personRecipient = c.personRecipient
+      const person = getPerson(personRecipient)
+      if (person && person.active !== false) {
+        savePersonMessage(personRecipient, {
+          id: messageId, box: 'inbox', from: envelope.from, to: personAddress(personRecipient),
+          subject: envelope.subject, priority: envelope.priority, ...(body.in_reply_to ? { in_reply_to: body.in_reply_to } : {}),
+          timestamp: now, payload: body.payload as any, ...(envelope.signature ? { signature: envelope.signature } : {}),
+          sender_kind: personSender ? 'person' : 'agent', verified: verification.state === 'verified', status: 'unread',
+        })
+        const agentId = senderAgent?.id || (personSender ? undefined : getAgentByNameAnyHost(senderName)?.id)
+        pushMessage({ personId: personRecipient, messageId, agentAddress: envelope.from, agentId, senderName }).catch(() => {})
+        return { data: { id: messageId, status: 'delivered', method: 'local', delivered_at: now } as AMPRouteResponse, status: 200, headers: rateLimitHeaders }
+      }
+      // A forwarded message stops here: the host that forwarded it already asked every peer
+      const home = isMeshForwarded && !fromThisHost ? null : await personHostFor(personRecipient)
+      if (!home) {
+        return { data: { error: 'not_found', message: `No host holds the person ${personRecipient}` }, status: 404 }
+      }
+      const fwd = await forwardToHost(home, `p-${personRecipient}`, envelope, body, getSelfHostId(), senderKeyPair?.publicPem)
+      if (fwd.denied) return { data: fwd.denied as any, status: 403 }
+      if (!fwd.ok) {
+        return { data: { error: 'internal_error', message: `Delivery to ${home.id} failed: ${fwd.error}` }, status: 502 }
+      }
+      if (fwd.held) return { data: fwd.held as any, status: 202 }
+      return { data: { id: (fwd.result?.id as string) || messageId, status: 'delivered', method: 'mesh', delivered_at: now, remote_host: home.id } as AMPRouteResponse, status: 200, headers: rateLimitHeaders }
+    }
+
+    const { recipientName = '', resolvedHostId, resolvedAgentId } = c
+    const selfHostIdValue = getSelfHostId()
+
     // ── Remote Delivery ────────────────────────────────────────────────
     if (resolvedHostId && !isSelf(resolvedHostId)) {
       const remoteHost = getHostById(resolvedHostId)
@@ -1316,6 +1416,8 @@ async function routeMessageUnrecorded(
 
       console.log(`[AMP Route] Forwarding to ${recipientName}@${resolvedHostId} via ${remoteHost.url}`)
       const fwd = await forwardToHost(remoteHost, recipientName, envelope, body, selfHostIdValue, senderKeyPair?.publicPem)
+      if (fwd.denied) return { data: fwd.denied as any, status: 403 }
+      if (fwd.held) return { data: fwd.held as any, status: 202 }
 
       if (fwd.ok) {
         return {
@@ -1401,7 +1503,7 @@ async function routeMessageUnrecorded(
     }
 
   } catch (error) {
-    console.error('[AMP Route] Error:', error)
+    console.error('[AMP Route] Delivery error:', error)
     return {
       data: { error: 'internal_error', message: error instanceof Error ? error.message : 'Internal server error' },
       status: 500
@@ -2243,6 +2345,10 @@ async function deliverFederatedUnrecorded(
         status: 404
       }
     }
+
+    // F042: an outside sender, named by its address and its provider
+    const refused = policyRefusal(resolveParty(envelope.from, providerName || undefined), agentParty(localAgent), envelope.from)
+    if (refused) return refused
 
     // ── Local Delivery ──────────────────────────────────────────────────
     const localResult = await deliver({

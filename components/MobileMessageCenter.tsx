@@ -213,7 +213,9 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
           setView('inbox')
           showToast('Message sent!', 'success')
         } else {
-          showToast('Failed to send message', 'error')
+          // A refusal (F042 policy) carries its reason: show it, not a bare failure
+          const err = await response.json().catch(() => ({}))
+          showToast(err.message || 'Failed to send message', 'error')
         }
       }
     } catch (error) {

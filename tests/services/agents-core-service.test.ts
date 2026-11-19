@@ -755,7 +755,7 @@ describe('wakeAgent', () => {
     expect((result.data as any)?.sessionName).toBe('my-agent')
     expect(mockRuntime.createSession).toHaveBeenCalledWith('my-agent', '/home')
     // Claude Code must not stop at "trust this folder" after the wake
-    expect(mockAgentRegistry.trustProjectDirectory).toHaveBeenCalledWith('/home')
+    expect(mockAgentRegistry.trustProjectDirectory).toHaveBeenCalledWith('/home', undefined)
   })
 
   it('an agent with no folder wakes in its own ~/agents/<name>, never the AI Maestro folder (B023)', async () => {

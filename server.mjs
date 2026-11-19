@@ -6,7 +6,8 @@ import pty from 'node-pty'
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
-import { getHostById, getLocalIPs, isSelf } from './lib/hosts-config-server.mjs'
+import { getHostById, getLocalIPs, isSelf, getHosts as getConfiguredHosts, getSelfAliases } from './lib/hosts-config-server.mjs'
+import { createOriginGuard, buildKnownHostnames, parseTrustedOrigins } from './lib/origin-guard.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge.mjs'
 import { parsePermissionMenu } from './lib/pane-permission.mjs'
@@ -939,7 +940,28 @@ function capturePaneRaw(sessionName, lines = 200) {
   } catch { return '' }
 }
 
-function sendChatMessage(sessionName, message) {
+// F042: the dashboard has no login, so its sender is a person this host cannot name. Returns the reason, or null.
+// F118: an ask holds the text for approval (the reason says by whom); `approved` is the pass of an approved one
+async function chatPolicyRefusal(sessionName, message, approved) {
+  try {
+    const { getAgentBySession, getAgentByName } = await import('./lib/agent-registry.ts')
+    const { checkPolicy, agentParty, holdForApproval } = await import('./lib/policy-check.ts')
+    const agent = getAgentBySession(sessionName) || getAgentByName(sessionName)
+    const from = { kind: 'person' }
+    const to = agent ? agentParty(agent) : { kind: 'agent', name: sessionName }
+    let decision = checkPolicy(from, to, 'message', { approved })
+    if (decision.effect === 'ask') decision = holdForApproval(decision, from, to, 'message', { path: 'chat', payload: { sessionName, agentId: agent?.id, message } })
+    return decision.allowed ? null : decision.reason
+  } catch (err) {
+    // A check that cannot run must not stop the chat: no rules is today's behaviour
+    console.warn(`[Chat] policy check failed for ${sessionName}: ${err.message}`)
+    return null
+  }
+}
+
+async function sendChatMessage(sessionName, message, approved) {
+  const refused = await chatPolicyRefusal(sessionName, message, approved)
+  if (refused) return { ok: false, error: refused }
   return withPaneLock(sessionName, () => sendChatMessageNow(sessionName, message))
 }
 
@@ -1060,8 +1082,9 @@ async function sendChatMessageNow(sessionName, message) {
 }
 
 // A reaction note (services/chat-reactions-service.ts) reaches the agent by the path of chat:send
-globalThis.__deliverChatLine = async (sessionName, text) => {
-  const result = await sendChatMessage(sessionName, text)
+// An approved held chat message (F118) arrives here too, with its request id as the pass
+globalThis.__deliverChatLine = async (sessionName, text, approved) => {
+  const result = await sendChatMessage(sessionName, text, approved)
   const sessionState = terminalSessions.get(sessionName)
   if (result.ok && sessionState) {
     for (const delay of [500, 1500, 3000, 5000, 8000, 12000]) {
@@ -1190,8 +1213,35 @@ if (!fs.existsSync(logsDir)) {
  * are shared between full and headless modes.
  */
 async function startServer(handleRequest) {
+  // B044: refuse requests from web pages that are not an AI Maestro dashboard (audit mode logs only)
+  let originCtx = null, originCtxAt = 0
+  const originGuard = createOriginGuard({
+    getContext: () => {
+      if (!originCtx || Date.now() - originCtxAt > 30_000) {
+        originCtx = {
+          knownHostnames: buildKnownHostnames({ hosts: getConfiguredHosts(), selfAliases: getSelfAliases() }),
+          trustedOrigins: parseTrustedOrigins(process.env.AIMAESTRO_TRUSTED_ORIGINS),
+        }
+        originCtxAt = Date.now()
+      }
+      return originCtx
+    },
+  })
+  globalThis._originGuard = originGuard
+  console.log(`[origin-guard] mode: ${originGuard.mode}`)
+
   const server = createServer(async (req, res) => {
     try {
+      if (!originGuard.check(req).allow) {
+        res.writeHead(403, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'cross-origin request refused', origin: req.headers.origin || null }))
+        return
+      }
+      // CORS for /api (was a fixed "*" in next.config.js): enforce mode reflects only allowed origins
+      if (MAESTRO_MODE !== 'headless' && req.url?.startsWith('/api/')) {
+        if (originGuard.mode !== 'enforce') res.setHeader('Access-Control-Allow-Origin', '*')
+        else if (originGuard.originAllowed(req)) { res.setHeader('Access-Control-Allow-Origin', req.headers.origin); res.setHeader('Vary', 'Origin') }
+      }
       compressJson(req, res)
       const parsedUrl = parse(req.url, true)
 
@@ -1229,7 +1279,9 @@ async function startServer(handleRequest) {
           const owner = await findPeerHostUrl(agentPath[1]).catch(() => undefined)
           if (owner) {
             const target = new URL(req.url, owner)
-            const headers = { ...req.headers, host: target.host, 'x-aim-forwarded': '1' }
+            // The browser's Origin was checked here; the peer gets a server-to-server call
+            const { origin: _o, 'sec-fetch-site': _s, ...rest } = req.headers
+            const headers = { ...rest, host: target.host, 'x-aim-forwarded': '1' }
             const out = httpRequest(target, { method: req.method, headers }, (up) => {
               res.writeHead(up.statusCode || 502, up.headers)
               up.pipe(res)
@@ -1953,6 +2005,10 @@ async function startServer(handleRequest) {
 
   server.on('upgrade', (request, socket, head) => {
     const { pathname, query } = parse(request.url, true)
+    if (!originGuard.check(request, { upgrade: true }).allow) {
+      socket.end('HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n')
+      return
+    }
 
     if (pathname === '/mesh') {
       mesh.handleUpgrade(request, socket, head)
@@ -2867,6 +2923,10 @@ async function startServer(handleRequest) {
         console.error('[Hook] observed-permission sweep failed:', error?.message || error)
       }
     }, 1000)
+
+    // F118: expire approval requests that ran out while the server was down, and keep sweeping once a minute
+    import('./lib/policy-check.ts').then(m => m.ensureApprovalSweeper()).catch(() => {})
+    import('./services/policy-service.ts').then(m => m.sweepPolicyRequests()).catch(err => console.warn('[Policy] startup sweep failed:', err.message))
 
     // Run startup self-diagnostics (non-blocking)
     setTimeout(async () => {

@@ -22,6 +22,7 @@ import fs from 'fs'
 import net from 'net'
 import os from 'os'
 import path from 'path'
+import WebSocket from 'ws'
 import { listRoutes } from '@/services/headless-router'
 
 const root = path.join(__dirname, '..')
@@ -163,6 +164,7 @@ describe.skipIf(!!skipReason)('headless server smoke test', () => {
         NODE_ENV: 'production',
         LANG: 'C.UTF-8',
         AIM_SMOKE_TEST: '1',
+        AIMAESTRO_ORIGIN_GUARD: 'enforce', // B044: the routes above send no Origin and must still pass
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -259,6 +261,28 @@ describe.skipIf(!!skipReason)('headless server smoke test', () => {
     }
     expect(failures).toEqual([])
   }, 300_000)
+
+  // B044: the upgrade a hostile page would open is refused; the one curl or a peer opens is not
+  function upgrade(headers: Record<string, string>): Promise<number> {
+    return new Promise((resolve) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/status`, { headers })
+      ws.on('open', () => { ws.close(); resolve(101) })
+      ws.on('unexpected-response', (_req, res) => resolve(res.statusCode || 0))
+      ws.on('error', () => resolve(0))
+    })
+  }
+
+  it('enforce mode refuses a WebSocket upgrade and a POST from a foreign page, and allows clients without Origin', async () => {
+    expect(await upgrade({})).toBe(101)
+    expect(await upgrade({ Origin: `http://127.0.0.1:${port}` })).toBe(101)
+    expect(await upgrade({ Origin: 'https://evil.example' })).toBe(403)
+    expect(await upgrade({ Origin: `http://127.0.0.1:${port}`, Host: 'rebind.evil.example' })).toBe(403)
+    const post = await req('POST', '/api/config', '{}', { 'content-type': 'text/plain', origin: 'https://evil.example' })
+    expect(post.status).toBe(403)
+    expect(JSON.parse(post.text)).toEqual({ error: 'cross-origin request refused', origin: 'https://evil.example' })
+    expect((await req('GET', '/api/config', undefined, { origin: 'https://evil.example' })).status).toBeLessThan(500)
+    expect(log).toContain('[origin-guard] refused WS /status: foreign-origin, Origin https://evil.example')
+  })
 
   it('created no files in the checkout and none beside the temp HOME', () => {
     expect(snapshotRepo()).toEqual(before)

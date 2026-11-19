@@ -48,7 +48,7 @@ interface ExpoMessage {
   to: string
   title: string
   body: string
-  data: { type: PushType; agentId?: string; callId?: string; hostId: string; personId?: string; messageId?: string; agentAddress?: string }
+  data: { type: PushType; agentId?: string; callId?: string; hostId: string; personId?: string; messageId?: string; agentAddress?: string; requestId?: string }
   channelId: string
   /** Seconds Expo keeps trying to deliver; a call that has stopped ringing is not worth delivering */
   ttl?: number
@@ -195,5 +195,28 @@ export async function pushCall(call: { callId: string; caller: string; callee: s
     sound: 'default',
     interruptionLevel: 'time-sensitive',
     ttl,
+  }))
+}
+
+/**
+ * An approval request (F118 step 2) names these people as approvers: notify their devices paired here that opted in to
+ * `approval`, or to `needs_you` (an app that predates `approval`). Only the parties' labels, never message text.
+ * `*` (any person) notifies every device that opted in.
+ */
+export async function pushApproval(a: { personIds: string[]; requestId: string; from: string; to: string; action: string }): Promise<void> {
+  if (!claimSlot(`approval:${a.requestId}`, COOLDOWN_MS)) return
+  const anyone = a.personIds.includes('*')
+  const targets = loadDevices().filter(d => (anyone || a.personIds.includes(d.personId)) && d.pushToken && (d.pushTypes?.includes('approval') || d.pushTypes?.includes('needs_you')))
+  if (!targets.length) return
+  const hostId = getSelfHostId()
+  await deliver(targets, to => ({
+    to,
+    title: 'Approval needed',
+    body: `${a.from} wants to ${a.action} ${a.to}. Open AI Maestro to answer.`,
+    data: { type: 'approval', requestId: a.requestId, hostId },
+    channelId: 'needs_you',
+    priority: 'high',
+    sound: 'default',
+    interruptionLevel: 'time-sensitive',
   }))
 }

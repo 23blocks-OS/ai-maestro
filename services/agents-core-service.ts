@@ -2082,7 +2082,7 @@ async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): Prom
 
     // Claude Code asks "Do you trust this folder?" the first time it opens one, and
     // the woken agent sits at that prompt. Accept it up front, as createAgent does.
-    trustProjectDirectory(workingDirectory)
+    trustProjectDirectory(workingDirectory, agent.credential)
 
     // Create new tmux session
     try {

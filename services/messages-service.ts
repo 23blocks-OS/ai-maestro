@@ -35,6 +35,7 @@ import {
 import type { MessageSummary } from '@/lib/messageQueue'
 import { sendFromUI } from '@/lib/message-send'
 import { forwardFromUI } from '@/lib/message-send'
+import { PolicyDeniedError, policyDeniedResult } from '@/lib/policy'
 import { searchAgents, getAgent as getLocalAgent } from '@/lib/agent-registry'
 import { findPeerHostUrl } from '@/lib/owning-host'
 import { getSelfHostId, getSelfHost } from '@/lib/hosts-config'
@@ -237,6 +238,7 @@ export async function sendMessage(params: SendMessageParams): Promise<ServiceRes
     }
   } catch (error) {
     console.error('Error sending message:', error)
+    if (error instanceof PolicyDeniedError) return policyDeniedResult(error.decision)
     return operationFailed('send message', (error as Error).message)
   }
 }
@@ -353,6 +355,7 @@ export async function forwardMessage(params: ForwardMessageParams): Promise<Serv
     }
   } catch (error) {
     console.error('Error forwarding message:', error)
+    if (error instanceof PolicyDeniedError) return policyDeniedResult(error.decision)
     return operationFailed('forward message', (error as Error).message)
   }
 }

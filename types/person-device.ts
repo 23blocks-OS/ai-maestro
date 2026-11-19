@@ -8,7 +8,7 @@
  * No authentication, by design: a device states who it is and nobody checks. This is a label in a
  * trusted network, not a login.
  */
-export const PUSH_TYPES = ['needs_you', 'card_waiting', 'call', 'message'] as const
+export const PUSH_TYPES = ['needs_you', 'card_waiting', 'call', 'message', 'approval'] as const
 export type PushType = typeof PUSH_TYPES[number]
 
 export interface PersonDevice {

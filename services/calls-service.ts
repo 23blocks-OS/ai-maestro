@@ -11,6 +11,8 @@
 import { createCall, getCall, listCalls, applyCallEvent, isCallId } from '@/lib/call-store'
 import { pushCall } from '@/lib/push-expo'
 import { RTC_EVENT_TYPES, type RTCCall, type RTCEvent } from '@/lib/amp-rtc'
+import { checkPolicy, holdForApproval, resolveParty } from '@/lib/policy-check'
+import { policyDeniedResult } from '@/lib/policy'
 import { type ServiceResult, missingField, invalidField, notFound, serviceError, operationFailed } from '@/services/service-errors'
 
 const PARTY = /^[A-Za-z0-9][A-Za-z0-9@._:-]{0,127}$/
@@ -43,6 +45,12 @@ export function startCall(params: Record<string, unknown>): ServiceResult<{ call
   if (params.caller === params.callee) return invalidField('callee', 'a call needs two parties')
   const ttl = params.ttlSeconds ?? DEFAULT_TTL_S
   if (typeof ttl !== 'number' || !Number.isFinite(ttl) || ttl < 1 || ttl > MAX_TTL_S) return invalidField('ttlSeconds', `ttlSeconds must be 1 to ${MAX_TTL_S}`)
+  // F042: this host's rules for calls (a rule with action "call", or one for any action)
+  const caller = resolveParty(params.caller as string)
+  const callee = resolveParty(params.callee as string)
+  // A call cannot wait (F118): an ask is refused now with an approval request; an approval lets the next identical call through
+  const decision = holdForApproval(checkPolicy(caller, callee, 'call'), caller, callee, 'call')
+  if (!decision.allowed) return policyDeniedResult(decision)
   try {
     const call = createCall(params.caller as string, params.callee as string, ttl * 1000)
     // Ring the callee's phone. Fire-and-forget: a push must never delay or fail starting the call.

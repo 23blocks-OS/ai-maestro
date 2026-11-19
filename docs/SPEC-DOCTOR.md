@@ -289,6 +289,18 @@ The check reads the last 24 hours.
 
 Hint: the sender's host usually runs stale AMP scripts or the sender rotated its key; update that host.
 
+### 4.13 `policy` (host), added in 0.106.229 (F042, F118 step 1)
+
+Reads this host's rules file (`~/.aimaestro/policy.json`, `docs/SPEC-POLICY-RULES.md` section 16) the way the send paths do.
+
+| Finding | Status |
+|---|---|
+| No file | pass ("everyone may reach everyone") |
+| The file does not load, and no good version is in memory or saved (`policy.json.last-good`): no rules apply | fail |
+| The file does not load, and the last version that loaded is still in force | warn |
+| A lint warning (dead allow, redundant, shadowed) | warn, one item per rule |
+| A test in the file fails | warn, one item per test |
+
 ## 5. Fleet findings, made by the client
 
 The client has every host's report, so it derives these. Nothing on the server calls a peer for them.

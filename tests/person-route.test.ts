@@ -13,6 +13,12 @@ const pushMock = vi.fn(async (_m: unknown) => {})
 const fetchMock = vi.fn(async (_url: string, _init?: unknown) => new Response(JSON.stringify({ id: 'remote-id' }), { status: 200 }))
 const bob = vi.hoisted(() => ({ id: 'bob-uuid', name: 'bob', sessions: [] as unknown[], humanManager: undefined as string | undefined }))
 const people = vi.hoisted(() => new Set<string>())
+// F042: this host's rules; empty (today's behaviour) unless a test sets them
+const policyRules = vi.hoisted(() => [] as { from: string; to: string; allow: boolean; note?: string }[])
+vi.mock('@/lib/policy', async (orig) => {
+  const real = await orig<typeof import('@/lib/policy')>()
+  return { ...real, loadPolicy: () => { const policy = real.compileV1(policyRules); return { file: 'policy.json', rules: policy.rules, policy } } }
+})
 
 vi.mock('@/lib/message-delivery', () => ({ deliver: (...a: unknown[]) => deliverMock(...(a as [])) }))
 vi.mock('@/lib/person-keys', () => ({ personKeyFor: (...a: [string, string?]) => keyMock(...a), personHostFor: (id: string) => homeMock(id) }))
@@ -171,4 +177,31 @@ it('a person on this host reaches an agent on another host', async () => {
   expect(r).toMatchObject({ status: 200, data: { method: 'mesh', remote_host: 'mini' } })
   expect(JSON.parse((fetchMock.mock.calls[0] as any[])[1].body)).toMatchObject({ to: 'carol', key_id: 'k_phone' })
   vi.unstubAllGlobals()
+})
+
+describe('who may reach whom (F042) on the AMP route', () => {
+  afterEach(() => { policyRules.length = 0; vi.unstubAllGlobals() })
+
+  it('refuses a person\'s message to an agent with the rule\'s reason, and delivers nothing', async () => {
+    keyMock.mockReset().mockResolvedValue(active)
+    policyRules.push({ from: `person:${PERSON}`, to: 'agent:bob', allow: false, note: 'Bob takes work from his manager only' })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    deliverMock.mockClear()
+    const r = await send()
+    warn.mockRestore()
+    expect(r.status).toBe(403)
+    expect(r.data).toMatchObject({ error: 'policy_denied' })
+    expect((r.data as any).message).toContain('Bob takes work from his manager only')
+    expect(deliverMock).not.toHaveBeenCalled()
+  })
+
+  it('passes on the other host\'s refusal as final, never queued for a retry', async () => {
+    keyMock.mockReset().mockResolvedValue(active)
+    const refusal = { error: 'policy_denied', message: 'person may not message agent:carol@mini: blocked by rule 1 on host mini' }
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(refusal), { status: 403 })))
+    const fields = { from: FROM, to: 'carol@acme.aimaestro.local', subject: 'hi', priority: 'normal' as const, payload: { type: 'request', message: 'hi', context: { sent_at: new Date().toISOString(), nonce: crypto.randomBytes(16).toString('hex') } } }
+    const signature = crypto.sign(null, Buffer.from(signingString({ ...fields, in_reply_to: '' })), privateKey).toString('base64')
+    const r = await routeMessage({ ...fields, signature, key_id: 'k_phone', sender_kind: 'person' } as any, null, 'mac', null, signature, null)
+    expect(r).toMatchObject({ status: 403, data: refusal })
+  })
 })

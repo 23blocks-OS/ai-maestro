@@ -152,6 +152,7 @@ import { getSelfHostId } from '@/lib/hosts-config'
 import { listDevices, pairDevice, unpairDevice, setDeviceKey } from '@/services/person-devices-service'
 import { sendAsPerson, listPersonMessages, getPersonMessage, updatePersonMessage } from '@/services/person-messages-service'
 import { getCalls, getCallById, startCall, sendCallEvent } from '@/services/calls-service'
+import { getPolicy, explainPolicy, listPolicyRequests, answerPolicyRequest } from '@/services/policy-service'
 import { linkAgentManagers } from '@/services/agents-manager-links-service'
 import { listPeople, getPersonById, createPerson, updatePerson, deletePerson } from '@/services/people-service'
 import { listContacts, addContact, removeContact } from '@/services/contacts-service'
@@ -1934,6 +1935,19 @@ const routes: Route[] = [
     if (params.action !== 'approve' && params.action !== 'revoke') return sendServiceResult(res, notFound('Action', params.action))
     const body = await readJsonBody(req)
     sendServiceResult(res, setDeviceKey(params.deviceId, body, params.action === 'approve' ? 'active' : 'revoked'))
+  }},
+  { method: 'GET', pattern: /^\/api\/policy$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, getPolicy())
+  }},
+  { method: 'GET', pattern: /^\/api\/policy\/requests$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    sendServiceResult(res, await listPolicyRequests({ state: qp(query, 'state'), localOnly: qp(query, 'localOnly') === '1' }))
+  }},
+  { method: 'POST', pattern: /^\/api\/policy\/requests\/([^/]+)\/answer$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, await answerPolicyRequest(params.id, body))
+  }},
+  { method: 'GET', pattern: /^\/api\/policy\/check$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    sendServiceResult(res, await explainPolicy({ from: qp(query, 'from'), to: qp(query, 'to'), action: qp(query, 'action'), localOnly: qp(query, 'localOnly') === '1' }))
   }},
   { method: 'GET', pattern: /^\/api\/calls$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, getCalls({ caller: qp(query, 'caller'), callee: qp(query, 'callee'), active: qp(query, 'active') === '1' }))

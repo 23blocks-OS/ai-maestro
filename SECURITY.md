@@ -85,7 +85,7 @@ Advisories" below.
 **Local Communication:**
 - WebSocket connections are unencrypted (ws://)
 - Only accepts connections from localhost
-- No CORS protection (localhost-only environment)
+- WebSocket upgrades and non-GET requests are checked for the browser `Origin` (B044, `lib/origin-guard.mjs`). This release logs what it would refuse (`AIMAESTRO_ORIGIN_GUARD=audit`); `enforce` refuses it. Clients that send no `Origin` (curl, scripts, other hosts) are not affected.
 
 **NOT SECURE for remote access:**
 - Do NOT expose port 3000 to the internet

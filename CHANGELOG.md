@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.239] - 2026-11-19 - Rules can govern creating, deleting, moving and freeing agents
+
+### Added
+- F118 step 3, first part: policy rules can name the governance actions `agent.create`, `agent.delete`, `agent.move` and `agent.mode` (raising an agent's permission mode). A deny refuses the action with the reason. An ask opens a quarantine entry for the reviewers, and once one approves, the same action goes through once. The checks run in the services that do each action, on the agent's host, so the dashboard, the API and the agents CLI all meet them (`docs/SPEC-POLICY-RULES.md` section 18).
+- Existing rule files keep their meaning. A rule without `actions`, and a file's `default`, cover messages and calls only. A governance action is governed only by a rule that names it.
+
 ## [0.106.238] - 2026-11-19 - One push per approval request
 
 ### Fixed

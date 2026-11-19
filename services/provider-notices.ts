@@ -14,6 +14,7 @@ import { getSelfHostId } from '@/lib/hosts-config-server.mjs'
 import { AMP_PROVIDER_NAME, type AMPRouteRequest } from '@/lib/types/amp'
 import { providerNoticeAddress, signAsProvider } from '@/lib/provider-key'
 import { recordApprovalRequest, type QuarantineEntry } from '@/lib/policy-approvals'
+import { ACTION_WORDS, type PolicyAction } from '@/lib/policy'
 import type { ServiceResult } from '@/services/service-errors'
 
 export type RouteFn = (body: AMPRouteRequest) => Promise<ServiceResult<unknown>>
@@ -52,12 +53,16 @@ export async function sendProviderNotice(n: Notice, route: RouteFn = viaRoute): 
 export async function sendApprovalRequests(entry: QuarantineEntry, route: RouteFn = viaRoute): Promise<void> {
   const h = entry.held
   const held = h?.from || h?.to || h?.subject ? { ...(h.from ? { from: h.from } : {}), ...(h.to ? { to: h.to } : {}), ...(h.subject !== undefined ? { subject: h.subject } : {}) } : undefined
-  const what = `${entry.action} from ${h?.from || entry.from} to ${h?.to || entry.to}`
+  // A governance action (F118 step 3) is a request to act on an agent, not something held in transit
+  const governance = entry.action.includes('.')
+  const what = governance
+    ? `${ACTION_WORDS[entry.action as PolicyAction] || entry.action} ${entry.to} (asked by ${entry.from})`
+    : `${entry.action} from ${h?.from || entry.from} to ${h?.to || entry.to}`
   for (const to of entry.reviewers) {
     const id = await sendProviderNotice({
       to,
       subject: `Approval needed: ${what}`,
-      message: `A ${what} is held for your approval (rule ${entry.rules_triggered.join(', ')}: ${entry.reason_text}). `
+      message: `${governance ? `A request to ${what} waits` : `A ${what} is held`} for your approval (rule ${entry.rules_triggered.join(', ')}: ${entry.reason_text}). `
         + `Answer by replying to this message with payload.context { "decision": "approve" or "reject", "quarantine_id": "${entry.quarantine_id}" }, `
         + `or use /v1/quarantine/${entry.quarantine_id}. It expires at ${entry.expires_at}.`,
       context: {

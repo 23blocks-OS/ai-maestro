@@ -24,9 +24,20 @@ import os from 'os'
 import path from 'path'
 import { writeFileAtomicSync } from '@/lib/atomic-write.mjs'
 
-/** The actions the engine knows. F118 step 3 (governance actions) adds names here and nothing else. */
-export const POLICY_ACTIONS = ['message', 'call'] as const
+/**
+ * The actions the engine knows (spec 4.3). Names with a dot are governance actions (F118 step 3, spec 11), checked
+ * where the action is done, on the agent's host. A rule (or exception) without `actions` covers the communication
+ * actions only, so a file written before governance actions keeps its meaning: a governance action is governed only by
+ * a rule that names it.
+ */
+export const POLICY_ACTIONS = ['message', 'call', 'agent.create', 'agent.delete', 'agent.move', 'agent.mode'] as const
 export type PolicyAction = typeof POLICY_ACTIONS[number]
+const COMMS: readonly PolicyAction[] = ['message', 'call']
+/** How a reason says the action: "agent:bob may not delete agent:payroll" */
+export const ACTION_WORDS: Record<PolicyAction, string> = {
+  message: 'message', call: 'call', 'agent.create': 'create', 'agent.delete': 'delete', 'agent.move': 'move',
+  'agent.mode': 'raise the permission mode of',
+}
 export type PolicyEffect = 'allow' | 'deny' | 'ask'
 const EFFECTS: PolicyEffect[] = ['deny', 'ask', 'allow']
 
@@ -163,7 +174,7 @@ export function validateRules(raw: unknown): PolicyRule[] {
       if (typeof r[k] !== 'string' || !PATTERN.test(r[k].trim())) throw new Error(`${n}: "${k}" must be *, person:*, agent:*, or person:|agent:|team:|host: and a name`)
     }
     if (typeof r.allow !== 'boolean') throw new Error(`${n}: "allow" must be true or false`)
-    if (r.action !== undefined && !POLICY_ACTIONS.includes(r.action)) throw new Error(`${n}: "action" must be ${POLICY_ACTIONS.join(' or ')}`)
+    if (r.action !== undefined && !COMMS.includes(r.action)) throw new Error(`${n}: "action" must be ${COMMS.join(' or ')} (governance actions need a version 2 file)`)
     if (r.note !== undefined && typeof r.note !== 'string') throw new Error(`${n}: "note" must be text`)
     return { from: r.from.trim(), to: r.to.trim(), allow: r.allow, ...(r.both ? { both: true } : {}), ...(r.action ? { action: r.action } : {}), ...(r.note ? { note: r.note.slice(0, 300) } : {}) }
   })
@@ -306,7 +317,7 @@ const hits = (s: { from?: string[]; to?: string[]; both?: boolean }, from: Polic
   (anyMatch(s.from, from, ctx) && anyMatch(s.to, to, ctx)) || (!!s.both && anyMatch(s.to, from, ctx) && anyMatch(s.from, to, ctx))
 
 function applies(r: PolicyRuleV2, from: PolicyParty, to: PolicyParty, action: PolicyAction, ctx: PolicyContext): boolean {
-  if (r.actions && !r.actions.includes(action)) return false
+  if (!(r.actions || COMMS).includes(action)) return false
   if (!hits(r, from, to, ctx)) return false
   return !(r.except || []).some(e => (!e.actions || e.actions.includes(action)) && hits(e, from, to, ctx))
 }
@@ -332,17 +343,20 @@ export function decide(policy: Policy, from: PolicyParty, to: PolicyParty, actio
   const real = strongest(matched.filter(r => !isAudit(policy, r)))
   const all = strongest(matched)
   // A file in audit mode applies nothing, its default included
-  const effect = real?.effect ?? (policy.mode === 'audit' ? 'allow' : policy.default)
-  const wouldBe = all?.effect ?? policy.default
+  // The file's default is about reaching someone; a governance action with no rule that names it goes ahead
+  const dflt = COMMS.includes(action) ? policy.default : 'allow'
+  const effect = real?.effect ?? (policy.mode === 'audit' ? 'allow' : dflt)
+  const wouldBe = all?.effect ?? dflt
   const why = (r: PolicyRuleV2) => `${ruleName(policy, r)}${on} (${r.from.join(', ')} -> ${r.to.join(', ')})${r.note ? `: ${r.note}` : ''}`
   const whys = (real?.rules || []).map(why).join('; and by ')
+  const verb = ACTION_WORDS[action] || action
   const reason = !real
     ? effect === 'allow'
       ? `Allowed: no rule${on} matched, and by default everyone may reach everyone`
-      : `${partyLabel(from)} may not ${action} ${partyLabel(to)}: no rule${on} allows it, and this host's default is deny`
+      : `${partyLabel(from)} may not ${verb} ${partyLabel(to)}: no rule${on} allows it, and this host's default is deny`
     : effect === 'allow' ? `Allowed by ${whys}`
-      : effect === 'deny' ? `${partyLabel(from)} may not ${action} ${partyLabel(to)}: blocked by ${whys}`
-        : `${partyLabel(from)} may not ${action} ${partyLabel(to)} until someone approves: it needs approval under ${whys}`
+      : effect === 'deny' ? `${partyLabel(from)} may not ${verb} ${partyLabel(to)}: blocked by ${whys}`
+        : `${partyLabel(from)} may not ${verb} ${partyLabel(to)} until someone approves: it needs approval under ${whys}`
   const audit = wouldBe !== effect ? (all?.rules || []).filter(r => isAudit(policy, r)) : []
   const auditNote = wouldBe !== effect
     ? ` (audit only: ${audit.length ? audit.map(r => ruleName(policy, r)).join(', ') : "this host's default"} would have it ${WOULD[wouldBe]})`
@@ -405,7 +419,7 @@ const listCovers = (p: string[], q: string[]) => q.every(x => p.some(y => patter
 /** Rule s applies to every request rule r applies to. Only claimed for an s with no exceptions. */
 function covers(s: PolicyRuleV2, r: PolicyRuleV2): boolean {
   if (s.except?.length) return false
-  if (s.actions && !(r.actions && r.actions.every(a => s.actions!.includes(a)))) return false
+  if (!(r.actions || COMMS).every(a => (s.actions || COMMS).includes(a))) return false
   const dir = (f: string[], t: string[]) => (listCovers(s.from, f) && listCovers(s.to, t)) || (!!s.both && listCovers(s.to, f) && listCovers(s.from, t))
   return dir(r.from, r.to) && (!r.both || dir(r.to, r.from))
 }

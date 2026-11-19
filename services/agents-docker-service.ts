@@ -5,6 +5,8 @@
  * Routes are thin wrappers that call these functions.
  */
 
+import { agentParty, governanceCheck } from '@/lib/policy-check'
+import { policyDeniedResult } from '@/lib/policy'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -1193,6 +1195,8 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
   }
 
   const name = body.name.trim().toLowerCase()
+  const refused = governanceCheck('agent.create', agentParty({ name }))
+  if (refused) return policyDeniedResult(refused)
 
   // These reach `docker run` (B010): plain values only.
   const fieldError = validateDockerRunFields({ ...body, name })

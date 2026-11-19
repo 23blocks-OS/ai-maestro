@@ -12,6 +12,9 @@ import { wakeAgent, hibernateAgent, switchRuntimeMode, type WakeAgentParams } fr
 import { getAgent } from '@/lib/agent-registry'
 import { isSelf } from '@/lib/hosts-config'
 import type { ServiceResult } from '@/services/service-errors'
+import { agentParty, governanceCheck } from '@/lib/policy-check'
+import { policyDeniedResult, type PolicyParty } from '@/lib/policy'
+import { raisesMode } from '@/lib/freedom'
 
 const PROXY_TIMEOUT_MS = 15000
 
@@ -69,6 +72,11 @@ export async function wakeAgentRequest(agentId: string, rawBody: unknown): Promi
       { startProgram, sessionIndex, program, projectDirectory, permissionMode, allowHostFallback, remember, launchOptions }, 'Wake')
   }
 
+  // A wake that runs the agent with more freedom than its setting is `agent.mode`, checked on the agent's host
+  if (agent && raisesMode(agent.permissionMode, permissionMode as WakeAgentParams['permissionMode'])) {
+    const refused = governanceCheck('agent.mode', agentParty(agent))
+    if (refused) return policyDeniedResult(refused)
+  }
   return wakeAgent(agentId, {
     startProgram, sessionIndex, program, projectDirectory,
     permissionMode: permissionMode as WakeAgentParams['permissionMode'],

@@ -91,6 +91,9 @@ import {
 import type { Host } from '@/types/host'
 import { shouldLogChange } from '@/lib/log-on-change'
 import { resolveWorkingDirectory } from '@/lib/working-directory'
+import { agentParty, governanceCheck } from '@/lib/policy-check'
+import { policyDeniedResult, type PolicyParty } from '@/lib/policy'
+import { raisesMode } from '@/lib/freedom'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed, gone, timeout, runtimeConflict } from '@/services/service-errors'
 import { parseCredential, settingsWarnings, describeCredential, credentialCheck, forgetCredentialSeen } from '@/lib/agent-credential'
 import { loginFor } from '@/lib/claude-login'
@@ -1069,7 +1072,7 @@ export function searchAgentsByQuery(query: string): ServiceResult<{ agents: Agen
 // POST /api/agents -- create new agent
 // ---------------------------------------------------------------------------
 
-export function createNewAgent(body: CreateAgentRequest): ServiceResult<{ agent: Agent }> {
+export function createNewAgent(body: CreateAgentRequest, caller?: PolicyParty): ServiceResult<{ agent: Agent }> {
   try {
     const copilotProblem = checkCopilotFields(body)
     if (copilotProblem) return invalidRequest(copilotProblem)
@@ -1084,6 +1087,8 @@ export function createNewAgent(body: CreateAgentRequest): ServiceResult<{ agent:
       if ('error' in parsed) return invalidRequest(parsed.error)
       body = { ...body, credential: parsed.credential ?? undefined }
     }
+    const refused = governanceCheck('agent.create', agentParty({ name: body.name, hostId: body.hostId }), caller)
+    if (refused) return policyDeniedResult(refused)
     const agent = createAgent(body)
     return { data: { agent }, status: 201 }
   } catch (error) {
@@ -1116,7 +1121,7 @@ export function getAgentById(id: string): ServiceResult<{ agent: Agent }> {
 /** An agent's title, as shown after its name: "George (AI Maestro product owner)" */
 export const AGENT_TITLE_MAX = 80
 
-export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceResult<{ agent: Agent }> {
+export function updateAgentById(id: string, body: UpdateAgentRequest, caller?: PolicyParty): ServiceResult<{ agent: Agent }> {
   try {
     // Check if agent exists and is not soft-deleted
     const existing = getAgent(id, true) // include deleted to distinguish 404 vs 410
@@ -1129,6 +1134,10 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
 
     const copilotProblem = checkCopilotFields(body)
     if (copilotProblem) return invalidRequest(copilotProblem)
+    if (raisesMode(existing.permissionMode, body.permissionMode)) {
+      const refused = governanceCheck('agent.mode', agentParty(existing), caller)
+      if (refused) return policyDeniedResult(refused)
+    }
 
     // A title is shown in notifications on a phone: plain text, one line, kept short
     if (body.title !== undefined && body.title !== null) {
@@ -1209,7 +1218,7 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
 // DELETE /api/agents/[id] -- delete agent (soft or hard)
 // ---------------------------------------------------------------------------
 
-export async function deleteAgentById(id: string, hard: boolean): Promise<ServiceResult<{ success: boolean; hard: boolean }>> {
+export async function deleteAgentById(id: string, hard: boolean, caller?: PolicyParty): Promise<ServiceResult<{ success: boolean; hard: boolean }>> {
   try {
     const agent = getAgent(id, true) // include deleted to distinguish 404 vs 410
     if (!agent) {
@@ -1218,6 +1227,8 @@ export async function deleteAgentById(id: string, hard: boolean): Promise<Servic
     if (agent.deletedAt && !hard) {
       return gone('Agent')
     }
+    const refused = governanceCheck('agent.delete', agentParty(agent), caller)
+    if (refused) return policyDeniedResult(refused)
 
     // ─── Cloud (containerized) agents: tear down the docker container ────────
     // Fixes issue #84 — without this, hard-delete clears the registry + AMP
@@ -1780,6 +1791,8 @@ export async function unlinkOrDeleteAgentSession(
     const sessionName = agent.name || agent.alias
 
     if (shouldDeleteAgent) {
+      const refused = governanceCheck('agent.delete', agentParty(agent))
+      if (refused) return policyDeniedResult(refused)
       // Kill tmux session if requested and exists
       if (sessionName && killSession) {
         const exists = await runtime.sessionExists(sessionName)

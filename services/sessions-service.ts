@@ -19,6 +19,8 @@
  *   POST   /api/sessions/activity/update -> broadcastActivityUpdate
  */
 
+import { agentParty, governanceCheck } from '@/lib/policy-check'
+import { policyDeniedResult } from '@/lib/policy'
 import { hookNeedsYou, normalizeActivityStatus, claimsActivity } from '@/lib/agent-presence'
 import { resolveWorkingDirectory } from '@/lib/working-directory'
 import { execFile } from 'child_process'
@@ -1128,6 +1130,11 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   // Refuse before the session starts: a session without its agent would be registered as an orphan
   const owner = known ? null : folderOwner(cwd)
   if (owner) return runtimeConflict(folderTakenMessage(cwd, owner))
+  // A session for a name the registry does not know creates an agent: `agent.create` (F118 step 3)
+  if (!getAgentByName(normalizedName)) {
+    const refused = governanceCheck('agent.create', agentParty({ name: normalizedName }))
+    if (refused) return policyDeniedResult(refused)
+  }
   await runtime.createSession(actualSessionName, cwd)
 
   // Register agent

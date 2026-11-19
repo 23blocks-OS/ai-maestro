@@ -582,7 +582,7 @@ async function deleteGhost(agentId: string): Promise<ServiceResult<{ ok: true; m
 
   // Dynamic: the agents service pulls in the whole runtime, which diagnostics does not otherwise need
   const { deleteAgentById } = await import('@/services/agents-core-service')
-  const deleted = await deleteAgentById(agent.id, true)
+  const deleted = await deleteAgentById(agent.id, true, { kind: 'system' }) // the Doctor's own repair
   if (deleted.status !== 200) return deleted as ServiceResult<never>
   return { data: { ok: true, message: `Deleted ${agent.name}; a backup is in ~/.aimaestro/backups/agents/` }, status: 200 }
 }

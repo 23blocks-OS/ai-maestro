@@ -68,7 +68,7 @@ describe('delete-ghost-agent', () => {
     m.agents = [ghost()]
     const r = await runDiagnosticFix(fix)
     expect(r.status).toBe(200)
-    expect(m.deleteAgentById).toHaveBeenCalledWith('ghost-1', true)
+    expect(m.deleteAgentById).toHaveBeenCalledWith('ghost-1', true, { kind: 'system' })
   })
 
   it('refuses when a tmux session appeared since the report', async () => {

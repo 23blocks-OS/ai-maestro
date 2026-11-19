@@ -61,7 +61,6 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F040** — [Waking and creating agents: launch options declared per tool, one-click wake](./backlog/F040-wake-and-create-ux-launch-options.md) — `In Progress` (step 1 shipped in 0.69.0; steps 2 to 4 open)
 - **F041** — [Windows without WSL: can psmux stand in for tmux?](./backlog/F041-windows-native-with-psmux.md) — `Todo` (documentation research only; probe script next)
 - **F042** — [Who may message whom: a policy on every send, with a reason on every denial](./backlog/F042-send-path-policy-with-reasons.md) — `In Progress` (phase 1 in 0.106.222: rules file, check on every send path, why API; phases 2a and 2b in 0.106.229: version 2 rules, decision log, audit mode, lint, tests in the file; next: tell agents whom they may reach)
-- **F042** — [Who may message whom: a policy on every send, with a reason on every denial](./backlog/F042-send-path-policy-with-reasons.md) — `In Progress` (phase 1 in 0.106.222: rules file, check on every send path, why API)
 - **F043** — [Pairing with another person's AI Maestro: invite codes, held senders, visible delivery state](./backlog/F043-federation-between-people.md) — `Todo` (idea from lolad; builds on F035)
 - **F044** — [Agent lifecycle and isolation: ideas from lolad to check against what we have](./backlog/F044-agent-lifecycle-and-isolation-ideas.md) — `Todo` (checklist)
 - **F045** — [A tmux self-check: run our exact tmux calls against any tmux binary](./backlog/F045-tmux-self-check-and-conformance-suite.md) — `Todo` (the F041 probe)
@@ -128,10 +127,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F111** — [Chat beside every terminal](./backlog/F111-chat-beside-every-terminal.md) — `In Progress`
 - **F114** — [Research: A2UI surfaces in Agent Actions and canvas documents](./backlog/F114-a2ui-research.md) — `In Progress`
 - **F117** — [Poppy: pages for agent access to companies](./backlog/F117-poppy-agent-access-pages.md) — `Blocked`
-- **F118** — [Governance actions and approvals through the policy engine](./backlog/F118-governance-actions-and-approvals.md) — `In Progress` (step 1, the version 2 engine, in 0.106.229; step 2, approvals, in 0.106.230; next: governance actions; spec: `docs/SPEC-POLICY-RULES.md`)
-- **F118** — [Governance actions and approvals through the policy engine](./backlog/F118-governance-actions-and-approvals.md) — `Todo` (spec: `docs/SPEC-POLICY-RULES.md`)
-- **F103** — [A paired device can speak as its owner (the phone counts as Juan)](./backlog/F103-paired-device-speaks-as-person.md) — `In Progress`
-- **F107** — [One sync channel between hosts](./backlog/F107-one-sync-channel-between-hosts.md) — `Todo` (spec)
+- **F118** — [Governance actions and approvals through the policy engine](./backlog/F118-governance-actions-and-approvals.md) — `In Progress` (step 1, the version 2 engine, in 0.106.229; step 2, approvals, in 0.106.230; step 3 started in 0.106.239 (create, delete, move, permission mode); spec: `docs/SPEC-POLICY-RULES.md`)
 - **F128** — [Switch to a fallback credential when a session hits its usage limit](./backlog/F128-fallback-credential-on-usage-limit.md) — `Todo`
 
 ## Bugs
@@ -176,9 +172,6 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B042** — [The registry and the trust flag are written in place; an unreadable registry reads as empty](./backlog/B042-registry-and-claude-json-writes-not-atomic.md) — `Done` (0.106.226)
 - **B043** — [SECURITY.md contradicts the design and itself](./backlog/B043-security-md-contradicts-the-design.md) — `Done`
 - **B044** — [Any web page in the operator's browser can reach the server (no Origin check)](./backlog/B044-cross-origin-requests-reach-the-server.md) — `Done`
-- **B042** — [The registry and the trust flag are written in place; an unreadable registry reads as empty](./backlog/B042-registry-and-claude-json-writes-not-atomic.md) — `Todo` (spec: `docs/SPEC-ATOMIC-STATE-WRITES.md`)
-- **B043** — [SECURITY.md contradicts the design and itself](./backlog/B043-security-md-contradicts-the-design.md) — `Todo` (spec: `docs/SPEC-SECURITY-POSTURE.md`, part A)
-- **B044** — [Any web page in the operator's browser can reach the server (no Origin check)](./backlog/B044-cross-origin-requests-reach-the-server.md) — `In Progress` (audit mode in 0.106.225; enforce next)
 
 ## Unfiled
 

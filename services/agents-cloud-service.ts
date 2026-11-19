@@ -10,6 +10,8 @@
  * Routes are thin wrappers that call these functions.
  */
 
+import { agentParty, governanceCheck } from '@/lib/policy-check'
+import { policyDeniedResult } from '@/lib/policy'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -338,6 +340,8 @@ export async function createCloudAgent(body: CloudCreateRequest): Promise<Servic
   if (!body.provider || !['ec2', 'ecs'].includes(body.provider)) return invalidRequest('provider must be "ec2" or "ecs"')
 
   const name = body.name.trim()
+  const refused = governanceCheck('agent.create', agentParty({ name }))
+  if (refused) return policyDeniedResult(refused)
   const provider = body.provider
   const awsProfile = body.awsProfile || 'default'
   const awsRegion = body.awsRegion || 'us-east-1'

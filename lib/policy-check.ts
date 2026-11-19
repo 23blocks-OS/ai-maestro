@@ -124,3 +124,16 @@ export function holdForApproval(d: PolicyDecision, from: PolicyParty, to: Policy
 export function askNotPossible(d: PolicyDecision, where: string): PolicyDecision {
   return d.effect === 'ask' ? { ...d, reason: `${d.reason}, which is not possible here (${where}), so it is refused` } : d
 }
+
+/**
+ * A governance action (F118 step 3, spec 11) at the place that does it, on the agent's host. Null when it may go
+ * ahead. Otherwise the refusal for policyDeniedResult: a deny, or an ask that became a quarantine entry; once a
+ * reviewer approves, the same action by the same caller goes through once (as a call does). The caller is who the
+ * host can name: with no login the dashboard and the API are an unidentified person; AI Maestro's own repairs are
+ * `system` and always pass.
+ */
+export function governanceCheck(action: PolicyAction, target: PolicyParty, caller: PolicyParty = { kind: 'person' }): PolicyDecision | null {
+  const d = holdForApproval(checkPolicy(caller, target, action), caller, target, action)
+  return d.allowed ? null : d
+}
+

@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-W72WHGDW');</script>
+    <!-- End Google Tag Manager -->
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rules and Approvals: Govern AI Agents | AI Maestro</title>
+    <meta name="description" content="AI Maestro rules and approvals: one rules file per host decides who may message or call your AI agents, and which agent changes need a person's signed approval.">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <meta name="author" content="23blocks">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://aimaestro.sh/rules.html">
+    <meta property="og:title" content="Rules and Approvals - AI Maestro">
+    <meta property="og:description" content="Who may reach whom, and which agent changes need a person's approval.">
+    <meta property="og:image" content="https://aimaestro.sh/og-image.png">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Rules and Approvals - AI Maestro">
+    <meta name="twitter:description" content="Who may reach whom, and which agent changes need a person's approval.">
+    <meta name="twitter:image" content="https://aimaestro.sh/og-image.png">
+
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+    <link rel="manifest" href="site.webmanifest">
+
+    <!-- Theme Colors -->
+    <meta name="theme-color" content="#0f172a">
+
+    <!-- Typography: Syne (display) + DM Sans (body) + JetBrains Mono (code) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['Syne', 'system-ui', 'sans-serif'],
+                        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            950: '#020617',
+                            900: '#0f172a',
+                            850: '#131c31',
+                            800: '#1e293b',
+                        },
+                        cyan: {
+                            400: '#22d3ee',
+                            500: '#00d4ff',
+                        },
+                        amber: {
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+        body { background-color: #0f172a; color: #e2e8f0; }
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            z-index: 9999;
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #00d4ff 0%, #22d3ee 50%, #fbbf24 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+    </style>
+    <link rel="canonical" href="https://aimaestro.sh/rules.html">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="AI Maestro">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:image:alt" content="AI Maestro - Rules and approvals">
+    <meta name="twitter:url" content="https://aimaestro.sh/rules.html">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "AI Maestro",
+          "item": "https://aimaestro.sh/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Rules and approvals",
+          "item": "https://aimaestro.sh/rules.html"
+        }
+      ]
+    }
+    </script>
+</head>
+<body class="font-sans antialiased">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
+        <div class="max-w-7xl mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-4">
+                <a href="/" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-10 md:h-10">
+                    <span class="font-display font-bold text-lg md:text-xl tracking-tight">AI MAESTRO</span>
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="https://getaimaestro.com/#personas" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">WHO IT'S FOR</a>
+                    <a href="https://getaimaestro.com/#features" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">FEATURES</a>
+                    <a href="/messaging.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">MESSAGING</a>
+                    <a href="/#install" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GET STARTED</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 no-underline hover:text-cyan-400 transition-colors duration-200" title="View on GitHub">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    </a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-cyan-500 text-slate-900 font-bold text-sm tracking-wide hover:bg-cyan-400 transition-all duration-200" target="_blank">
+                        START FREE
+                    </a>
+                </div>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-3">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="px-3 py-2 rounded bg-cyan-500 text-slate-900 font-bold text-xs tracking-wide" target="_blank">START</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1.5 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 py-4" id="mobile-menu">
+                <a href="https://getaimaestro.com/#personas" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Who It's For</a>
+                <a href="https://getaimaestro.com/#features" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Features</a>
+                <a href="/messaging.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Messaging</a>
+                <a href="/#install" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Get Started</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <script>
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+
+    <!-- Hero Section -->
+    <header class="py-16 md:py-24 text-center px-4 md:px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-sm font-medium mb-6">
+                <span class="text-lg">⚖️</span>
+                Rules and Approvals
+            </div>
+            <h1 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-6">Who May Reach Whom, and What Needs a Person</h1>
+            <p class="text-lg md:text-xl text-slate-400 max-w-[760px] mx-auto mb-8">One rules file per host decides who may message or call your agents and people, and which changes to an agent need a person's approval. Every refusal says why.</p>
+        </div>
+    </header>
+
+    <main class="px-4 md:px-8 pb-16">
+        <div class="max-w-[900px] mx-auto text-slate-300 leading-relaxed space-y-12">
+
+            <section>
+                <h2 class="font-display text-3xl font-bold text-white mb-4">Where the rules live</h2>
+                <p class="mb-3">Each host has one rules file, <code>~/.aimaestro/policy.json</code>. Each host checks its own rules: the sender's host before it sends, and the recipient's host before it delivers. A refusal from the other host comes back to the sender as it is.</p>
+                <p class="mb-3">With no file, nothing changes: every person may reach every agent, and every agent may message every agent.</p>
+                <p>The rules apply on every path a message takes: AMP messages (<code>/api/v1/route</code>, including messages from people and from other providers), <code>amp-send</code> on the same machine (it goes through the route), the dashboard and its API, the chat, the companion, device input and calls.</p>
+            </section>
+
+            <section>
+                <h2 class="font-display text-3xl font-bold text-white mb-4">A rules file</h2>
+                <pre class="bg-slate-950 border border-slate-800 rounded-lg p-4 overflow-x-auto text-sm"><code>{
+  "version": 2,
+  "default": "allow",
+  "rules": [
+    {
+      "id": "payroll-finance-only",
+      "effect": "deny",
+      "from": "*",
+      "to": "agent:payroll",
+      "actions": ["message", "call"],
+      "except": [{ "from": "team:finance" }, { "from": "person:alice" }],
+      "note": "Payroll answers the finance team only"
+    },
+    {
+      "id": "deletes-need-manager",
+      "effect": "ask",
+      "from": "*",
+      "to": "agent:*",
+      "actions": ["agent.delete"],
+      "approvers": ["rel:manager"],
+      "proof": "signed",
+      "expires": "2h",
+      "note": "Deleting an agent needs its manager's signed approval"
+    }
+  ],
+  "tests": [
+    { "from": "person:bob", "to": "agent:payroll", "action": "message", "expect": "deny" }
+  ]
+}</code></pre>
+                <p class="mt-3">A refused message is not delivered, and the sender gets the reason, for example: "person:bob may not message agent:payroll: … Payroll answers the finance team only".</p>
+            </section>
+
+            <section>
+                <h2 class="font-display text-3xl font-bold text-white mb-4">The fields of a rule</h2>
+                <div class="overflow-x-auto">
+                <table class="w-full text-sm border border-slate-800">
+                    <thead class="bg-slate-900 text-slate-200"><tr><th class="text-left p-3">Field</th><th class="text-left p-3">Meaning</th></tr></thead>
+                    <tbody class="divide-y divide-slate-800">
+                        <tr><td class="p-3"><code>id</code></td><td class="p-3">A stable name (<code>a-z</code>, <code>0-9</code>, <code>-</code>), unique in the file. Reasons and logs use it.</td></tr>
+                        <tr><td class="p-3"><code>effect</code></td><td class="p-3"><code>allow</code>, <code>deny</code> or <code>ask</code>.</td></tr>
+                        <tr><td class="p-3"><code>from</code>, <code>to</code></td><td class="p-3">A subject, or a list of subjects (any of them).</td></tr>
+                        <tr><td class="p-3"><code>actions</code></td><td class="p-3">The actions the rule covers. Left out: messages and calls.</td></tr>
+                        <tr><td class="p-3"><code>except</code></td><td class="p-3">A list of <code>{ from, to, actions }</code>. The rule does not apply when one entry matches.</td></tr>
+                        <tr><td class="p-3"><code>both</code></td><td class="p-3">Also match the other direction.</td></tr>
+                        <tr><td class="p-3"><code>approvers</code></td><td class="p-3">Required on an <code>ask</code>: who may approve.</td></tr>
+                        <tr><td class="p-3"><code>proof</code></td><td class="p-3"><code>any</code> (default) or <code>signed</code>: the approval must be a signed reply, not a click in the dashboard.</td></tr>
+                        <tr><td class="p-3"><code>expires</code></td><td class="p-3">On an <code>ask</code>: how long it waits for an answer (<code>30m</code>, <code>2h</code>, <code>1d</code>). 30 minutes when left out.</td></tr>
+                        <tr><td class="p-3"><code>mode</code></td><td class="p-3"><code>enforce</code> (default) or <code>audit</code>: record what the rule would do, but do not apply it. Also allowed at the top of the file, for every rule.</td></tr>
+                        <tr><td class="p-3"><code>note</code></td><td class="p-3">Plain text, shown in the reason.</td></tr>
+                    </tbody>
+                </table>
+                </div>
+                <p class="mt-3">At the top of the file: <code>version</code>, <code>default</code> (<code>allow</code> or <code>deny</code>), <code>mode</code>, <code>tests</code>, and <code>logAllows</code> (also record allowed decisions).</p>
+            </section>
+
+            <section>
+                <h2 class="font-display text-3xl font-bold text-white mb-4">Subjects</h2>
+                <div class="overflow-x-auto">
+                <table class="w-full text-sm border border-slate-800">
+                    <thead class="bg-slate-900 text-slate-200"><tr><th class="text-left p-3">Pattern</th><th class="text-left p-3">Matches</th></tr></thead>
+                    <tbody class="divide-y divide-slate-800">
+                        <tr><td class="p-3"><code>*</code></td><td class="p-3">Every person and every agent. AI Maestro itself always passes.</td></tr>
+                        <tr><td class="p-3"><code>person:*</code>, <code>person:&lt;id&gt;</code></td><td class="p-3">All people, or one person. A person the host cannot name (the dashboard) matches only <code>person:*</code> and <code>*</code>.</td></tr>
+                        <tr><td class="p-3"><code>agent:*</code>, <code>agent:&lt;name&gt;</code>, <code>agent:&lt;name&gt;@&lt;host&gt;</code></td><td class="p-3">All agents, one agent on any host, or one agent on one host.</td></tr>
+                        <tr><td class="p-3"><code>team:&lt;name&gt;</code></td><td class="p-3">The agents in a team.</td></tr>
+                        <tr><td class="p-3"><code>host:&lt;id&gt;</code></td><td class="p-3">Everyone on that host.</td></tr>
+                    </tbody>
+                </table>
+                </div>
+                <p class="mt-3">Approvers use the same patterns, plus <code>rel:manager</code> (the target agent's manager: its human manager, else its manager agent) and <code>rel:owner</code> (its owner). The sender never approves its own request.</p>
+            </section>
+
+            <section>
+                <h2 class="font-display text-3xl font-bold text-white mb-4">Actions</h2>
+                <div class="overflow-x-auto">
+                <table class="w-full text-sm border border-slate-800">
+                    <thead class="bg-slate-900 text-slate-200"><tr><th class="text-left p-3">Action</th><th class="text-left p-3">Checked when</th></tr></thead>
+                    <tbody class="divide-y divide-slate-800">
+                        <tr><td class="p-3"><code>message</code></td><td class="p-3">A message is sent, on every send path.</td></tr>
+                        <tr><td class="p-3"><code>call</code></td><td class="p-3">A call starts.</td></tr>
+                        <tr><td class="p-3"><code>agent.create</code></td><td class="p-3">An agent is created.</td></tr>
+                        <tr><td class="p-3"><code>agent.delete</code></td><td class="p-3">An agent is deleted.</td></tr>
+                        <tr><td class="p-3"><code>agent.move</code></td><td class="p-3">An agent moves to another host.</td></tr>
+                        <tr><td class="p-3"><code>agent.mode</code></td><td class="p-3">An agent's permission mode goes up (for example to full autonomy), on wake or in its settings.</td></tr>
+                        <tr><td class="p-3"><code>secret.grant</code></td><td class="p-3">An agent gets a vault credential it could not use before (its credential or its fallback list).</td></tr>
+                    </tbody>
+                </table>
+                </div>
+                <p class="mt-3">The actions with a dot are governance actions. They are checked in the code that does the action, on the agent's host, so the dashboard, the API and the agents CLI all meet the same rules. A rule without <code>actions</code>, and the file's <code>default</code>, cover messages and calls only: a governance action is governed only by a rule that names it.</p>
+            </section>
+
+            <section>
+                <h2 class="font-display text-3xl font-bold text-white mb-4">How a decision is made</h2>
+                <ol class="list-decimal pl-6 space-y-2">
+                    <li>Every rule that applies is found. The order of rules in the file does not matter.</li>
+                    <li>If any of them says <code>deny</code>, the answer is deny. Otherwise, if any says <code>ask</code>, a person must approve. Otherwise, if any says <code>allow</code>, it is allowed.</li>
+                    <li>If no rule applies, the file's <code>default</code> decides (<code>allow</code> unless the file says <code>deny</code>).</li>
+                    <li>Rules in <code>audit</code> mode never change the answer. The reason ends with what they would have done, and the decision log records it.</li>
+                </ol>
+                <p class="mt-3">A file in the older version 1 format (first match wins) still loads, and it gives the same decisions.</p>
+            </section>
+
+            <section>
+                <h2 class="font-display text-3xl font-bold text-white mb-4">Approvals</h2>
+                <p class="mb-3">An <code>ask</code> holds the message as an AMP quarantine entry (reason <code>policy</code>), as the <a href="https://agentmessaging.org" class="text-cyan-400">Agent Messaging Protocol</a> describes. The sender gets HTTP 202 with <code>status: "quarantined"</code>, and the message is not delivered until someone approves.</p>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li>Each reviewer gets a signed approval request in their mailbox, and a push when their phone is paired.</li>
+                    <li>A reviewer approves or rejects in <strong>Settings &gt; Approvals</strong>, through the API (<code>POST /api/v1/quarantine/{id}/approve</code> or <code>/reject</code>), or by replying to the request with a signed message whose context is <code>{ "decision": "approve", "quarantine_id": "qtn_…" }</code>.</li>
+                    <li>With <code>"proof": "signed"</code>, only the signed reply counts.</li>
+                    <li>An approval releases that one message, once. For a call or a governance action, it lets the next identical request through, once.</li>
+                    <li>A request expires after 30 minutes, or the rule's <code>expires</code>. The sender gets a signed notice when it is approved, rejected or expired.</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2 class="font-display text-3xl font-bold text-white mb-4">Checking your rules</h2>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li><code>GET /api/policy</code> shows this host's rules, the lint warnings (an allow that a deny always covers, a rule that repeats another) and the result of each test in the file.</li>
+                    <li><code>GET /api/policy/check?from=person:alice&amp;to=agent:payroll&amp;action=message</code> answers "why", across every host that decides, without recording anything.</li>
+                    <li>Each host keeps a decision log, <code>~/.aimaestro/policy/decisions.jsonl</code>: one line per refusal, ask and audit hit, with both parties and the rule ids, never the message.</li>
+                    <li>The Doctor's <code>policy</code> and <code>policy-approvals</code> checks report a broken file, lint warnings, failing tests and stuck approvals.</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2 class="font-display text-3xl font-bold text-white mb-4">A missing, broken or deleted file</h2>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li>Each time the file loads, a copy is saved next to it, <code>policy.json.last-good</code>.</li>
+                    <li>A file that does not load (bad JSON, an unknown field value) keeps the last version that loaded in force until it is fixed.</li>
+                    <li>A deleted file also keeps that saved version in force. To remove every rule, save the file with an empty list: <code>{ "version": 2, "rules": [] }</code>.</li>
+                    <li>A host that never had a rules file has no rules.</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2 class="font-display text-3xl font-bold text-white mb-4">Limits</h2>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li>AI Maestro has no login: the network is the trust boundary. A click in the dashboard is recorded as "an unverified person". Use <code>"proof": "signed"</code> when an approval must come from a known person.</li>
+                    <li>Agents on one host run as the same operating-system user. The rules stop mistakes and misled agents that use the normal tools. They cannot stop a program that edits files directly. To keep groups of agents apart, give each group its own host or container.</li>
+                </ul>
+                <p class="mt-4">The full specification is <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/SPEC-POLICY-RULES.md" class="text-cyan-400">docs/SPEC-POLICY-RULES.md</a>. What changed in each version is in the <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CHANGELOG.md" class="text-cyan-400">changelog</a>.</p>
+            </section>
+
+        </div>
+    </main>
+
+    <footer class="py-16 pb-8 bg-slate-950 border-t border-slate-800 px-4 md:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
+                <div>
+                    <div class="flex items-center gap-3 mb-4">
+                        <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8">
+                        <span class="font-display font-bold text-lg text-white">AI MAESTRO</span>
+                    </div>
+                    <p class="text-slate-400 text-sm">The future of work is here. Orchestrate multiple AI coding agents from one dashboard.</p>
+                </div>
+                <div>
+                    <h3 class="font-mono text-xs text-slate-500 tracking-widest mb-4">LINKS</h3>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Issues</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Contributing</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">License (MIT)</a>
+                </div>
+                <div>
+                    <h3 class="font-mono text-xs text-slate-500 tracking-widest mb-4">BUILT BY</h3>
+                    <p class="text-slate-400 text-sm mb-2">
+                        <a href="https://x.com/jkpelaez" target="_blank" class="text-white hover:text-cyan-400 transition-colors">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="text-white hover:text-cyan-400 transition-colors">23blocks</a>
+                    </p>
+                    <p class="text-slate-500 text-xs">Made with <span class="text-red-500">♥</span> in Boulder, Colorado</p>
+                    <p class="text-slate-500 text-xs mt-1">Coded with Claude</p>
+                </div>
+            </div>
+            <div class="pt-8 border-t border-slate-800 text-center">
+                <p class="text-slate-500 text-sm">© 2025-2026 Juan Peláez / 23blocks. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Copy for AI functionality -->
+    <script src="copy-for-ai.js"></script>
+</body>
+</html>

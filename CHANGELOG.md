@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.251] - 2026-11-20 - Documentation: rules and approvals
+
+### Added
+- A docs page for the rules and governance structure, [aimaestro.sh/rules.html](https://aimaestro.sh/rules.html). It covers where the rules live, the fields of a rule, subjects, actions (messages, calls and the governance actions), how a decision is made, approvals (AMP quarantine, signed replies), checking your rules, a missing, broken or deleted file, and the limits. It lists only what is built; the full design stays in `docs/SPEC-POLICY-RULES.md`.
+- The docs index, the sitemap, the AI index (`ai-index.html`), the security page and the README link to it. The README has a new "Rules and Approvals" feature section.
+
+## [0.106.250] - 2026-11-20 - The agent card says why it needs you
+
+### Changed
+- When an agent needs you although no hook says so (a blocked startup, or stopped after repeated crashes, 0.106.249), the agent list now shows the reason in orange under its name, for example "startup blocked: Select login method:". The status dot's tooltip says it too, in the list and on the grid card. The reason comes from the same status feed (`blocked`), read with `blockedOf(agent)` next to `presenceOf(agent)`.
+
 ## [0.106.249] - 2026-11-20 - An agent stuck at startup, or stopped after crashes, says Needs you
 
 ### Fixed

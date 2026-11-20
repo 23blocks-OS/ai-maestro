@@ -44,7 +44,7 @@
           "priceCurrency": "USD"
         },
         "description": "Dashboard and orchestrator for fleets of AI coding agents (Claude Code, Codex, Grok Build and other terminal agents) running in tmux, on one machine or across hosts. Agent messaging, persistent memory, code graph, secrets vault and a plugin with 14 skills.",
-        "softwareVersion": "0.106.249",
+        "softwareVersion": "0.106.251",
         "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
         "url": "https://getaimaestro.com/",
         "downloadUrl": "https://github.com/23blocks-OS/ai-maestro",
@@ -228,6 +228,20 @@
         </section>
 
         <section>
+            <h2>Rules and Approvals (Governance)</h2>
+            <p>One rules file per host, <code>~/.aimaestro/policy.json</code>, decides who may message or call whom, and which changes to an agent need a person's approval. Full page: https://aimaestro.sh/rules.html</p>
+            <ul>
+                <li>Each rule has an id and an effect: allow, deny or ask. Deny wins, then ask, then allow, then the file's default. Exceptions go inside the rule.</li>
+                <li>Subjects: *, person:, agent: (also agent:name@host), team:, host:. Approvers also take rel:manager and rel:owner.</li>
+                <li>Actions: message, call, and the governance actions agent.create, agent.delete, agent.move, agent.mode (a higher permission mode) and secret.grant.</li>
+                <li>Ask holds the request as an AMP quarantine entry; reviewers approve in Settings, by API, or by a signed reply. "proof": "signed" requires the signed reply.</li>
+                <li>Audit mode, tests inside the file, lint, a decision log per host, and Doctor checks.</li>
+                <li>A broken or deleted file keeps the last version that loaded. No file means no rules.</li>
+                <li>Limits: no login (a dashboard click is an unverified person), and agents on one host share an OS user.</li>
+            </ul>
+        </section>
+
+        <section>
             <h2>Team Meetings & Kanban Board</h2>
             <p>Assemble agents into a "war room" for coordinated multi-agent sessions with shared task management.</p>
 
@@ -388,6 +402,14 @@ cd ai-maestro && yarn install && yarn dev
                 <li><strong>PATCH /api/messages</strong> - Mark message as read</li>
             </ul>
 
+            <h3>Rules and Approvals</h3>
+            <ul>
+                <li><strong>GET /api/policy</strong> - This host's rules, lint warnings and test results</li>
+                <li><strong>GET /api/policy/check?from=X&amp;to=Y&amp;action=Z</strong> - Why a request would be allowed, held or denied</li>
+                <li><strong>GET /api/v1/quarantine</strong> - Held requests (AMP quarantine)</li>
+                <li><strong>POST /api/v1/quarantine/:id/approve</strong>, <strong>/reject</strong> - Decide a held request</li>
+            </ul>
+
             <h3>Email Identity</h3>
             <ul>
                 <li><strong>GET /api/domains</strong> - List all domains</li>
@@ -436,6 +458,7 @@ cd ai-maestro && yarn install && yarn dev
                 <li><strong>Long-Term Memory:</strong> https://aimaestro.sh/memory.html</li>
                 <li><strong>Skills (14):</strong> https://aimaestro.sh/skills.html</li>
                 <li><strong>Open protocols (AMP, AID, AAP, AFP):</strong> https://aimaestro.sh/protocols.html</li>
+                <li><strong>Rules and approvals (governance):</strong> https://aimaestro.sh/rules.html</li>
                 <li><strong>Agent Actions and canvases:</strong> https://aimaestro.sh/agent-actions.html</li>
                 <li><strong>Ecosystem:</strong> https://getaimaestro.com/ecosystem.html</li>
                 <li><strong>Secrets:</strong> https://github.com/23blocks-OS/ai-maestro/blob/main/docs/SECRETS.md</li>

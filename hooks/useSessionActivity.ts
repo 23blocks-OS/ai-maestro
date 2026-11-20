@@ -27,6 +27,8 @@ export interface SessionActivityInfo {
   status: SessionActivityStatus
   hookStatus?: string
   notificationType?: string
+  /** Why the agent needs you when no hook says so: "startup blocked: ..." or stopped after repeated crashes */
+  blocked?: string
 }
 
 export type SessionActivityMap = Record<string, SessionActivityInfo>
@@ -225,6 +227,12 @@ export function presenceFromActivity(activity: SessionActivityMap, agent: Presen
   return presenceFrom({ online, activity: info?.status, hookStatus: info?.hookStatus, notificationType: info?.notificationType })
 }
 
+/** Why an agent needs you when no hook says so (a blocked startup, a crash loop), from the same feed */
+export function blockedFromActivity(activity: SessionActivityMap, agent: PresenceSubject): string | undefined {
+  if (agent.hostUnreachable) return undefined
+  return lookup(activity, agent.name || agent.alias || agent.session?.tmuxSessionName, agent.id, agent.hostId)?.blocked || undefined
+}
+
 /** The snapshot for an agent (by id, else by name), or null. Same lookup the activity uses. */
 export function snapshotFromMap(snapshots: SnapshotMap, agent: { id?: string; name?: string; alias?: string; session?: { tmuxSessionName?: string } | null }): StatusSnapshot | null {
   return (agent.id ? snapshots[agent.id] : undefined)
@@ -248,6 +256,9 @@ export function useSessionActivity() {
     [activity]
   )
 
+  /** Why it needs you, when no hook says so */
+  const blockedOf = useCallback((agent: PresenceSubject) => blockedFromActivity(activity, agent), [activity])
+
   /** An agent's status snapshot (model, context, /compact hint, cost, mode...), the same everywhere */
   const snapshotOf = useCallback(
     (agent: { id?: string; name?: string; alias?: string; session?: { tmuxSessionName?: string } | null }) => snapshotFromMap(snapshots, agent),
@@ -265,6 +276,7 @@ export function useSessionActivity() {
     isSessionWaiting,
     isSessionActive,
     presenceOf,
+    blockedOf,
     reconnect: connect,
   }
 }

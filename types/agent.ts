@@ -255,6 +255,8 @@ export interface Agent {
   /** Which account or key the agent calls its model with (#65). Unset = the host's own login. */
   credential?: AgentCredential
   credentialSwitch?: CredentialSwitch // F128: the last automatic move to a fallback credential
+  crashRestarts?: string[]           // F044: automatic restarts after a crash in the last 30 minutes (ISO times)
+  crashFailedAt?: string             // F044: set after too many crashes; no more automatic restarts until the program runs again
   credentialCheck?: CredentialCheck // set by the agent list while it runs: what its session signs in with, against the profile
   credentialLogin?: CredentialLogin // set by the agent list for a host-login or config-dir profile: the account that login is
   /** F103: paired devices that speak for one person, by device key. Set by the operator only; a device can never claim it */

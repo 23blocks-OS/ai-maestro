@@ -6,6 +6,9 @@
  * The signal is the line Claude Code writes into the conversation file (seen in field transcripts, 2.1.32x):
  *   {"type":"system","subtype":"informational","content":"Usage limit reached · continuing automatically at 5:20pm · esc to cancel"}
  *   ... "Usage limit reached again · ..."   and, when the window opens, "Usage limit reset · Continuing automatically".
+ * A spend or weekly limit is also written as Claude Code's own error turn (field transcripts, 11-12 and 11-16):
+ *   {"type":"assistant","isApiErrorMessage":true,"error":"rate_limit","message":{"model":"<synthetic>","content":[{"text":
+ *    "You've hit your monthly spend limit · raise it at … · your 5-hour limit resets 1:40pm (America/Denver)"}]}}
  * Pure functions here; the watcher that acts on them is services/credential-fallback-service.ts.
  */
 import type { AgentCredential } from '@/types/agent'
@@ -20,7 +23,9 @@ export interface UsageLimitHit {
 
 const REACHED = /^Usage limit reached/i
 const RESET = /^Usage limit reset/i
-const AT_TIME = /continuing automatically at (\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i
+const AT_TIME = /(?:continuing automatically at|resets) (\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i
+/** Only a plan limit moves an agent: a plain transient 429 ("API Error: 429 …") also has error rate_limit */
+const PLAN_LIMIT = /\bhit your .{0,40}limit\b/i
 
 /** "at 5:20pm" after the line's time, in this host's time zone (Claude Code runs here too) */
 export function resetTimeFromText(text: string, at: number): number | undefined {
@@ -44,10 +49,17 @@ export function usageLimitFromLines(lines: string[]): UsageLimitHit | null {
     const line = lines[i]
     const answered = line.includes('"type":"assistant"')
     if (!answered && !line.includes('Usage limit')) continue
-    let o: { type?: string; subtype?: string; content?: unknown; timestamp?: string; message?: { model?: string } }
+    let o: { type?: string; subtype?: string; content?: unknown; timestamp?: string; error?: string; message?: { model?: string; content?: { text?: unknown }[] } }
     try { o = JSON.parse(line) } catch { continue }
     // Claude Code writes its own errors as "<synthetic>" assistant turns: those are not answers
     if (o.type === 'assistant' && o.message?.model && o.message.model !== '<synthetic>') return null
+    if (o.type === 'assistant' && o.message?.model === '<synthetic>' && o.error === 'rate_limit') {
+      const text = o.message.content?.[0]?.text
+      const at = Date.parse(o.timestamp || '')
+      if (typeof text !== 'string' || !PLAN_LIMIT.test(text) || !Number.isFinite(at)) continue
+      const resetsAt = resetTimeFromText(text, at)
+      return { at, ...(resetsAt ? { resetsAt } : {}), text: text.slice(0, 200) }
+    }
     if (o.type !== 'system' || typeof o.content !== 'string') continue
     if (RESET.test(o.content)) return null
     if (!REACHED.test(o.content)) continue

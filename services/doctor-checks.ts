@@ -381,19 +381,24 @@ export function checkAppVersion(running: string, onDisk: string = running): Diag
 
 const sha256 = (file: string) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
 
-export function checkClaudeHook(home: string, repoDir: string): DiagnosticCheck {
-  const hint = 'Run `./update-aimaestro.sh -y`, or `scripts/claude-hooks/install-hooks.sh`.'
-  const ours = path.join(repoDir, 'scripts', 'claude-hooks', 'ai-maestro-hook.cjs')
+/** Our hook's commands per event in one Claude Code settings file (empty when the file or the hook is missing) */
+function ourHookCommands(settingsFile: string): Map<string, string[]> {
   let hooks: Record<string, { hooks?: { command?: string }[] }[]> = {}
   try {
-    hooks = JSON.parse(fs.readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8'))?.hooks || {}
+    hooks = JSON.parse(fs.readFileSync(settingsFile, 'utf8'))?.hooks || {}
   } catch { /* no settings: no hook */ }
-
   const byEvent = new Map<string, string[]>()
   for (const [event, groups] of Object.entries(hooks)) {
     const cmds = (Array.isArray(groups) ? groups : []).flatMap(g => g?.hooks || []).map(h => h?.command || '').filter(c => c.includes('ai-maestro-hook'))
     if (cmds.length) byEvent.set(event, cmds)
   }
+  return byEvent
+}
+
+export function checkClaudeHook(home: string, repoDir: string, agents: Agent[] = []): DiagnosticCheck {
+  const hint = 'Run `./update-aimaestro.sh -y`, or `scripts/claude-hooks/install-hooks.sh`.'
+  const ours = path.join(repoDir, 'scripts', 'claude-hooks', 'ai-maestro-hook.cjs')
+  const byEvent = ourHookCommands(path.join(home, '.claude', 'settings.json'))
   if (!byEvent.size) {
     return { name: 'claude-hook', category: 'install', status: 'fail', message: 'The AI Maestro hook is not installed in ~/.claude/settings.json', hint }
   }
@@ -405,6 +410,14 @@ export function checkClaudeHook(home: string, repoDir: string): DiagnosticCheck 
     if (!fs.existsSync(file)) items.push({ key: `file:${file}`, status: 'fail', path: file, message: `The hook points to ${file}, which does not exist` })
     else if (path.resolve(file) !== ours && fs.existsSync(ours) && sha256(file) !== sha256(ours)) {
       items.push({ key: `file:${file}`, status: 'warn', path: file, message: `The hook runs ${file}, which differs from this install's ${ours}` })
+    }
+  }
+  // An agent with its own Claude folder reads that folder's settings, not ~/.claude (aim-launch.sh adds the hook at start)
+  for (const a of agents) {
+    const dir = a.credential?.kind === 'config-dir' ? a.credential.dir : undefined
+    if (!dir || !isLocal(a)) continue
+    if (!ourHookCommands(path.join(dir, 'settings.json')).size) {
+      items.push({ key: `agent:${a.name}`, status: 'warn', path: dir, message: `${a.name} uses its own Claude folder ${dir}, which has no AI Maestro hook yet; it is added when the agent next starts` })
     }
   }
   return check('claude-hook', 'install', items, 'The AI Maestro hook is installed and current', `${items.length} hook problem(s)`, hint)
@@ -606,4 +619,16 @@ export function checkPolicyApprovals(h: { file: string; pending: number; overdue
   for (const id of h.overdue) items.push({ key: `policy-approvals:overdue:${id}`, status: 'warn', message: `Quarantine entry ${id} is past its expiry and still pending: the sweeper has not run (it runs once a minute in the server)` })
   return check('policy-approvals', 'host', items, `The quarantine store reads (${h.pending} pending)`, `The quarantine store has ${items.length} problem(s)`,
     `The store is ${h.file || '~/.aimaestro/policy/quarantine.json'}. While it cannot be read, every ask is refused. GET /api/v1/quarantine lists the entries (and expires overdue ones).`)
+}
+
+// ---------------------------------------------------------------------------
+// crashed-agents (F044): agents left at their shell after too many crashes
+// ---------------------------------------------------------------------------
+
+export function checkCrashedAgents(agents: Agent[]): DiagnosticCheck {
+  const items: DiagnosticItem[] = agents.filter(a => isLocal(a) && a.crashFailedAt).map(a => ({
+    key: `agent:${a.name}`, status: 'fail',
+    message: `${a.name}'s Claude Code crashed ${a.crashRestarts?.length || 'several'} times in 30 minutes (last ${a.crashFailedAt}); it is no longer restarted automatically`,
+  }))
+  return check('crashed-agents', 'agents', items, 'No agent is stuck after repeated crashes', `${items.length} agent(s) stopped after repeated crashes`, 'Look at the agent\'s terminal for the error, fix it, and start the agent again (Wake, or restart it).')
 }

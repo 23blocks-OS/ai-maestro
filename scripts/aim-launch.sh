@@ -34,6 +34,9 @@ case "$kind" in
   config-dir)
     [ -d "$dir" ] || { echo "aim-launch: no folder $dir" >&2; exit 2; }
     export CLAUDE_CONFIG_DIR="$dir"
+    # Claude Code reads this folder's settings.json, not ~/.claude: put the AI Maestro hook there too (writes only on a change)
+    bash "$(dirname "${BASH_SOURCE[0]}")/claude-hooks/install-hooks.sh" -y --claude-config-dir "$dir" >/dev/null 2>&1 \
+      || echo "aim-launch: could not add the AI Maestro hook to $dir/settings.json (messages and status may not reach this agent)" >&2
     exec /bin/bash -c "$command" ;;
   oauth-token) var=CLAUDE_CODE_OAUTH_TOKEN ;;
   api-key) var=ANTHROPIC_API_KEY ;;

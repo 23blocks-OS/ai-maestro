@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -85,7 +85,28 @@ describe('live credential check (#65 part 2)', () => {
     expect(credentialCheck(dir, 'a', seen('config-dir', 'config-dir', '/Users/acme/.claude-a'))?.state).toBe('mismatch')
     expect(credentialCheck(dir, 'a', seen('config-dir', 'config-dir', '/Users/acme/.claude-b'))?.state).toBe('match')
   })
-  it('records only well-formed reports, and forgets them at wake', () => {
+  it('a server restart keeps the checks: they are saved to disk (field report 2026-11-19)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cred-seen-'))
+    process.env.AIM_CREDENTIAL_SEEN_FILE = path.join(dir, 'credential-seen.json')
+    try {
+      vi.resetModules(); delete (globalThis as any)._aimCredentialSeen
+      const a = await import('@/lib/agent-credential')
+      a.recordCredentialSeen('acme-keep', { via: 'oauth-token', launched: 'oauth-token', ref: 'ACME_MAX_TOKEN' })
+      expect(fs.statSync(process.env.AIM_CREDENTIAL_SEEN_FILE).mode & 0o777).toBe(0o600)
+      // A restart: new module state, read back from the file
+      vi.resetModules(); delete (globalThis as any)._aimCredentialSeen
+      const b = await import('@/lib/agent-credential')
+      expect(b.credentialCheck(token, 'acme-keep')?.state).toBe('match')
+      b.forgetCredentialSeen('acme-keep')
+      vi.resetModules(); delete (globalThis as any)._aimCredentialSeen
+      expect((await import('@/lib/agent-credential')).credentialCheck(token, 'acme-keep')).toBeNull()
+    } finally {
+      delete process.env.AIM_CREDENTIAL_SEEN_FILE
+      vi.resetModules(); delete (globalThis as any)._aimCredentialSeen
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+    it('records only well-formed reports, and forgets them at wake', () => {
     recordCredentialSeen('acme-1', { via: 'sk-ant-pasted-value' })
     expect(credentialCheck(token, 'acme-1')).toBeNull()
     recordCredentialSeen('acme-1', { via: 'oauth-token', launched: 'oauth-token', ref: 'ACME_MAX_TOKEN', extra: 'x' })

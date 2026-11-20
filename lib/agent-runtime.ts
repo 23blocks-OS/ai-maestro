@@ -271,6 +271,8 @@ export class TmuxRuntime implements AgentRuntime {
       // Recording when the session began makes that legible instead of a trap
       // for the next person reading these logs.
       'session_created=#{session_created}',
+      // Last keystroke or output (crash restart never interrupts a person using the shell)
+      'activity=#{session_activity}',
     ].join(' ')
     try {
       const { stdout } = await tmux(['display-message', '-t', assertPaneTarget(name), '-p', FORMAT])

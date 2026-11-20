@@ -188,7 +188,7 @@ export default function AgentList({
   })
 
   // Session activity tracking (for waiting/active/idle status)
-  const { getSessionActivity, presenceOf, snapshotOf } = useSessionActivity()
+  const { getSessionActivity, presenceOf, blockedOf, snapshotOf } = useSessionActivity()
 
   // State for accordion panels - load from localStorage
   const [expandedLevel1, setExpandedLevel1] = useState<Set<string>>(() => {
@@ -1365,8 +1365,16 @@ export default function AgentList({
                                                   isOnline={isOnline}
                                                   isHibernated={isHibernated}
                                                   presence={presenceOf(agent, { online: isOnline })}
+                                                  reason={blockedOf(agent)}
                                                 />
                                               </div>
+
+                                              {/* Why it needs you, when no hook says so (a blocked startup, a crash loop) */}
+                                              {blockedOf(agent) && (
+                                                <div className="mt-0.5 text-[10px] text-orange-400 truncate" title={blockedOf(agent)}>
+                                                  {blockedOf(agent)}
+                                                </div>
+                                              )}
 
                                               {/* Second row: Agent name (when label is shown) */}
                                               {((agent.label && agent.name) || agentRoleLine(agent.tags)) && (
@@ -1596,11 +1604,14 @@ function AgentStatusIndicator({
   isOnline,
   isHibernated,
   presence,
+  reason,
 }: {
   isOnline: boolean
   isHibernated?: boolean
   /** From the shared status store (hooks/useSessionActivity.ts presenceOf) */
   presence: AgentPresence
+  /** Why it needs you when no hook says so (blockedOf) */
+  reason?: string
 }) {
   if (!isOnline && isHibernated) {
     return (
@@ -1612,7 +1623,7 @@ function AgentStatusIndicator({
   }
   const style = PRESENCE_STYLE[presence]
   return (
-    <div className="flex items-center gap-1.5 flex-shrink-0" title={style.title}>
+    <div className="flex items-center gap-1.5 flex-shrink-0" title={reason ? `${style.label}: ${reason}` : style.title}>
       <div className={`w-2 h-2 rounded-full ${style.dot}`} />
       <span className={`text-xs hidden lg:inline ${style.text}`}>{style.label}</span>
     </div>

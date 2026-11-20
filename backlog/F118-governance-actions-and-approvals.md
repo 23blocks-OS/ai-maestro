@@ -38,3 +38,12 @@ See `docs/SPEC-POLICY-RULES.md` section 13. In short:
 **Limits to state plainly:** no login, so an approval from the dashboard is "an unverified person" unless the rule asks for a signed one. Agents on one host run as the same OS user (B021).
 
 **Related:** F042, F043, F065, F066, F067, F074, F037, F033, B021.
+
+## Checked 2026-11-20: step 3 part 2 waits
+
+Each of the remaining step 3 parts was checked against the code and our own hosts before building. None has anything to govern yet, so each waits until something real needs it:
+
+- **Closed teams:** none of the teams on our own hosts is `closed`.
+- **`policy.edit`:** no API or screen writes `policy.json`; an agent editing the file directly cannot be stopped (same OS user, B021).
+- **`agent.config`:** no API edits an agent's `CLAUDE.md` or settings; the agent changes its own.
+- **`secret.use`:** agents use keys through `aim-secret exec` with no request path to put a rule on.

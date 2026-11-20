@@ -105,3 +105,18 @@ describe('an agent whose host cannot be reached', () => {
     expect(presenceFromActivity(activity, { name: 'dahlia', session: { status: 'online' }, hostUnreachable: true })).toBe('unknown')
   })
 })
+
+describe('a blocked agent: Needs you, with the reason from the same feed', () => {
+  it('reads waiting with no hook status as Needs you, and gives the reason; none for an unreachable host', async () => {
+    const { presenceFromActivity, blockedFromActivity } = await import('@/hooks/useSessionActivity')
+    const activity: any = {
+      'acme-new': { status: 'waiting', blocked: 'startup blocked: Select login method:', lastActivity: '' },
+      'acme-ops': { status: 'idle', lastActivity: '' },
+    }
+    const online = { status: 'online' }
+    expect(presenceFromActivity(activity, { name: 'acme-new', session: online })).toBe('needs-you')
+    expect(blockedFromActivity(activity, { name: 'acme-new' })).toBe('startup blocked: Select login method:')
+    expect(blockedFromActivity(activity, { name: 'acme-ops' })).toBeUndefined()
+    expect(blockedFromActivity(activity, { name: 'acme-new', hostUnreachable: true })).toBeUndefined()
+  })
+})

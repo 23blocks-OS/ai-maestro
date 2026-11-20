@@ -126,7 +126,8 @@ export default function AgentBadge({
   const isOnline = session?.status === 'online' || agent.session?.status === 'online'
   const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
 
-  const { presenceOf, snapshotOf } = useSessionActivity()
+  const { presenceOf, blockedOf, snapshotOf } = useSessionActivity()
+  const blockedReason = blockedOf(agent)
   const statusInfo = getStatusInfo(session, isHibernated, activityStatus, agent.session?.status === 'online', presenceOf(agent, { online: true }))
   const ringColor = stringToRingColor(agent.name)
 
@@ -187,7 +188,7 @@ export default function AgentBadge({
             <Power className="w-4 h-4 text-slate-500" />
           </div>
         ) : (
-          <div className="relative flex items-center justify-center" title={statusInfo.label}>
+          <div className="relative flex items-center justify-center" title={blockedReason ? `${statusInfo.label}: ${blockedReason}` : statusInfo.label}>
             {statusInfo.pulse && (
               <span className={`absolute w-4 h-4 rounded-full ${statusInfo.color} animate-ping opacity-50`} />
             )}

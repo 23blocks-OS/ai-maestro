@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.106.249-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.106.251-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -186,6 +186,12 @@ Alongside it: **Code Graph** (interactive visualization of your entire codebase 
 *I wanted to answer an agent's question without finding its terminal.*
 
 Talk to an agent in a chat view, on desktop or on your phone. When the agent asks a question or needs an approval, it shows up as a card you can click, and the click sends the same key you would press in the terminal. Claude Code, Codex and Grok Build all work here. [How the chat works →](docs/CHAT-ARCHITECTURE.md)
+
+### Rules and Approvals
+
+*I wanted my agents to work alone, but not to delete each other or message payroll.*
+
+One rules file per host says who may message or call whom, and which changes to an agent need a person: creating, deleting or moving an agent, raising its permission mode, giving it a new credential. Each rule allows, denies or asks. An ask holds the request until an approver says yes, in Settings, from the phone, or with a signed reply. Every refusal says which rule and why. [Rules and approvals →](https://aimaestro.sh/rules.html)
 
 ### Secrets
 
@@ -392,6 +398,7 @@ The documentation site is **[aimaestro.sh](https://aimaestro.sh)** (install and 
 - [Chat Architecture](./docs/CHAT-ARCHITECTURE.md) — how messages reach an agent, and how questions come back
 - [Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) · [Code Graph](./docs/images/code_graph01.png) · [Long-term memory](./docs/LONG-TERM-MEMORY.md)
 - [Secrets](./docs/SECRETS.md) — agents use a credential without seeing it
+- [Rules and approvals](https://aimaestro.sh/rules.html) — who may reach whom, and what needs a person · [Spec](./docs/SPEC-POLICY-RULES.md)
 - [Claude Code mods](./docs/CLAUDE-CODE-MODS.md) — inbox and secrets mods, and Claude Code versions
 - [Agent programs](./docs/AGENT-PROGRAMS.md) — what Claude Code, Codex and Grok Build each support
 - [Operations Guide](./docs/OPERATIONS-GUIDE.md)

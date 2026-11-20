@@ -280,7 +280,7 @@ This follows `opa test` and Cedar's validation: policies are code, and code has 
 - The host layer stays on its host. The agent layer moves with the agent.
 - Two hosts can disagree for a short time after a change. With deny-wins, the cost is small: a host with the old organization layer can still deny, but it cannot open what the new layer closed, because the recipient's host checks too.
 
-**A broken file.** Phase 1 applied no rules when the file did not load. Since 0.106.229 (open question 3): the host keeps the last version that loaded and applies it until the file is fixed. That version is also saved next to the file (`policy.json.last-good`, mode 600), so it survives a restart. Only with no good version in memory or on disk, no rules apply. The Doctor's `policy` check reports the error either way (warn with the last good version, fail with none).
+**A broken file.** Phase 1 applied no rules when the file did not load. Since 0.106.229 (open question 3): the host keeps the last version that loaded and applies it until the file is fixed. That version is also saved next to the file (`policy.json.last-good`, mode 600), so it survives a restart. Only with no good version in memory or on disk, no rules apply. **A deleted file** works the same way (since 0.106.244): the last good version still applies, because any agent on the host can delete a file. To remove every rule, save the file with an empty rules list (`{"version": 1, "rules": []}`). Deleting the saved copy as well leaves no rules. The Doctor's `policy` check reports the error either way (warn with the last good version, fail with none).
 
 ## 11. Governance: the same engine for approvals
 

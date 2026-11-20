@@ -473,6 +473,7 @@ export interface LoadedPolicy {
 
 let cache: { file: string; mtimeMs: number; loaded: LoadedPolicy } | null = null
 const lastGood = new Map<string, LoadedPolicy & { at: string }>()
+let missingWarned = ''
 
 /** Where the last version that loaded is kept, so a broken file after a restart does not switch the rules off */
 export const lastGoodFile = (file: string) => `${file}.last-good`
@@ -488,14 +489,25 @@ function savedGood(file: string): (LoadedPolicy & { at: string }) | undefined {
 }
 
 /**
- * The rules this host enforces. A missing file is no rules. A file that does not parse or validate keeps the
+ * The rules this host enforces. A missing file is no rules, unless a version loaded before (in this process or
+ * saved as policy.json.last-good): then that version still applies, as for a broken file. A file that does not parse or validate keeps the
  * last version that loaded: from this process, else the copy saved next to the file (policy.json.last-good);
  * with neither, no rules apply. Either way the error is returned (for GET /api/policy and the Doctor) and
  * logged once per change of the file.
  */
 export function loadPolicy(file = policyFile()): LoadedPolicy {
   let mtimeMs = 0
-  try { mtimeMs = fs.statSync(file).mtimeMs } catch { lastGood.delete(file); return { file, rules: [] } }
+  try { mtimeMs = fs.statSync(file).mtimeMs } catch {
+    // Deleting the file does not switch the rules off: an empty rules list does (an agent can delete a file).
+    // Only the saved copy counts here, so the result is the same before and after a restart.
+    lastGood.delete(file)
+    const good = savedGood(file)
+    if (!good) return { file, rules: [] }
+    const error = `${file} is missing. The version that loaded at ${good.at} still applies. To remove every rule, save the file with an empty rules list.`
+    if (missingWarned !== file) { console.warn(`[Policy] ${error}`); missingWarned = file }
+    return { file, rules: good.rules, policy: good.policy, hash: good.hash, error }
+  }
+  if (missingWarned === file) missingWarned = ''
   if (cache && cache.file === file && cache.mtimeMs === mtimeMs) return cache.loaded
   let loaded: LoadedPolicy
   try {

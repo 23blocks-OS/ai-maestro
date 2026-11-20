@@ -16,3 +16,17 @@ lolad does these for a few long-running agents. For each: check whether we alrea
 7. **Pending-restart marker:** a setting change that needs a restart shows a "Restart to apply" button.
 8. **Startup-blocked report:** after two minutes without a ready prompt the agent shows `startup blocked: <first line>` (a missing login, a provider prompt) instead of unknown.
 9. **Remote access:** a second, authenticated listener with device pairing codes and QR for the phone. This runs against our "network is the trust boundary" rule; only note it.
+
+## Update 2026-11-20
+
+- **Item 3, the hook part, is done (0.106.245):** an agent with its own Claude folder (`config-dir` credential) gets the AI Maestro hook in that folder at each start, and the Doctor checks it. Not done: keeping machine-wide `~/.claude` hooks out of other agents (`--setting-sources`), and installing the plugin in such a folder.
+## Update 2026-11-20: item 6, crash restart
+
+Built (`lib/crash-restart.ts`, `services/crash-restart-service.ts`, started in `server.mjs`):
+
+- Once a minute, a local **Claude Code** agent whose pane is at a bare shell is restarted in the same conversation (`restartAgentResuming`), when its last hook report is not `ended`. Only Claude Code reports a deliberate quit (SessionEnd), so other programs are not touched.
+- It never acts on an agent it has not seen running during this server run (a crash from before a deploy is left alone), never while someone typed in that terminal in the last minute, and restarts at most 3 agents a minute.
+- Backoff 30 s, 1, 2, 4, 5 minutes. After 6 restarts in 30 minutes the agent is marked failed (`crashFailedAt`), the person gets a "needs you" push, the Doctor's `crashed-agents` check fails, and it is not restarted again until its program runs again.
+- `AIMAESTRO_CRASH_RESTART=0` turns it off.
+
+Not done: a "failed" state in the dashboard's status (the Doctor and the push carry it for now).

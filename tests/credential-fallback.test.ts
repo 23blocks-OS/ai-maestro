@@ -32,6 +32,17 @@ describe('reading the limit from the conversation', () => {
     expect(usageLimitFromLines([answer, line])?.at).toBe(local(15))
   })
 
+  it('a spend or weekly limit written as Claude Code\'s own error turn counts; a transient 429 does not', () => {
+    const at = new Date(local(13)).toISOString()
+    const turn = (text: string) => JSON.stringify({ type: 'assistant', isApiErrorMessage: true, error: 'rate_limit', timestamp: at, message: { model: '<synthetic>', content: [{ type: 'text', text }] } })
+    // The exact line from a field transcript (11-12)
+    const spend = usageLimitFromLines([turn("You've hit your monthly spend limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message · your 5-hour limit resets 1:40pm (America/Denver)")])
+    expect(spend).toMatchObject({ at: local(13), resetsAt: local(13, 40) })
+    expect(usageLimitFromLines([turn('API Error: 429 rate_limit_error')])).toBeNull()
+    // The window opened again afterwards
+    expect(usageLimitFromLines([turn("You've hit your weekly limit · resets 5pm"), sys('Usage limit reset · Continuing automatically', at)])).toBeNull()
+  })
+
   it('a reset time earlier in the day than the line is tomorrow', () => {
     expect(resetTimeFromText('continuing automatically at 3:40am', local(23))).toBe(local(3, 40, 20))
     expect(resetTimeFromText('continuing automatically at 10pm', local(17))).toBe(local(22))

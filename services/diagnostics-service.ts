@@ -38,7 +38,7 @@ import { quarantineHealth } from '@/lib/policy-approvals'
 import {
   type DiagnosticStatus, type DiagnosticCheck, type DiagnosticCategory,
   checkAgentFolders, checkNameHints, checkAmpMailboxes, checkGhostAgents, checkOutsideAgents,
-  checkDeletedAgentBackups, checkAppVersion, checkClaudeHook, checkAmpScripts, checkAgentPrograms, checkAmpRefusals, checkCrossOrigin, checkPolicyRules, checkPolicyApprovals, readAppVersion, runningAppVersion,
+  checkDeletedAgentBackups, checkAppVersion, checkClaudeHook, checkCrashedAgents, checkAmpScripts, checkAgentPrograms, checkAmpRefusals, checkCrossOrigin, checkPolicyRules, checkPolicyApprovals, readAppVersion, runningAppVersion,
   liveTmuxNames, ghostSavers, listDeletedAgentBackups, dirBytes, formatBytes,
 } from '@/services/doctor-checks'
 
@@ -466,7 +466,8 @@ async function buildReport(): Promise<ServiceResult<DiagnosticReport>> {
     ['outside-agents', () => checkOutsideAgents(agents, tmuxNames)],
     ['deleted-agent-backups', () => checkDeletedAgentBackups(agents, agentBackupsDir())],
     ['app-version', () => checkAppVersion(version, readAppVersion(repoDir))],
-    ['claude-hook', () => checkClaudeHook(home, repoDir)],
+    ['claude-hook', () => checkClaudeHook(home, repoDir, agents)],
+    ['crashed-agents', () => checkCrashedAgents(agents)],
     ['amp-scripts', () => checkAmpScripts(home, repoDir)],
     ['agent-programs', () => checkAgentPrograms(agents, home)],
     ['amp-refusals', () => checkAmpRefusals()],

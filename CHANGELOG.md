@@ -3,6 +3,39 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.247] - 2026-11-20 - A crashed Claude Code agent restarts by itself
+
+### Added
+- Crash restart (F044 item 6). pm2 restarts the server, but nothing restarted an agent whose Claude Code crashed: its terminal sat at a shell and its mail waited. Once a minute, a local Claude Code agent whose terminal is at a bare shell, and whose last hook report is not a deliberate quit (`SessionEnd`), is restarted in the same conversation.
+  - It acts only on an agent it has seen running during this server run, never on a terminal someone typed in during the last minute, and on at most 3 agents a minute.
+  - Backoff 30 s, 1, 2, 4, 5 minutes. After 6 restarts in 30 minutes the agent is marked failed: the person gets a "needs you" push, the Doctor's new `crashed-agents` check fails, and it is not restarted again until its program runs again.
+  - A hibernated agent has no terminal and is never touched. `AIMAESTRO_CRASH_RESTART=0` turns the watcher off.
+
+## [0.106.246] - 2026-11-20 - A same-machine send goes through AI Maestro
+
+### Changed
+- Plugin 1.19.25 with claude-plugin 0.5.7. `amp-send` used to write straight into a recipient's inbox when the recipient was on the same machine, which skipped the message rules, the sender check and the wake. With AI Maestro registered as the agent's provider, every send now goes through `/api/v1/route` (AMP 05). Only when AI Maestro does not answer is a recipient on this machine written directly, and that is refused when the host has message rules (`~/.aimaestro/policy.json` or its saved copy).
+
+## [0.106.245] - 2026-11-20 - An agent with its own Claude folder gets the AI Maestro hook
+
+### Fixed
+- An agent on the `config-dir` credential (its own Claude folder, `CLAUDE_CONFIG_DIR`) reads that folder's `settings.json`, not `~/.claude/settings.json`, so it never had the AI Maestro hook: no message notifications and a wrong status. `aim-launch.sh` now adds the hook to that folder each time the agent starts (it writes only when something changes), through the new `install-hooks.sh --claude-config-dir DIR`.
+- The Doctor's `claude-hook` check also looks at each local agent's own Claude folder and warns when the hook is not there yet.
+
+## [0.106.244] - 2026-11-20 - Deleting the rules file no longer switches the rules off
+
+### Fixed
+- When `~/.aimaestro/policy.json` was deleted, every rule stopped applying at once, although the last version that loaded was saved next to it. Any agent on the host can delete a file, so deleting it now keeps that last good version in force, as a broken file already did; the Doctor's `policy` check reports it. To remove every rule, save the file with an empty rules list. A host that never had rules is unchanged.
+- The governance test no longer calls the real tmux server when it deletes a test agent (it is mocked; the kill was exact-name and harmless, but tests must not touch tmux).
+
+## [0.106.243] - 2026-11-19 - The credential check survives a server restart; spend limits are detected directly
+
+### Fixed
+- The live credential check was kept only in the server's memory. Every deploy or restart turned it to `null` on every agent until that session's next turn, so a crew that was on the right account read as unproven (field report: 11 of 11 after the 0.106.242 deploy). The reports are now saved to `~/.aimaestro/credential-seen.json` (names and kinds only, never a value, mode 600) and read back at start.
+
+### Changed
+- F128: a usage limit is also read from Claude Code's own error turn (`<synthetic>`, `error: rate_limit`, "You've hit your monthly spend limit · … resets 1:40pm"), with the reset time from "resets <time>". A plain transient 429 does not count. Field transcripts on 11-12 and 11-16 had this turn and the "Usage limit reached" line in the same second; now either one is enough.
+
 ## [0.106.242] - 2026-11-19 - A stored message keeps what was signed, so it can always be verified again
 
 ### Fixed

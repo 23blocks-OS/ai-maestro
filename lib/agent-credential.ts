@@ -7,7 +7,9 @@
  * never typed into the pane), and a settings file that would override or be ignored is reported.
  */
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
+import { writeFileAtomicSync } from '@/lib/atomic-write.mjs'
 import type { AgentCredential, CredentialCheck } from '@/types/agent'
 import { describeCredential } from '@/lib/credential-words'
 
@@ -122,8 +124,41 @@ export function settingsWarnings(workingDirectory: string | undefined, cred: Age
  */
 export interface CredentialSeen { via: AgentCredential['kind']; launched?: AgentCredential['kind']; ref?: string; at: number }
 
-const seenStore: Map<string, CredentialSeen> = ((globalThis as any)._aimCredentialSeen ??= new Map())
 const isKind = (k: unknown): k is AgentCredential['kind'] => CREDENTIAL_KINDS.includes(k as any)
+
+// The reports are kept on disk too: sessions outlive a server restart, and a deploy used to blank every check
+// (field report 2026-11-19: all 11 of a crew read null after a deploy). Names and kinds only, never a value.
+const seenFile = () => process.env.AIM_CREDENTIAL_SEEN_FILE || path.join(os.homedir(), '.aimaestro', 'credential-seen.json')
+const persisting = () => !process.env.VITEST || !!process.env.AIM_CREDENTIAL_SEEN_FILE
+const SEEN_MAX = 5000
+
+function loadSeen(): Map<string, CredentialSeen> {
+  const store = new Map<string, CredentialSeen>()
+  if (!persisting()) return store
+  try {
+    const raw = JSON.parse(fs.readFileSync(seenFile(), 'utf8'))
+    for (const [id, s] of Object.entries(raw && typeof raw === 'object' ? raw : {})) {
+      const r = s as Partial<CredentialSeen>
+      if (id.length > 100 || !isKind(r?.via) || typeof r.at !== 'number') continue
+      const ref = typeof r.ref === 'string' && (VAULT_NAME.test(r.ref) || SAFE_PATH.test(r.ref)) ? r.ref : undefined
+      store.set(id, { via: r.via, ...(isKind(r.launched) ? { launched: r.launched } : {}), ...(ref ? { ref } : {}), at: r.at })
+    }
+  } catch { /* no file yet, or unreadable: start empty */ }
+  return store
+}
+
+function saveSeen(store: Map<string, CredentialSeen>): void {
+  if (!persisting()) return
+  try {
+    const entries = [...store.entries()].slice(-SEEN_MAX)
+    fs.mkdirSync(path.dirname(seenFile()), { recursive: true })
+    writeFileAtomicSync(seenFile(), JSON.stringify(Object.fromEntries(entries)), { mode: 0o600 })
+  } catch (e) {
+    console.warn(`[Credential] could not save the credential checks: ${(e as Error).message}`)
+  }
+}
+
+const seenStore: Map<string, CredentialSeen> = ((globalThis as any)._aimCredentialSeen ??= loadSeen())
 
 /** Record a hook's report (from the heartbeat). Anything malformed is dropped. */
 export function recordCredentialSeen(agentId: string, report: unknown): void {
@@ -135,10 +170,11 @@ export function recordCredentialSeen(agentId: string, report: unknown): void {
   // Same report as before: keep its time, so the agent list (and the mesh feed built on it) does not change on every heartbeat
   if (prev && prev.via === r.via && prev.launched === launched && prev.ref === ref) return
   seenStore.set(agentId, { via: r.via, ...(launched ? { launched } : {}), ...(ref ? { ref } : {}), at: Date.now() })
+  saveSeen(seenStore)
 }
 
 /** Forget it when the agent is woken again: the next session reports afresh. */
-export function forgetCredentialSeen(agentId: string): void { seenStore.delete(agentId) }
+export function forgetCredentialSeen(agentId: string): void { if (seenStore.delete(agentId)) saveSeen(seenStore) }
 
 const KIND_WORDS: Record<AgentCredential['kind'], string> = {
   'host-login': "the computer's own login", 'oauth-token': 'a subscription token', 'api-key': 'an API key',

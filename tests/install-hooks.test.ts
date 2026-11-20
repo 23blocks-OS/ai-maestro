@@ -238,3 +238,27 @@ describe('install-hooks.sh · updating an existing install', () => {
     expect(fs.readFileSync(settingsPath(), 'utf8')).toBe('{ not json')
   })
 })
+
+describe("an agent's own Claude folder (CLAUDE_CONFIG_DIR)", () => {
+  it('--claude-config-dir writes only that folder, and a second run changes nothing', () => {
+    fakeClaude('2.1.0')
+    const dir = path.join(home, 'acme-claude')
+    execFileSync('bash', [SCRIPT, '-y', '--claude-config-dir', dir], { env: { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}` }, encoding: 'utf8', timeout: 30000 })
+    const file = path.join(dir, 'settings.json')
+    const first = fs.readFileSync(file, 'utf8')
+    expect(ours(JSON.parse(first).hooks.Stop).length).toBe(1)
+    expect(fs.existsSync(settingsPath())).toBe(false)
+    execFileSync('bash', [SCRIPT, '-y', '--claude-config-dir', dir], { env: { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}` }, encoding: 'utf8', timeout: 30000 })
+    expect(fs.readFileSync(file, 'utf8')).toBe(first)
+  })
+
+  it('aim-launch.sh config-dir adds the hook to the folder before starting the program', () => {
+    fakeClaude('2.1.0')
+    const dir = path.join(home, 'acme-claude')
+    fs.mkdirSync(dir)
+    const out = execFileSync('bash', [path.join(process.cwd(), 'scripts/aim-launch.sh'), 'config-dir', dir, '--', 'echo "dir=$CLAUDE_CONFIG_DIR"'],
+      { env: { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}` }, encoding: 'utf8', timeout: 30000 })
+    expect(out.trim()).toBe(`dir=${dir}`)
+    expect(ours(JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')).hooks.Stop).length).toBe(1)
+  })
+})

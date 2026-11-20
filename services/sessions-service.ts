@@ -253,6 +253,32 @@ function hookStateFiles(): Array<{ name: string; state: any }> {
   return files
 }
 
+/** The newest hook record for an agent's folder or its subfolders (not another agent's), with no age limit */
+function newestHookRecord(
+  workingDir: string,
+  otherAgentDirs: string[] = [],
+  stateFiles: Array<{ name: string; state: any }> = hookStateFiles()
+): any {
+  if (!workingDir) return null
+  const rootName = `${hashCwd(workingDir)}.json`
+  const nested = otherAgentDirs.filter(d => d !== workingDir && d.startsWith(workingDir + '/'))
+  let state: any = null
+  for (const f of stateFiles) {
+    const cwd = f.name === rootName ? workingDir : f.state?.cwd
+    if (typeof cwd !== 'string' || !(cwd === workingDir || cwd.startsWith(workingDir + '/'))) continue
+    if (nested.some(d => cwd === d || cwd.startsWith(d + '/'))) continue
+    if (!state || Date.parse(f.state.updatedAt) > Date.parse(state.updatedAt)) state = f.state
+  }
+  return state
+}
+
+/** The last thing the agent's program reported (crash restart): its status and when, or null */
+export function lastHookReport(workingDir: string, otherAgentDirs: string[] = []): { status: string; at: number } | null {
+  const s = newestHookRecord(workingDir, otherAgentDirs)
+  const at = s ? Date.parse(s.updatedAt) : NaN
+  return s && typeof s.status === 'string' && Number.isFinite(at) ? { status: s.status, at } : null
+}
+
 /**
  * Read hook state for an agent's working directory.
  *
@@ -271,17 +297,7 @@ function getHookState(
   otherAgentDirs: string[] = [],
   stateFiles: Array<{ name: string; state: any }> = hookStateFiles()
 ): { status: string; notificationType?: string; at: number; transcriptPath?: string; observed?: boolean } | null {
-  if (!workingDir) return null
-
-  const rootName = `${hashCwd(workingDir)}.json`
-  const nested = otherAgentDirs.filter(d => d !== workingDir && d.startsWith(workingDir + '/'))
-  let state: any = null
-  for (const f of stateFiles) {
-    const cwd = f.name === rootName ? workingDir : f.state?.cwd
-    if (typeof cwd !== 'string' || !(cwd === workingDir || cwd.startsWith(workingDir + '/'))) continue
-    if (nested.some(d => cwd === d || cwd.startsWith(d + '/'))) continue
-    if (!state || Date.parse(f.state.updatedAt) > Date.parse(state.updatedAt)) state = f.state
-  }
+  const state = newestHookRecord(workingDir, otherAgentDirs, stateFiles)
   if (!state) return null
 
   // 'ended' / 'started' claim nothing: the terminal decides.

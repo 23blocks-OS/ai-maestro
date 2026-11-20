@@ -6,7 +6,10 @@
 #   - Codex CLI    (~/.codex/hooks.json + config.toml)
 #   - Gemini CLI   (~/.gemini/settings.json)
 #
-# Usage: ./install-hooks.sh [-y]
+# Usage: ./install-hooks.sh [-y] [--claude-config-dir DIR]
+#
+# --claude-config-dir DIR: only the Claude Code hooks, into DIR/settings.json (an agent's own Claude folder,
+# CLAUDE_CONFIG_DIR). aim-launch.sh runs this at each start of such an agent; it writes only when something changes.
 #
 # The same hook script (ai-maestro-hook.cjs) is used for all agents.
 # It auto-detects which agent is calling it and returns the correct response format.
@@ -14,11 +17,13 @@
 set -e
 
 NON_INTERACTIVE=false
+CLAUDE_DIR_ONLY=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         -y|--yes|--non-interactive) NON_INTERACTIVE=true; shift ;;
+        --claude-config-dir) CLAUDE_DIR_ONLY="${2:-}"; shift 2 || shift ;;
         *) shift ;;
     esac
 done
@@ -201,7 +206,7 @@ process.stdout.write(JSON.stringify(cfg));
 # Claude Code
 # ============================================================
 install_claude_hooks() {
-    local SETTINGS_DIR="$HOME/.claude"
+    local SETTINGS_DIR="${CLAUDE_DIR_ONLY:-$HOME/.claude}"
     local SETTINGS_FILE="$SETTINGS_DIR/settings.json"
 
     mkdir -p "$SETTINGS_DIR"
@@ -458,6 +463,7 @@ HOOKEOF
 # Always install Claude Code (it's the primary agent)
 echo "Claude Code:"
 install_claude_hooks
+[ -n "$CLAUDE_DIR_ONLY" ] && exit 0 # one agent's own Claude folder: nothing else to install
 
 # Detect and install Codex CLI
 if command -v codex &>/dev/null || [ -d "$HOME/.codex" ]; then

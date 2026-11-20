@@ -253,6 +253,14 @@ describe('claude-hook', () => {
     settings(d.HOOK_EVENTS.filter(e => e !== 'SessionEnd'))
     expect(d.checkClaudeHook(home, repo()).items?.map(i => i.key)).toEqual(['event:SessionEnd'])
   })
+  it("warns about an agent whose own Claude folder has no hook yet, and not once it has", () => {
+    settings(d.HOOK_EVENTS)
+    const dir = path.join(home, 'acme-claude')
+    const a = { id: 'a1', name: 'acme-ops', hostId: 'self', credential: { kind: 'config-dir', dir } } as any
+    expect(d.checkClaudeHook(home, repo(), [a]).items?.map(i => i.key)).toEqual(['agent:acme-ops'])
+    write(path.join(dir, 'settings.json'), { hooks: { Stop: [{ hooks: [{ type: 'command', command: `node ${ourHook()}` }] }] } })
+    expect(d.checkClaudeHook(home, repo(), [a])).toMatchObject({ status: 'pass' })
+  })
   it('fails when the hook file does not exist (a moved checkout)', () => {
     settings(d.HOOK_EVENTS, '/Volumes/RnD/old/scripts/claude-hooks/ai-maestro-hook.cjs')
     expect(d.checkClaudeHook(home, repo())).toMatchObject({ status: 'fail' })

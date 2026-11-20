@@ -10,6 +10,13 @@ import path from 'path'
 import { decide, lintPolicy, validatePolicy, validateRules, type PolicyParty } from '@/lib/policy'
 import { raisesMode } from '@/lib/freedom'
 
+// Never reach the real tmux server: deleting an agent kills its session
+vi.mock('@/lib/tmux-safe.mjs', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/tmux-safe.mjs')>()),
+  tmux: async () => ({ stdout: '', stderr: '' }),
+  tmuxSync: () => '',
+}))
+
 const person: PolicyParty = { kind: 'person' }
 const payroll: PolicyParty = { kind: 'agent', id: 'id-payroll', name: 'payroll', host: 'host-b' }
 

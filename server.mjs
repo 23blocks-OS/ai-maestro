@@ -2944,6 +2944,8 @@ async function startServer(handleRequest) {
 
     // F128: move an agent to the next credential of its own fallback list when its account hits a usage limit
     import('./services/credential-fallback-service.ts').then(m => m.ensureCredentialFallbackWatcher()).catch(err => console.warn('[Credential] fallback watcher did not start:', err.message))
+    // F044: restart an agent whose Claude Code crashed and left a bare shell (backoff; failed after 6 in 30 minutes)
+    import('./services/crash-restart-service.ts').then(m => m.ensureCrashRestartWatcher()).catch(err => console.warn('[CrashRestart] watcher did not start:', err.message))
 
     // Run startup self-diagnostics (non-blocking)
     setTimeout(async () => {

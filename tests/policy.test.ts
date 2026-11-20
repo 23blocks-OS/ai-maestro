@@ -93,6 +93,30 @@ describe('validateRules and the file', () => {
   })
 })
 
+describe('a deleted rules file', () => {
+  it('keeps the version that loaded before; an empty rules list removes the rules', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'policy-deleted-'))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const file = path.join(dir, 'policy.json')
+      const rules = { version: 1, rules: [{ from: '*', to: 'agent:payroll', allow: false }] }
+      fs.writeFileSync(file, JSON.stringify(rules))
+      expect(loadPolicy(file).rules).toHaveLength(1)
+      fs.rmSync(file)
+      const gone = loadPolicy(file)
+      expect(gone.rules).toHaveLength(1)
+      expect(gone.error).toContain('is missing')
+      fs.writeFileSync(file, JSON.stringify({ version: 1, rules: [] }))
+      expect(loadPolicy(file).rules).toEqual([])
+      fs.rmSync(file)
+      expect(loadPolicy(file).rules).toEqual([]) // the last good version is now the empty one
+    } finally {
+      warn.mockRestore()
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 // ── Send paths, against a real rules file in a temporary HOME ────────────────
 
 describe('send paths refuse with the reason', () => {

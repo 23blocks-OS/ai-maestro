@@ -1187,6 +1187,12 @@ async function routeMessageUnrecorded(
       in_reply_to: body.in_reply_to || '',
       payload: body.payload,
     }
+    // AMP 04 "Stored Message Format" / 06a: keep the recipient as the sender signed it, so the stored message
+    // still verifies. Only the full form of the same recipient the forward named.
+    if (signedFields.to !== envelope.to && typeof signedFields.to === 'string'
+      && signedFields.to.split('@')[0].toLowerCase() === String(envelope.to).split('@')[0].toLowerCase()) {
+      envelope.to = signedFields.to
+    }
     let signatureCheck: SignatureCheck = body.signature ? 'no_key' : 'unsigned'
     let verifyReason: string | undefined
     let personKeyHex: string | undefined

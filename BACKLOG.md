@@ -128,7 +128,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F114** — [Research: A2UI surfaces in Agent Actions and canvas documents](./backlog/F114-a2ui-research.md) — `In Progress`
 - **F117** — [Poppy: pages for agent access to companies](./backlog/F117-poppy-agent-access-pages.md) — `Blocked`
 - **F118** — [Governance actions and approvals through the policy engine](./backlog/F118-governance-actions-and-approvals.md) — `In Progress` (step 1, the version 2 engine, in 0.106.229; step 2, approvals, in 0.106.230; step 3 started in 0.106.239 (create, delete, move, permission mode); spec: `docs/SPEC-POLICY-RULES.md`)
-- **F128** — [Switch to a fallback credential when a session hits its usage limit](./backlog/F128-fallback-credential-on-usage-limit.md) — `Todo`
+- **F128** — [Switch to a fallback credential when a session hits its usage limit](./backlog/F128-fallback-credential-on-usage-limit.md) — `Done` (0.106.241)
 
 ## Bugs
 

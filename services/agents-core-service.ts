@@ -95,7 +95,7 @@ import { agentParty, governanceCheck } from '@/lib/policy-check'
 import { policyDeniedResult, type PolicyParty } from '@/lib/policy'
 import { raisesMode } from '@/lib/freedom'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed, gone, timeout, runtimeConflict } from '@/services/service-errors'
-import { parseCredential, settingsWarnings, describeCredential, credentialCheck, forgetCredentialSeen } from '@/lib/agent-credential'
+import { parseCredential, settingsWarnings, describeCredential, credentialCheck, forgetCredentialSeen, grantedNames } from '@/lib/agent-credential'
 import { loginFor } from '@/lib/claude-login'
 import type { AgentCredential as AgentCredentialRecord } from '@/types/agent'
 
@@ -1087,7 +1087,9 @@ export function createNewAgent(body: CreateAgentRequest, caller?: PolicyParty): 
       if ('error' in parsed) return invalidRequest(parsed.error)
       body = { ...body, credential: parsed.credential ?? undefined }
     }
-    const refused = governanceCheck('agent.create', agentParty({ name: body.name, hostId: body.hostId }), caller)
+    const party = agentParty({ name: body.name, hostId: body.hostId })
+    const refused = governanceCheck('agent.create', party, caller)
+      || (grantedNames(null, body.credential).length ? governanceCheck('secret.grant', party, caller) : null)
     if (refused) return policyDeniedResult(refused)
     const agent = createAgent(body)
     return { data: { agent }, status: 201 }
@@ -1161,6 +1163,11 @@ export function updateAgentById(id: string, body: UpdateAgentRequest, caller?: P
       const parsed = parseCredential(body.credential)
       if ('error' in parsed) return invalidRequest(parsed.error)
       body = { ...body, credential: parsed.credential }
+      // Giving the agent a name it could not use before (its credential or a fallback) is `secret.grant`
+      if (grantedNames(existing.credential, parsed.credential).length) {
+        const refused = governanceCheck('secret.grant', agentParty(existing), caller)
+        if (refused) return policyDeniedResult(refused)
+      }
     }
 
     if (body.experiments !== undefined && body.experiments !== null) {
@@ -2445,6 +2452,35 @@ export async function hibernateAgent(agentId: string, params: HibernateAgentPara
 
 
 /**
+ * Stop the agent's terminal session and start it again in the same conversation, under the agent's start lock. Used
+ * by the credential fallback (F128): the launcher reads the agent's new credential only at start.
+ */
+export async function restartAgentResuming(agentId: string): Promise<ServiceResult<{ resumed: boolean }>> {
+  const agent = getAgent(agentId)
+  if (!agent) return notFound('Agent', agentId)
+  const name = agent.name || agent.alias
+  if (!name) return invalidField('name', 'Agent has no name configured')
+  const runtime = getRuntime()
+  const sessionName = computeSessionName(name, 0)
+  if (!claimStart(agentId)) return runtimeConflict('This agent is being started right now; try again in a moment')
+  try {
+    if (await runtime.sessionExists(sessionName)) {
+      const stopped = await hibernateAgent(agentId, {})
+      if (stopped.status !== 200) return stopped as ServiceResult<never>
+      if (await runtime.sessionExists(sessionName)) return operationFailed('stop the terminal', `tmux session ${sessionName} is still running`)
+    }
+    // Taken after the stop: the conversation file is not written after this, so it is safe to resume
+    const switchedAt = new Date().toISOString()
+    const resumeSessionId = resumableSessionId(getAgent(agentId) || agent, { switchedAt }) || undefined
+    const woke = await wakeAgentUnlocked(agentId, { startProgram: true, resumeSessionId })
+    if (woke.status !== 200) return woke as ServiceResult<never>
+    return { data: { resumed: !!resumeSessionId }, status: 200 }
+  } finally {
+    releaseStart(agentId)
+  }
+}
+
+/**
  * Switch how the agent runs: its terminal (tmux) or a streaming (Agent SDK) session. Only one runs at a
  * time: the running mode is stopped, and confirmed stopped, before the other may start, all under the
  * agent's start lock. The next mode resumes the agent's own conversation. Switching to streaming records
@@ -2585,9 +2621,9 @@ export async function proxyHealthCheck(url: string): Promise<ServiceResult<any>>
  * GET /api/agents/:id/credential (#65): the agent's credential profile, in words, and what in its folder's Claude
  * settings would defeat it (names only, never values). The dashboard shows it on the agent's profile.
  */
-export function getCredentialStatus(agentId: string): ServiceResult<{ credential: AgentCredentialRecord | null; description: string; warnings: string[]; check: ReturnType<typeof credentialCheck> }> {
+export function getCredentialStatus(agentId: string): ServiceResult<{ credential: AgentCredentialRecord | null; description: string; warnings: string[]; check: ReturnType<typeof credentialCheck>; lastSwitch: Agent['credentialSwitch'] | null }> {
   const agent = getAgent(agentId) || getAgentByName(agentId)
   if (!agent) return notFound('Agent', agentId)
   const workingDirectory = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory
-  return { data: { credential: agent.credential || null, description: describeCredential(agent.credential), warnings: settingsWarnings(workingDirectory, agent.credential), check: credentialCheck(agent.credential, agent.id) }, status: 200 }
+  return { data: { credential: agent.credential || null, description: describeCredential(agent.credential), warnings: settingsWarnings(workingDirectory, agent.credential), check: credentialCheck(agent.credential, agent.id), lastSwitch: agent.credentialSwitch || null }, status: 200 }
 }

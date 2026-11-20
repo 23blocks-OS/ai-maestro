@@ -254,6 +254,7 @@ export interface Agent {
   experiments?: AgentExperiments
   /** Which account or key the agent calls its model with (#65). Unset = the host's own login. */
   credential?: AgentCredential
+  credentialSwitch?: CredentialSwitch // F128: the last automatic move to a fallback credential
   credentialCheck?: CredentialCheck // set by the agent list while it runs: what its session signs in with, against the profile
   credentialLogin?: CredentialLogin // set by the agent list for a host-login or config-dir profile: the account that login is
   /** F103: paired devices that speak for one person, by device key. Set by the operator only; a device can never claim it */
@@ -961,4 +962,9 @@ export interface AgentCredential {
   model?: string
   dir?: string
   account?: string
+  /** F128: vault names this agent may move to when its account hits a usage limit, in order. Only these, ever */
+  fallback?: string[]
 }
+
+/** F128: the last automatic move to a fallback credential (names only) */
+export interface CredentialSwitch { at: string; from: string; to: string; reason: string; resetsAt?: string }

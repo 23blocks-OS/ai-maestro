@@ -311,9 +311,9 @@ export async function initAgentAMPHome(agentName: string, agentId?: string): Pro
  * and the recipient cannot see the attachments at all (AMP spec 04, both the
  * provider and the `storage: "afp"` kinds). Keep it as sent.
  */
-function attachmentsField(payload: AMPPayload): { attachments?: unknown[] } {
-  const atts = (payload as { attachments?: unknown }).attachments
-  return Array.isArray(atts) && atts.length > 0 ? { attachments: atts } : {}
+/** A deep copy of the payload as the sender signed it (AMP 04 "Stored Message Format") */
+function storedAsSigned(payload: AMPPayload): AMPPayload {
+  return JSON.parse(JSON.stringify(payload))
 }
 
 /**
@@ -326,7 +326,9 @@ export async function writeToAMPInbox(
   recipientAgent?: string,
   senderPublicKey?: string,
   recipientAgentId?: string,
-  verification?: VerificationRecord
+  verification?: VerificationRecord,
+  /** AMP 04 "Stored Message Format" top-level `security`: trust level, injection flags, the verified payload_hash */
+  security?: { trust_level: string; injection_flags?: string[]; payload_hash?: string; verified_at?: string }
 ): Promise<string | null> {
   try {
     if (!isSafeMessageId(envelope.id)) {
@@ -365,12 +367,8 @@ export async function writeToAMPInbox(
         expires_at: envelope.expires_at || null,
         signature: envelope.signature || null
       },
-      payload: {
-        type: payload.type,
-        message: payload.message,
-        context: payload.context || null,
-        ...attachmentsField(payload)
-      },
+      // Exactly as signed (AMP 04): nothing added, removed or wrapped, so the signature can be checked again
+      payload: storedAsSigned(payload),
       metadata: {
         status: 'unread',
         queued_at: envelope.timestamp,
@@ -384,6 +382,7 @@ export async function writeToAMPInbox(
         // (protocol 07-security). Readers show it; see lib/amp-trust.ts.
         ...(verification ? { verification } : {})
       },
+      ...(security ? { security } : {}),
       ...(senderPublicKey ? { sender_public_key: senderPublicKey } : {})
     }
 
@@ -444,12 +443,7 @@ export async function writeToAMPSent(
         expires_at: envelope.expires_at || null,
         signature: envelope.signature || null
       },
-      payload: {
-        type: payload.type,
-        message: payload.message,
-        context: payload.context || null,
-        ...attachmentsField(payload)
-      },
+      payload: storedAsSigned(payload),
       local: {
         sent_at: new Date().toISOString()
       }

@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs'
+import { presentStoredMessage } from '@/lib/content-security'
 import * as fsSync from 'fs'
 import path from 'path'
 import os from 'os'
@@ -252,7 +253,8 @@ function convertAMPToMessage(ampMsg: any, source?: { filePath: string; inboxRoot
     status: status as Message['status'],
     content: {
       type: payload.type || 'notification',
-      message: payload.message || '',
+      // Shown to agents (the sweeper, the poll) and people: wrapped by trust, the stored copy stays as signed
+      message: presentStoredMessage(ampMsg),
       context: payload.context || undefined,
     },
     inReplyTo: envelope.in_reply_to || undefined,

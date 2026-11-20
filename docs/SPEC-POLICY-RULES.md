@@ -191,7 +191,8 @@ Relations are the small part of the Zanzibar idea that we need: a check that fol
 | `agent.create`, `agent.delete`, `agent.move` | 4 (built, 0.106.239) | The agent services, on the owning host (section 18) | agent |
 | `agent.mode` | 4 (built, 0.106.239) | Wake and settings, when the permission mode goes up | agent |
 | `agent.config` | 4 | The protected-file writer (F067) | agent |
-| `secret.use`, `secret.grant` | 4 | The vault (F065) | `secret:<name>` |
+| `secret.use` | 4 | The vault (F065) | `secret:<name>` |
+| `secret.grant` | 4 (built, 0.106.241) | Setting an agent's credential or fallback list, when it adds a vault name the agent could not use before (F128) | agent |
 | `sql.write` | 4 | The F037 approval step | agent |
 | `policy.edit` | 3 | The policy editor and `PUT /api/policy` | `host:<id>` or `org:<id>` |
 
@@ -554,6 +555,7 @@ Each check runs in the service that does the action, on the agent's host, before
 | `agent.create` | `createNewAgent`, `createSession` (a session for a name the registry does not know), `createDockerAgent`, `createCloudAgent` | `to` is the new agent by name, on its host |
 | `agent.delete` | `deleteAgentById` (soft and hard), `unlinkOrDeleteAgentSession` with delete | The Doctor's repair passes as `system` |
 | `agent.move` | `transferAgent` | A clone is checked as a move: the agent leaves for another host either way |
+| `secret.grant` | `updateAgentById` and `createNewAgent`, when the credential or its `fallback` list adds a vault name (0.106.241, F128) | Removing a name, or the automatic move between names already listed, is not a grant |
 | `agent.mode` | `updateAgentById` and the wake request, only when the mode goes up | Order: plan only < supervised (also no setting) < trust edits < smart auto < full autonomy |
 
 A deny answers 403 `forbidden` with the reason. An ask opens a quarantine entry (section 17) and answers 403 with its `quarantine_id`, as a call does. Once a reviewer approves, the same action by the same caller goes through once.
@@ -565,6 +567,6 @@ With no login, the caller of the dashboard and the API is an unidentified person
 ### 18.4 Not in this part
 
 - Paths that create or remove agents as a side effect, not as an operator's action: session discovery, AMP self-registration and self-delete, the help assistant, the meeting coach, imports on the receiving host.
-- `agent.config` (needs F067's protected-file writer), `secret.use`, `secret.grant`, `sql.write` (F033 and F037 into the store, 17.6), `policy.edit` (no editor API yet).
+- `agent.config` (needs F067's protected-file writer), `secret.use`, `sql.write` (F033 and F037 into the store, 17.6), `policy.edit` (no editor API yet).
 - The agent layer from F067 profiles, closed teams as rules, `role:` and `org:` subjects, answers "for a time" and "always" as policy edits.
 

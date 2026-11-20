@@ -20,6 +20,7 @@
  *   - Doctor checks per agent and per install (services/doctor-checks.ts, docs/SPEC-DOCTOR.md)
  */
 
+import { startupBlockedReason } from '@/lib/startup-watch'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs'
@@ -38,7 +39,7 @@ import { quarantineHealth } from '@/lib/policy-approvals'
 import {
   type DiagnosticStatus, type DiagnosticCheck, type DiagnosticCategory,
   checkAgentFolders, checkNameHints, checkAmpMailboxes, checkGhostAgents, checkOutsideAgents,
-  checkDeletedAgentBackups, checkAppVersion, checkClaudeHook, checkCrashedAgents, checkAmpScripts, checkAgentPrograms, checkAmpRefusals, checkCrossOrigin, checkPolicyRules, checkPolicyApprovals, readAppVersion, runningAppVersion,
+  checkDeletedAgentBackups, checkAppVersion, checkClaudeHook, checkCrashedAgents, checkStartupBlocked, checkAmpScripts, checkAgentPrograms, checkAmpRefusals, checkCrossOrigin, checkPolicyRules, checkPolicyApprovals, readAppVersion, runningAppVersion,
   liveTmuxNames, ghostSavers, listDeletedAgentBackups, dirBytes, formatBytes,
 } from '@/services/doctor-checks'
 
@@ -468,6 +469,7 @@ async function buildReport(): Promise<ServiceResult<DiagnosticReport>> {
     ['app-version', () => checkAppVersion(version, readAppVersion(repoDir))],
     ['claude-hook', () => checkClaudeHook(home, repoDir, agents)],
     ['crashed-agents', () => checkCrashedAgents(agents)],
+    ['startup-blocked', () => checkStartupBlocked(agents, startupBlockedReason)],
     ['amp-scripts', () => checkAmpScripts(home, repoDir)],
     ['agent-programs', () => checkAgentPrograms(agents, home)],
     ['amp-refusals', () => checkAmpRefusals()],

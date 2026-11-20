@@ -25,6 +25,7 @@
  *   POST   /api/agents/health             -> proxyHealthCheck
  */
 
+import { noteStartup } from '@/lib/startup-watch'
 import { checkCopilotFields } from '@/lib/transcript-copilot.mjs'
 import fs from 'fs'
 import { parseManagerPatch, wouldLoop } from '@/lib/agent-manager'
@@ -1877,7 +1878,15 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
   }
 }
 
-async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): Promise<ServiceResult<{
+/** Wake, then watch a started program until it reports or shows its input box ("startup blocked", F044 item 8) */
+async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): ReturnType<typeof wakeAgentStart> {
+  const result = await wakeAgentStart(agentId, params)
+  const d = result.data as { programStarted?: boolean; sessionName?: string; workingDirectory?: string } | undefined
+  if (result.status === 200 && d?.programStarted && d.sessionName) noteStartup(agentId, d.sessionName, d.workingDirectory)
+  return result
+}
+
+async function wakeAgentStart(agentId: string, params: WakeAgentParams): Promise<ServiceResult<{
   success: boolean
   agentId: string
   name: string

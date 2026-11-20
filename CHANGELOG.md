@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.249] - 2026-11-20 - An agent stuck at startup, or stopped after crashes, says Needs you
+
+### Fixed
+- "Startup blocked" (F044 item 8). A woken program that stopped at a login screen, the folder-trust question, a picker or a provider prompt fires no hook, so it read as Ready and nobody looked. Now every wake that starts the program is noted. If no hook report arrives within 2 minutes, the visible screen is read once a minute. An input box means Ready. A menu holding the keyboard, or no input box, is reported as "startup blocked: <first line on the screen>".
+- The status feed reports a blocked startup, and an agent stopped after repeated crashes (0.106.247), as `waiting`, with the reason in the new `blocked` field. So the card says Needs you instead of Ready. The Doctor's new `startup-blocked` check lists them.
+
+## [0.106.248] - 2026-11-20 - An agent with its own Claude folder gets the AI Maestro skills
+
+### Fixed
+- An agent on the `config-dir` credential reads its skills from `<folder>/skills`, not `~/.claude/skills`, so it had none of AI Maestro's skills (messaging, agent management, secrets and the others). `aim-launch.sh` now copies the plugin's skills there at each start (`scripts/sync-agent-skills.sh`), from the copies `install-plugin.sh` keeps in `~/.claude/skills`. A copy is marked `.aimaestro-managed` and is refreshed when the source changes; a skill of the same name that the agent has itself is never touched.
+- The Doctor's `claude-hook` check warns when such a folder has no AI Maestro skills yet.
+
 ## [0.106.247] - 2026-11-20 - A crashed Claude Code agent restarts by itself
 
 ### Added

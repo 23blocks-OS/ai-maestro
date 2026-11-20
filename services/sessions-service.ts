@@ -19,6 +19,7 @@
  *   POST   /api/sessions/activity/update -> broadcastActivityUpdate
  */
 
+import { startupBlockedReason } from '@/lib/startup-watch'
 import { agentParty, governanceCheck } from '@/lib/policy-check'
 import { policyDeniedResult } from '@/lib/policy'
 import { hookNeedsYou, normalizeActivityStatus, claimsActivity } from '@/lib/agent-presence'
@@ -98,6 +99,8 @@ export interface SessionActivityInfo {
   notificationType?: string
   /** Set on an agent of another host, from that host's /mesh feed */
   hostId?: string
+  /** Why the agent needs you although no hook says so: a blocked startup, or stopped after repeated crashes */
+  blocked?: string
 }
 
 export interface CreateSessionParams {
@@ -860,6 +863,21 @@ export async function getActivity(opts: { localOnly?: boolean } = {}): Promise<R
       status: toActivityStatus(reported.status, reported.notificationType),
       hookStatus: reported.status,
       notificationType: reported.notificationType,
+    }
+  }
+
+  // A woken program stuck before its input box, or an agent stopped after repeated crashes: no hook will ever say
+  // so, and the terminal looks quiet, which read as Ready. Both need a person.
+  for (const agent of agents) {
+    const sessionName = agent.name || agent.alias
+    if (!sessionName || agent.deletedAt) continue
+    const blocked = startupBlockedReason(sessionName)
+      || (agent.crashFailedAt ? `stopped after repeated crashes (last ${agent.crashFailedAt}); start it again once fixed` : undefined)
+    if (!blocked) continue
+    activity[sessionName] = {
+      lastActivity: activity[sessionName]?.lastActivity || new Date().toISOString(),
+      status: 'waiting',
+      blocked,
     }
   }
 

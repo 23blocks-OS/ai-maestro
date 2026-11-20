@@ -256,9 +256,13 @@ describe("an agent's own Claude folder (CLAUDE_CONFIG_DIR)", () => {
     fakeClaude('2.1.0')
     const dir = path.join(home, 'acme-claude')
     fs.mkdirSync(dir)
+    fs.mkdirSync(path.join(home, '.claude', 'skills', 'agent-messaging'), { recursive: true })
+    fs.writeFileSync(path.join(home, '.claude', 'skills', 'agent-messaging', 'SKILL.md'), 'host copy')
     const out = execFileSync('bash', [path.join(process.cwd(), 'scripts/aim-launch.sh'), 'config-dir', dir, '--', 'echo "dir=$CLAUDE_CONFIG_DIR"'],
       { env: { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}` }, encoding: 'utf8', timeout: 30000 })
     expect(out.trim()).toBe(`dir=${dir}`)
     expect(ours(JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')).hooks.Stop).length).toBe(1)
+    // and the plugin's skills, from the host's copies
+    expect(fs.readFileSync(path.join(dir, 'skills', 'agent-messaging', 'SKILL.md'), 'utf8')).toBe('host copy')
   })
 })

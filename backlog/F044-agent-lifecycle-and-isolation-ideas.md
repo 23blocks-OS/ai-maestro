@@ -30,3 +30,13 @@ Built (`lib/crash-restart.ts`, `services/crash-restart-service.ts`, started in `
 - `AIMAESTRO_CRASH_RESTART=0` turns it off.
 
 Not done: a "failed" state in the dashboard's status (the Doctor and the push carry it for now).
+
+## Update 2026-11-20: item 8, startup blocked
+
+Built (`lib/startup-watch.ts`, `services/startup-watch-service.ts`):
+
+- Every wake that starts the program (a wake, a restore, a restart, a crash restart, a credential move) is noted. If no hook report arrives within 2 minutes, the pane's visible screen is read once a minute, with escapes, so the dim hint in an empty input box is not taken for text.
+- An input box on screen means Ready, and the watch ends. A menu holding the keyboard (`❯ 1. Yes, proceed`, a login method), or no input box at all, gives "startup blocked: <first line on the screen>". That lasts until a hook report arrives or the input box shows.
+- The status feed reports a blocked startup, and an agent stopped after repeated crashes (item 6), as `waiting` with the reason in `blocked`. So the card says Needs you instead of Ready. The Doctor's `startup-blocked` check lists them.
+
+Not done: showing the `blocked` reason on the card itself (the Doctor shows it).

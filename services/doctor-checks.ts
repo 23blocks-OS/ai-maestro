@@ -419,6 +419,9 @@ export function checkClaudeHook(home: string, repoDir: string, agents: Agent[] =
     if (!ourHookCommands(path.join(dir, 'settings.json')).size) {
       items.push({ key: `agent:${a.name}`, status: 'warn', path: dir, message: `${a.name} uses its own Claude folder ${dir}, which has no AI Maestro hook yet; it is added when the agent next starts` })
     }
+    if (!fs.existsSync(path.join(dir, 'skills', 'agent-messaging', 'SKILL.md'))) {
+      items.push({ key: `agent:${a.name}:skills`, status: 'warn', path: dir, message: `${a.name} uses its own Claude folder ${dir}, which has no AI Maestro skills yet; they are copied when the agent next starts` })
+    }
   }
   return check('claude-hook', 'install', items, 'The AI Maestro hook is installed and current', `${items.length} hook problem(s)`, hint)
 }
@@ -631,4 +634,17 @@ export function checkCrashedAgents(agents: Agent[]): DiagnosticCheck {
     message: `${a.name}'s Claude Code crashed ${a.crashRestarts?.length || 'several'} times in 30 minutes (last ${a.crashFailedAt}); it is no longer restarted automatically`,
   }))
   return check('crashed-agents', 'agents', items, 'No agent is stuck after repeated crashes', `${items.length} agent(s) stopped after repeated crashes`, 'Look at the agent\'s terminal for the error, fix it, and start the agent again (Wake, or restart it).')
+}
+
+// ---------------------------------------------------------------------------
+// startup-blocked (F044 item 8): a woken program stuck before its input box
+// ---------------------------------------------------------------------------
+
+export function checkStartupBlocked(agents: Agent[], reasonOf: (sessionName: string) => string | undefined): DiagnosticCheck {
+  const items: DiagnosticItem[] = []
+  for (const a of agents) {
+    const reason = isLocal(a) && (a.name || a.alias) ? reasonOf((a.name || a.alias)!) : undefined
+    if (reason) items.push({ key: `agent:${a.name}`, status: 'warn', message: `${a.name}: ${reason}` })
+  }
+  return check('startup-blocked', 'agents', items, 'No agent is stuck at startup', `${items.length} agent(s) stuck at startup`, "Open the agent's terminal and answer what it shows (a login, the folder-trust question, a picker).")
 }

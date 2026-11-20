@@ -847,6 +847,24 @@ describe('getActivity', () => {
     expect(result['agent-1'].lastActivity).toBeDefined()
   })
 
+  it('an agent stopped after repeated crashes, or stuck at startup, needs you with the reason', async () => {
+    const { noteStartup, resetStartupWatch, checkStartups } = await import('@/lib/startup-watch')
+    resetStartupWatch()
+    mockSharedState.sessionActivity.set('acme-ops', Date.now() - 60_000)
+    mockAgentRegistry.loadAgents.mockReturnValue([
+      { id: 'a1', name: 'acme-ops', crashFailedAt: '2026-11-20T12:00:00Z' },
+      { id: 'a2', name: 'acme-new' },
+    ])
+    noteStartup('a2', 'acme-new', undefined, 0)
+    await checkStartups({ report: () => null, sessionExists: async () => true, capture: async () => 'Select login method:\n ❯ 1. Claude account', now: () => 10 * 60_000 })
+    const result = await getActivity()
+    expect(result['acme-ops']).toMatchObject({ status: 'waiting' })
+    expect(result['acme-ops'].blocked).toContain('stopped after repeated crashes')
+    expect(result['acme-ops'].hookStatus).toBeUndefined()
+    expect(result['acme-new']).toMatchObject({ status: 'waiting', blocked: 'startup blocked: Select login method:' })
+    resetStartupWatch()
+  })
+
   it('returns empty when no activity', async () => {
     mockAgentRegistry.loadAgents.mockReturnValue([])
 

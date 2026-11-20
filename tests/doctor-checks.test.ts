@@ -257,8 +257,9 @@ describe('claude-hook', () => {
     settings(d.HOOK_EVENTS)
     const dir = path.join(home, 'acme-claude')
     const a = { id: 'a1', name: 'acme-ops', hostId: 'self', credential: { kind: 'config-dir', dir } } as any
-    expect(d.checkClaudeHook(home, repo(), [a]).items?.map(i => i.key)).toEqual(['agent:acme-ops'])
+    expect(d.checkClaudeHook(home, repo(), [a]).items?.map(i => i.key)).toEqual(['agent:acme-ops', 'agent:acme-ops:skills'])
     write(path.join(dir, 'settings.json'), { hooks: { Stop: [{ hooks: [{ type: 'command', command: `node ${ourHook()}` }] }] } })
+    write(path.join(dir, 'skills', 'agent-messaging', 'SKILL.md'), '# skill')
     expect(d.checkClaudeHook(home, repo(), [a])).toMatchObject({ status: 'pass' })
   })
   it('fails when the hook file does not exist (a moved checkout)', () => {

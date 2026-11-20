@@ -37,6 +37,9 @@ case "$kind" in
     # Claude Code reads this folder's settings.json, not ~/.claude: put the AI Maestro hook there too (writes only on a change)
     bash "$(dirname "${BASH_SOURCE[0]}")/claude-hooks/install-hooks.sh" -y --claude-config-dir "$dir" >/dev/null 2>&1 \
       || echo "aim-launch: could not add the AI Maestro hook to $dir/settings.json (messages and status may not reach this agent)" >&2
+    # ...and its skills: this folder's skills/ replaces ~/.claude/skills
+    bash "$(dirname "${BASH_SOURCE[0]}")/sync-agent-skills.sh" "$dir" >/dev/null 2>&1 \
+      || echo "aim-launch: could not copy the AI Maestro skills to $dir/skills" >&2
     exec /bin/bash -c "$command" ;;
   oauth-token) var=CLAUDE_CODE_OAUTH_TOKEN ;;
   api-key) var=ANTHROPIC_API_KEY ;;

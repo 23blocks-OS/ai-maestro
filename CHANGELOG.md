@@ -3,6 +3,28 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.242] - 2026-11-19 - A stored message keeps what was signed, so it can always be verified again
+
+### Fixed
+- Messages from another host of the same organization were stored wrapped in `<external-content trust="none">`, although the server had verified them. Delivery decided by whether a local key was at hand, not by the verification result. A wrapped body no longer matches its signature, so 1,655 stored messages on one host could not be verified again. Wrapping now follows the AMP 07 trust level from the signature and the tenant. A verified message from this organization is never wrapped. A verified message from another organization is wrapped as `external`, which before was not wrapped at all when its key was local. An unverified message is wrapped as `untrusted`.
+- The stored copy keeps the payload exactly as signed. Before, the server added `context: null` and dropped fields it did not know. `envelope.to` is now stored as the full address the sender signed, not the forwarding host's short name.
+- Each stored message carries the AMP 04 `security` record: `trust_level`, `injection_flags`, and the `payload_hash` the signature was checked against.
+
+### Changed
+- Wrapping happens where an agent is shown the message: the pane and channel notice, the WebSocket and the webhook, the message list the sweeper and the poll use, and `amp-read`. It is never applied to the store (AMP 07 "Where wrapping applies", protocol PR #35). Messages stored before this keep their wrapped text and are not wrapped twice.
+- Plugin (claude-plugin 0.5.6): `amp-read` wraps external and untrusted content itself, checks a server-checked body against `security.payload_hash`, and reports a changed body as a bad signature.
+
+## [0.106.241] - 2026-11-19 - An agent at its usage limit moves to its next allowed credential
+
+### Added
+- F128: an agent can have a fallback list of credentials, `credential.fallback` (vault entry names, up to 5). When its Claude Code session hits the account's usage limit, AI Maestro moves it to the first entry in its own list that is in the vault and not itself at its limit. It restarts the agent in the same conversation and tells it to continue. It never uses another agent's token, a shared pool or the computer's own login. The watcher reads the line Claude Code writes into the conversation ("Usage limit reached · continuing automatically at …"), once a minute, on the agent's host. Each move is logged and shown as `lastSwitch` on `GET /api/agents/:id/credential`.
+- Giving an agent a credential it could not use before (its credential or a fallback) is the governance action `secret.grant`, so a rule can deny it or require approval.
+- Agents CLI: `--fallback A,B` on `create`, `update` and `credential switch` (plugin 1.19.23).
+
+## [0.106.240] - 2026-11-19 - F128: the first real usage-limit texts
+
+- Backlog F128 records the usage-limit text Claude Code 2.1.328 gives on a subscription token: the `claude -p` reply (exit 1) and the notice inside a running session. A field watcher matching it moved 11 agents to a fallback token, and the credential check read `match` on all 11 after restart.
+
 ## [0.106.239] - 2026-11-19 - Rules can govern creating, deleting, moving and freeing agents
 
 ### Added

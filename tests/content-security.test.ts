@@ -111,7 +111,7 @@ describe('applyContentSecurity', () => {
     const result = applyContentSecurity(content, false, 'dave', 'remote')
 
     expect(result.content.security).toBeDefined()
-    expect(result.content.security.trust).toBe('external')
+    expect(result.content.security.trust).toBe('untrusted') // AMP 07: an unverified sender is untrusted; external is a verified sender of another tenant
     expect(result.content.security.wrappedBy).toBe('ai-maestro-backstop')
   })
 

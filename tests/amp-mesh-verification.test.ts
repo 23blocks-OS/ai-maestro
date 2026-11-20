@@ -58,13 +58,18 @@ describe('mesh-forwarded mail is verified and the result recorded', () => {
     }
     const r = await routeMessage(body, null, 'mini', null, signature || null, null)
     const call = deliverMock.mock.calls[0] as any[] | undefined
-    return { r, verification: call?.[0]?.verification, keys: k }
+    return { r, verification: call?.[0]?.verification, envelope: call?.[0]?.envelope, keys: k }
   }
 
   it('a good signature with the sender key is VERIFIED', async () => {
     const { r, verification } = await forward()
     expect(r.status).toBe(200)
     expect(verification).toMatchObject({ state: 'verified', trust: 'verified', method: 'mesh-forwarded' })
+  })
+
+  it('the stored recipient is the full address the sender signed, not the forward\'s short name (AMP 04, 06a)', async () => {
+    const { envelope } = await forward()
+    expect(envelope.to).toBe('bob@acme.aimaestro.local')
   })
 
   it('a changed message is refused', async () => {

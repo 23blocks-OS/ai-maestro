@@ -2942,6 +2942,9 @@ async function startServer(handleRequest) {
     import('./lib/policy-check.ts').then(m => m.ensureApprovalSweeper()).catch(() => {})
     import('./services/policy-service.ts').then(m => m.sweepPolicyQuarantine()).catch(err => console.warn('[Policy] startup sweep failed:', err.message))
 
+    // F128: move an agent to the next credential of its own fallback list when its account hits a usage limit
+    import('./services/credential-fallback-service.ts').then(m => m.ensureCredentialFallbackWatcher()).catch(err => console.warn('[Credential] fallback watcher did not start:', err.message))
+
     // Run startup self-diagnostics (non-blocking)
     setTimeout(async () => {
       try {

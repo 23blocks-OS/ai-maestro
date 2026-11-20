@@ -30,13 +30,13 @@ import { writeFileAtomicSync } from '@/lib/atomic-write.mjs'
  * actions only, so a file written before governance actions keeps its meaning: a governance action is governed only by
  * a rule that names it.
  */
-export const POLICY_ACTIONS = ['message', 'call', 'agent.create', 'agent.delete', 'agent.move', 'agent.mode'] as const
+export const POLICY_ACTIONS = ['message', 'call', 'agent.create', 'agent.delete', 'agent.move', 'agent.mode', 'secret.grant'] as const
 export type PolicyAction = typeof POLICY_ACTIONS[number]
 const COMMS: readonly PolicyAction[] = ['message', 'call']
 /** How a reason says the action: "agent:bob may not delete agent:payroll" */
 export const ACTION_WORDS: Record<PolicyAction, string> = {
   message: 'message', call: 'call', 'agent.create': 'create', 'agent.delete': 'delete', 'agent.move': 'move',
-  'agent.mode': 'raise the permission mode of',
+  'agent.mode': 'raise the permission mode of', 'secret.grant': 'give a new credential to',
 }
 export type PolicyEffect = 'allow' | 'deny' | 'ask'
 const EFFECTS: PolicyEffect[] = ['deny', 'ask', 'allow']

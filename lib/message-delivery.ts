@@ -83,11 +83,14 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
   // so the pane notice, the wake text and the content wrapper all agree with it.
   const senderAddress = senderAddressOf(envelope.from)
 
-  // 1a. Apply content security (S6 fix — previously only applied on Web UI path)
-  const fromVerified = !!senderPublicKeyHex
-  const { content: securedPayload } = applyContentSecurity(
+  // 1a. Content security for what is PRESENTED to the agent (AMP 07 "Where wrapping applies"): the pane and
+  // channel notice, the WebSocket and the webhook. The trust level is the one the route computed from the
+  // signature and the tenant (07); a verified message from another host of this tenant is not wrapped. Callers
+  // without a verification record (the dashboard send path) keep the old rule.
+  const trust = verification?.trust ?? (senderPublicKeyHex ? 'verified' : 'untrusted')
+  const { content: securedPayload, flags } = applyContentSecurity(
     { type: payload.type, message: payload.message, ...payload.context ? { context: payload.context } : {} },
-    fromVerified,
+    trust,
     senderName,
     senderHost,
     senderAddress
@@ -104,7 +107,14 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     console.error(`[Delivery] No recipientAgentId for ${recipientAgentName} - cannot write inbox`)
     return { delivered: false, notified: false, error: 'No recipient agent UUID' }
   }
-  const inboxPath = await writeToAMPInbox(envelope, securedEnvelopePayload, recipientAgentName, senderPublicKeyHex, recipientAgentId, verification)
+  // The stored copy keeps the payload as signed (AMP 04 "Stored Message Format"), with the trust level and the
+  // hash the signature was checked against, so the recipient can verify it again. Readers wrap it on display.
+  const security = {
+    trust_level: trust,
+    injection_flags: [...new Set(flags.map(f => f.category))],
+    ...(verification?.state === 'verified' ? { payload_hash: verification.payload_sha256, verified_at: verification.checked_at } : {}),
+  }
+  const inboxPath = await writeToAMPInbox(envelope, payload, recipientAgentName, senderPublicKeyHex, recipientAgentId, verification, security)
   if (!inboxPath) {
     return { delivered: false, notified: false, error: 'Failed to write to AMP inbox' }
   }

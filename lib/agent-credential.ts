@@ -25,10 +25,11 @@ export function parseCredential(input: unknown): { credential: AgentCredential |
   if (typeof c !== 'object' || Array.isArray(c)) return { error: 'credential must be an object' }
   const kind = c.kind
   if (!CREDENTIAL_KINDS.includes(kind as any)) return { error: `credential.kind must be one of: ${CREDENTIAL_KINDS.join(', ')}` }
-  const allowed = new Set(['kind', 'secret', 'baseUrl', 'model', 'dir', 'account'])
-  if (Object.keys(c).some(k => !allowed.has(k))) return { error: 'credential has only kind, secret, baseUrl, model, dir and account: a value belongs in the vault' }
+  const allowed = new Set(['kind', 'secret', 'baseUrl', 'model', 'dir', 'account', 'fallback'])
+  if (Object.keys(c).some(k => !allowed.has(k))) return { error: 'credential has only kind, secret, baseUrl, model, dir, account and fallback: a value belongs in the vault' }
   const account = typeof c.account === 'string' ? c.account.trim().slice(0, 120) : undefined
   if (account && /[\u0000-\u001f]/.test(account)) return { error: 'credential.account is one line of text' }
+  if ((kind === 'host-login' || kind === 'config-dir') && Array.isArray(c.fallback) && c.fallback.length) return { error: 'credential.fallback needs a credential kept in the vault (oauth-token, api-key or gateway)' }
   if (kind === 'host-login') return { credential: account ? { kind, account } : null }
   if (kind === 'config-dir') {
     if (typeof c.dir !== 'string' || !SAFE_PATH.test(c.dir) || c.dir.split('/').includes('..')) return { error: 'credential.dir must be an absolute folder path (letters, digits, / . _ - @ +)' }
@@ -38,6 +39,15 @@ export function parseCredential(input: unknown): { credential: AgentCredential |
   // A value pasted where a name belongs: refuse, so it never lands in the registry
   if (/^(sk-|sk_|ey[A-Za-z0-9]{10})/.test(c.secret)) return { error: 'credential.secret looks like a key itself: store it with aim-secret and give its name' }
   const out: AgentCredential = { kind: kind as AgentCredential['kind'], secret: c.secret, ...(account ? { account } : {}) }
+  // F128: other vault entries of the same kind this agent may move to on a usage limit (names, never values)
+  if (c.fallback !== undefined && c.fallback !== null) {
+    const f = c.fallback
+    if (!Array.isArray(f) || f.length > 5 || f.some(n => typeof n !== 'string' || !VAULT_NAME.test(n) || /^(sk-|sk_|ey[A-Za-z0-9]{10})/.test(n))) {
+      return { error: 'credential.fallback is a list of up to 5 vault entry NAMES (aim-secret), never values' }
+    }
+    const names = [...new Set(f as string[])].filter(n => n !== c.secret)
+    if (names.length) out.fallback = names
+  }
   if (kind === 'gateway') {
     try { const u = new URL(String(c.baseUrl || '')); if (u.protocol !== 'https:' && u.hostname !== 'localhost' && u.hostname !== '127.0.0.1') throw new Error() } catch { return { error: 'credential.baseUrl must be an https address for a gateway' } }
     out.baseUrl = String(c.baseUrl)
@@ -53,6 +63,18 @@ export function parseCredential(input: unknown): { credential: AgentCredential |
  * The words that go in front of the program in the launch command: `<launcher> <kind> [args] --`.
  * Empty for the host's own login. Every value is checked by parseCredential, so none needs quoting.
  */
+/** F128: the vault names (or folder) an agent may use: its credential and its fallback list */
+export function credentialNames(c: AgentCredential | undefined | null): string[] {
+  if (!c) return []
+  return [...(c.secret ? [c.secret] : []), ...(c.dir ? [c.dir] : []), ...(c.fallback || [])]
+}
+
+/** The names a change adds: giving an agent one of them is the governance action `secret.grant` (F118, F128) */
+export function grantedNames(before: AgentCredential | undefined | null, after: AgentCredential | undefined | null): string[] {
+  const had = new Set(credentialNames(before))
+  return credentialNames(after).filter(n => !had.has(n))
+}
+
 export function credentialLaunchPrefix(cred: AgentCredential | undefined | null, launcher: string): string {
   if (!cred || cred.kind === 'host-login') return ''
   const p = parseCredential(cred)

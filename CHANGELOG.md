@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.253] - 2026-11-20 - Startup blocked: the reason is what the screen asks
+
+### Fixed
+- The reason for "startup blocked" was the first line on the screen, which is often the end of the echoed launch command (`… CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1`). With a menu on the screen, the reason is now its question (the nearest line above the menu ending in `?` or `:`) or else the first line of the paragraph right above it, for example "Choose the text style that looks best with your terminal". Without a menu, lines that are the launch command (environment assignments, the bare program name) are skipped. Checked live on the MacBook with an agent on an empty Claude folder: the card, the feed and the Doctor show that line.
+
+## [0.106.252] - 2026-11-20 - Startup blocked: the first-run picker and the mode footer
+
+### Fixed
+- The "startup blocked" check (0.106.249) never fired on a real Claude Code screen. It took the last line that looked like a prompt as the input box, and that is the `⏵⏵ bypass permissions` mode footer, so every screen read as Ready. An unnumbered menu, such as the first-run theme picker (`❯ ✔ Auto`), also read as Ready. Now a prompt line counts as the input box only when it has a side border or the box's top rule right above it; other prompt-like lines are skipped. Found by a live test: an agent on an empty Claude folder stopped at the theme picker and was not flagged. Checked against all 56 live sessions on the MacBook: only that agent, a Codex update menu and a pane with no program read as not ready.
+
 ## [0.106.251] - 2026-11-20 - Documentation: rules and approvals
 
 ### Added

@@ -11,15 +11,38 @@ export const STARTUP_GRACE_MS = 2 * 60_000
 /** null when the pane shows the program's input box (Ready); otherwise what the screen says, for the reason */
 export function startupBlockedLine(paneWithEscapes: string): string | null {
   const lines = stripDimPlaceholder(paneWithEscapes).split('\n')
+  const plain = (l: string) => l.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '')
+  const clean = (l: string) => plain(l).replace(/[│┃╎┆╭╮╰╯─━═╌]/g, '').trim()
+  let cursor = -1
   for (let i = lines.length - 1; i >= 0; i--) {
     if (!INPUT_PROMPT_LINE.test(lines[i])) continue
     const content = lines[i].replace(INPUT_PROMPT_LINE, '').replace(/[│┃|╎┆╭╮╰╯─]/g, '').trim()
     // `❯ 1. Yes, proceed` is a menu holding the keyboard (trust dialog, login method), not the input box
-    if (!/^\d+\.\s/.test(content)) return null
-    break
+    if (/^\d+\.\s/.test(content)) { cursor = i; break }
+    // The input box has a side border or its top rule right above. Other prompt-like lines (the `⏵⏵` mode footer,
+    // an unnumbered menu cursor such as the first-run theme picker's `❯ ✔ Auto`) are not it: keep looking up
+    const above = lines.slice(0, i).map(plain).reverse().find(l => l.trim().length > 0) ?? ''
+    if (/^\s*[│┃]/.test(plain(lines[i])) || /^\s*[╭─━]{3,}/.test(above)) return null
+    if (cursor < 0 && /^\s*❯/.test(plain(lines[i]))) cursor = i
   }
-  const first = lines.map(l => l.replace(/[│┃╎┆╭╮╰╯─━═]/g, '').trim()).find(l => l.length > 0)
-  return (first || 'no input box on the screen').slice(0, 120)
+  return blockedReason(lines.map(clean), cursor).slice(0, 120)
+}
+
+/** What a stuck screen asks: with a menu, its question (a line ending in ? or :) or the paragraph right above it */
+function blockedReason(lines: string[], cursor: number): string {
+  if (cursor > 0) {
+    const before = lines.slice(0, cursor)
+    const question = [...before].reverse().find(l => /[?:]$/.test(l))
+    if (question) return question
+    let end = before.length - 1
+    while (end >= 0 && !before[end]) end--
+    let start = end
+    while (start > 0 && before[start - 1]) start--
+    if (end >= 0) return before[start]
+  }
+  // No menu: the first line that is not the echoed launch command (env assignments, the bare program name)
+  const first = lines.find(l => l.length > 0 && !/\b[A-Z][A-Z0-9_]{2,}=/.test(l) && /\s/.test(l))
+  return first || 'no input box on the screen'
 }
 
 interface Start { sessionName: string; workingDir?: string; at: number }

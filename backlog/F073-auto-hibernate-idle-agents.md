@@ -1,6 +1,6 @@
 # F073 — Hibernate idle agents by rule, and wake them for a message or a task
 
-**Status:** Todo (idea to shape)
+**Status:** In Progress
 **Type:** Feature
 **Created:** 2026-11-03
 
@@ -20,6 +20,12 @@ Today (0.106.65), from the code: hibernation is by hand only (Hibernate button o
 starts a new conversation (only the terminal/streaming mode switch resumes one). The agent's schedules wake
 it; a new message or a board instruction does not, so mail waits until something else wakes it. That is
 why nobody hibernates agents today.
+
+**Done 2026-11-20 (0.106.254): wake on message.** `preferences.wakeOnMessage` (Agent Profile > Work Configuration >
+"Wake for messages", or `PATCH /api/agents/<id>` with `{"preferences":{"wakeOnMessage":true}}`). `deliver()` in
+`lib/message-delivery.ts` starts an asleep agent with `wakeAgent` before the wake chain; the wake queue types the
+notice once the program settles. Off by default: each start is a new program using memory. Not done: board
+instructions, the idle-hibernate rule, resuming the last conversation, and the `aimaestro-agent.sh` flag.
 
 ## Why It's Needed
 

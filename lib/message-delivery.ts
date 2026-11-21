@@ -24,6 +24,8 @@ import { runWakeChain, describeWakeResult } from '@/lib/wake-chain'
 import { enqueueWake } from '@/lib/wake-queue'
 import { computeSessionName, cannotBeStarted } from '@/types/agent'
 import { getAgent } from '@/lib/agent-registry'
+import { getRuntime } from '@/lib/agent-runtime'
+import { hasStreamSession } from '@/lib/streaming-bridge.mjs'
 import { senderAddressOf, senderLabel } from '@/lib/sender-label'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
 import type { WakeOutcome } from '@/lib/wake-chain'
@@ -136,6 +138,10 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     return { delivered: true, notified: false }
   }
 
+  // F073: an agent that asked for it is started when a message finds it asleep. The chain below then hands it the
+  // message; the wake queue waits for the program to settle before typing.
+  if (recipient?.preferences?.wakeOnMessage) await wakeIfAsleep(recipient)
+
   // The wake text. Every route in the chain carries the same sender/subject/
   // body — the pane route re-wraps `injectBody` under its own header — so no
   // route hands the agent a bare "check your inbox" pointer it could ignore.
@@ -222,6 +228,26 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     ...(wake.confirmedBy ? { verifiedBy: wake.confirmedBy } : {}),
     ...(wake.deferred ? { deferred: true } : {}),
     wakeAttempts: wake.attempts,
+  }
+}
+
+const starting = new Set<string>()
+
+/** Start a sleeping agent with its own wake (identity, program, credential), once at a time; never throws */
+async function wakeIfAsleep(agent: NonNullable<ReturnType<typeof getAgent>>): Promise<void> {
+  if (starting.has(agent.id) || hasStreamSession(agent.id)) return
+  starting.add(agent.id)
+  try {
+    if (await getRuntime().sessionExists(computeSessionName(agent.name, 0))) return
+    const { wakeAgent } = await import('@/services/agents-core-service')
+    const woke = await wakeAgent(agent.id, { startProgram: true })
+    const data = woke.data as { woken?: boolean; message?: string } | undefined
+    if (woke.status === 200 && data?.woken) console.log(`[Delivery] ${agent.name} was asleep; started it for a message`)
+    else console.warn(`[Delivery] ${agent.name} was asleep and did not start: ${data?.message || woke.status}`)
+  } catch (err) {
+    console.warn(`[Delivery] ${agent.name} was asleep and did not start:`, err instanceof Error ? err.message : err)
+  } finally {
+    starting.delete(agent.id)
   }
 }
 

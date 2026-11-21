@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.254] - 2026-11-20 - Wake for messages
+
+### Added
+- An agent can be woken by its mail (F073 step 1, F044 item 5). Turn on "Wake for messages" in the Agent Profile (Work Configuration), or `PATCH /api/agents/<id>` with `{"preferences":{"wakeOnMessage":true}}`. When a message arrives while the agent is hibernated (no session), AI Maestro starts it with its own wake (identity, program, credential), then hands it the message the usual way; the wake queue waits for the program to settle before typing the notice. If the start fails, the message is still in the inbox and the failure is logged. Off by default, because each start is a new program using memory; with it off, mail waits as before. A start blocked at a login or a picker shows as Needs you (0.106.249).
+
 ## [0.106.253] - 2026-11-20 - Startup blocked: the reason is what the screen asks
 
 ### Fixed

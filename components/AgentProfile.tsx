@@ -216,7 +216,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           credential: agent.credential ?? null,
           tags: agent.tags,
           documentation: agent.documentation,
-          metadata: agent.metadata
+          metadata: agent.metadata,
+          preferences: agent.preferences
         })
       })
 
@@ -627,6 +628,19 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       onChange={(value) => updateField('programArgs', value)}
                       icon={<Terminal className="w-4 h-4" />}
                     />
+
+                    <label className="flex items-start gap-2 text-xs text-gray-300" data-testid="wake-on-message">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={!!agent.preferences?.wakeOnMessage}
+                        onChange={(e) => updateField('preferences', { ...agent.preferences, wakeOnMessage: e.target.checked })}
+                      />
+                      <span>
+                        Wake for messages
+                        <span className="block text-gray-500">When a message arrives while the agent is hibernated, AI Maestro starts it and hands it the message. It starts a new conversation and uses memory until you hibernate it again.</span>
+                      </span>
+                    </label>
 
                     {/* Which account or key the agent uses (#65) */}
                     <AgentCredentialSection agentId={agent.id} baseUrl={baseUrl} value={agent.credential}

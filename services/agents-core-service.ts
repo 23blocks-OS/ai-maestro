@@ -1171,6 +1171,9 @@ export function updateAgentById(id: string, body: UpdateAgentRequest, caller?: P
       }
     }
 
+    const wakeOnMessage = (body.preferences as { wakeOnMessage?: unknown } | undefined)?.wakeOnMessage
+    if (wakeOnMessage !== undefined && typeof wakeOnMessage !== 'boolean') return invalidRequest('preferences.wakeOnMessage must be true or false')
+
     if (body.experiments !== undefined && body.experiments !== null) {
       const { speakingSide, ...other } = body.experiments as { speakingSide?: unknown }
       if (typeof body.experiments !== 'object' || Array.isArray(body.experiments)) return invalidRequest('experiments must be an object')

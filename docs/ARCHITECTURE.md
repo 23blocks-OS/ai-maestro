@@ -528,6 +528,25 @@ caller sending as itself; for an anonymous sender it is computed as before.
 Limits: agents on one host run as one OS user (B021), so an agent with a shell can read files directly,
 or start a process outside its pane, which is then anonymous. The rest of the API stays open (F058).
 
+### Registering a name that exists
+
+`POST /api/v1/register` for a new name works as before, from anyone. For a name that already exists on
+this host the key alone is not enough, because a public key is public (AMP spec 03; `services/amp-service.ts`
+`existingNameClaim`, `lib/amp-register-proof.ts`). Anonymous callers never get an existing name, in any
+`AIMAESTRO_CALLER_AUTH` mode, so this path is resolved by `server.mjs` like the message routes.
+
+| Existing name | Same key | Another key |
+|---|---|---|
+| AMP-registered | its own session or API key, or a `proof` of its key; else 401 `proof_required` | 409 `name_taken` |
+| In the registry, never AMP-registered (adoption) | its own session; else 409 `name_taken` | same |
+
+A proof is `base64url(signature + timestamp)`, the Ed25519 signature by the registered key of
+`"amp-register-proof\n" + unix_timestamp + "\n" + provider + "\n" + tenant + "\n" + name + "\n" + fingerprint`.
+The `proof_required` answer gives `provider`, `tenant`, `name` and `fingerprint` in `details`. The
+timestamp must be within 5 minutes of the server clock; an accepted proof is remembered for that window and
+refused when sent again (in memory). A wrong proof is 401 `invalid_proof`. This server's own in-process
+registrations (the Docker agent bootstrap) are not affected, and only they may send `reset: true`.
+
 ### Message Storage
 
 All messages are stored in AMP per-agent directories:

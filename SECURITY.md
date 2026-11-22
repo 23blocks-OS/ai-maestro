@@ -49,6 +49,16 @@ What it does not do: agents on one host share one OS user (B021), so an agent wi
 
 What it does not do: the quarantine store and the held messages (`~/.aimaestro/policy/`) belong to the server, so with agents and server as one OS user an agent with a shell can still edit them directly (B021). Use containers, or run the server as its own user, to close that.
 
+## Registering a name that exists
+
+`POST /api/v1/register` hands out an API key. For a new name it works as before. For a name that already exists on the host, the public key alone is not enough (it is public: the API serves it and every message carries its fingerprint). AMP spec 03, "Registering an Existing Name":
+
+- **Same key, already registered:** the request must come from that agent itself: its own session, its API key, or a `proof` of possession of the registered key (a signed timestamp, see docs/EXTERNAL-AGENTS.md). Otherwise 401 `proof_required`. A proof works once and for 5 minutes.
+- **Another key:** 409 `name_taken`, as before. There is no key reset over the API (no administrator credential); delete the agent and register it again.
+- **An agent in the registry that never registered over AMP:** only its own session can register it.
+
+This applies in every `AIMAESTRO_CALLER_AUTH` mode: the dashboard never registers keys. In `off` mode no caller is worked out, so only a proof re-issues a key there. It prevents a name being taken by mistake or from another machine; it is not a wall between agents on one OS user (B021): someone who can delete an agent through the API can register its name again afterwards.
+
 ## Known design limits
 
 Each of these is known and is not a new finding:

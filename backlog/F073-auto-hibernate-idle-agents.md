@@ -34,8 +34,11 @@ the agent's host.
 **Done 2026-11-21 (0.106.256): hibernate when idle.** Per agent, not per host (it answers the open question below: each
 agent opts in, so no host owner surprises another's agent): `preferences.hibernateAfterIdleHours` (1-168).
 `services/idle-hibernate-service.ts` runs every 5 minutes; only Claude Code agents (the hook says idle), never while
-working, asking, in a meeting, with wakes queued or streaming. Not done: resuming the last conversation, and the
-`aimaestro-agent.sh` flags.
+working, asking, in a meeting, with wakes queued or streaming.
+
+**Done 2026-11-21 (0.106.259): resume on wake.** Claude Code's launch option `continue` (wake dialog, "remember" keeps it on
+the agent) makes every wake resume the agent's own conversation via `resumableSessionId` (its `claudeSessionId`, and
+only when the file is quiet). No age limit. Not done: the `aimaestro-agent.sh` flags.
 
 ## Why It's Needed
 

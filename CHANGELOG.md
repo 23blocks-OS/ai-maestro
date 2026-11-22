@@ -3,6 +3,19 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.260] - 2026-11-22 - Continue right after a hibernate
+
+### Fixed
+- "Continue the last conversation" (0.106.259) did not work for a wake within 10 minutes of a hibernate: a conversation written in the last 10 minutes is not reopened, in case a copy of the agent still runs outside AI Maestro. A hibernate that saw the terminal end is now a known stop, as a mode switch already is, so the next wake reopens a conversation not written since. After a server restart the 10-minute rule applies again.
+
+## [0.106.259] - 2026-11-22 - Continue the last conversation on a wake
+
+### Added
+- Claude Code agents can be woken into their last conversation (F073 step 4). The wake dialog now offers "Continue the last conversation" for Claude Code; with "remember" on it stays on the agent, so every wake resumes, including wakes for mail, board instructions and schedules. The agent resumes its own conversation (`--resume <its id>`), not the newest one in the folder. When there is none, or its file is still being written (another copy may be running), the wake starts a new conversation and the log says so.
+
+### Fixed
+- A wake with `launchOptions: {"continue": true}` for a Claude Code agent started a new conversation: Claude Code declared only the model, so the option was dropped without a word (#856, related).
+
 ## [0.106.258] - 2026-11-22 - An imported agent belongs to its new host
 
 ### Fixed

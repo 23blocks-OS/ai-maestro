@@ -50,8 +50,14 @@ const CONTINUE: LaunchOptionDecl = {
   id: 'continue', label: 'Continue the last session', help: 'Picks up the most recent conversation in this folder.', type: 'toggle', flag: '--continue',
 }
 
+// Claude Code: the agent's own last conversation (`--resume <its id>`, added by lib/launch-command), not the
+// newest one in the folder, which may be someone else's run there
+const CLAUDE_CONTINUE: LaunchOptionDecl = {
+  id: 'continue', label: 'Continue the last conversation', help: 'Picks up this agent’s own last conversation instead of starting a new one.', type: 'toggle', flag: '--resume',
+}
+
 const DECLARATIONS: Partial<Record<ProgramKind, LaunchOptionDecl[]>> = {
-  claude: [MODEL],
+  claude: [MODEL, CLAUDE_CONTINUE],
   grok: [MODEL, CONTINUE],
   copilot: [
     MODEL,
@@ -127,6 +133,7 @@ export function launchOptionArgs(kind: ProgramKind | null | undefined, raw: unkn
   const args: string[] = []
   for (const decl of launchOptionsFor(kind)) {
     if (decl.id === 'model') continue
+    if (kind === 'claude' && decl.id === 'continue') continue // needs the conversation id: lib/launch-command adds it
     const v = options[decl.id]
     if (v === undefined) continue
     if (decl.argsByChoice) args.push(...(decl.argsByChoice[String(v)] || []))
@@ -200,5 +207,6 @@ export function previewCommand(input: {
   const perm = permissionFlagsFor(input.kind, input.mode)
   if (perm) parts.push(perm)
   parts.push(...launchOptionArgs(input.kind, input.options))
+  if (input.kind === 'claude' && sanitizeLaunchOptions('claude', input.options).continue === true) parts.push('--resume <its last conversation>')
   return parts.join(' ')
 }

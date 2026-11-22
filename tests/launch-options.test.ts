@@ -5,7 +5,7 @@ import {
 
 describe('launchOptionsFor: what each tool declares', () => {
   it('lists the options we verified against each tool\'s --help, and none for tools we only open in the terminal', () => {
-    expect(launchOptionsFor('claude').map((o) => o.id)).toEqual(['model'])
+    expect(launchOptionsFor('claude').map((o) => o.id)).toEqual(['model', 'continue'])
     expect(launchOptionsFor('grok').map((o) => o.id)).toEqual(['model', 'continue'])
     expect(launchOptionsFor('copilot').map((o) => o.id)).toEqual(['model', 'effort', 'continue', 'addDir'])
     expect(launchOptionsFor('pi').map((o) => o.id)).toEqual(['model', 'thinking', 'continue', 'noSession', 'tools'])
@@ -31,7 +31,7 @@ describe('sanitizeLaunchOptions', () => {
 
   it('drops options the tool does not declare (a Pi flag sent for Copilot)', () => {
     expect(sanitizeLaunchOptions('copilot', { thinking: 'high', noSession: true })).toEqual({})
-    expect(sanitizeLaunchOptions('claude', { continue: true, effort: 'high' })).toEqual({})
+    expect(sanitizeLaunchOptions('claude', { continue: true, effort: 'high' })).toEqual({ continue: true })
     expect(sanitizeLaunchOptions(null, { model: 'x' })).toEqual({})
   })
 
@@ -69,6 +69,9 @@ describe('launchOptionArgs and modelFromOptions', () => {
       .toEqual(['--reasoning-effort', 'low', '--continue', '--add-dir', '~/x'])
     expect(launchOptionArgs('pi', { noSession: true, thinking: 'off' })).toEqual(['--thinking', 'off', '--no-session'])
     expect(launchOptionArgs('grok', { continue: true })).toEqual(['--continue'])
+    // Claude Code's continue needs the conversation id, which the launch command adds
+    expect(launchOptionArgs('claude', { continue: true })).toEqual([])
+    expect(previewCommand({ command: 'claude', kind: 'claude', options: { continue: true } })).toBe('claude --resume <its last conversation>')
     expect(launchOptionArgs('copilot', {})).toEqual([])
   })
 

@@ -107,6 +107,12 @@ vi.mock('@/lib/agent-runtime', () => ({
   getRuntime: vi.fn().mockReturnValue(mockRuntime),
 }))
 vi.mock('@/lib/agent-registry', () => mockAgentRegistry)
+// The real resume check by default; a test can say which conversation is safe to reopen
+const resumeHook = vi.hoisted(() => ({ id: undefined as string | null | undefined, lastArgs: [] as unknown[] }))
+vi.mock('@/lib/agent-runtime-kind.mjs', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/agent-runtime-kind.mjs')>()
+  return { ...real, resumableSessionId: (...a: Parameters<typeof real.resumableSessionId>) => (resumeHook.lastArgs = a, resumeHook.id !== undefined) ? resumeHook.id : real.resumableSessionId(...a) }
+})
 vi.mock('@/lib/hosts-config', () => mockHostsConfig)
 vi.mock('@/lib/session-persistence', () => mockSessionPersistence)
 vi.mock('@/lib/amp-inbox-writer', () => mockAmpInboxWriter)
@@ -885,6 +891,36 @@ describe('wakeAgent', () => {
     expect(typed()).toHaveLength(0)
     delete (mockRuntime as any).capturePane
   }, 20000)
+
+  it('"continue the last conversation" resumes the agent\'s own conversation, when there is one', async () => {
+    const launched = async (opts: Record<string, unknown>, id: string | null) => {
+      const agent = makeAgent({ id: 'agent-1', name: 'my-agent', program: 'claude code', ...opts })
+      mockAgentRegistry.getAgent.mockReturnValue(agent)
+      mockRuntime.sessionExists.mockResolvedValue(false)
+      mockAgentRegistry.loadAgents.mockReturnValue([agent])
+      mockRuntime.sendKeys.mockClear()
+      resumeHook.id = id
+      try {
+        expect((await wakeAgent('agent-1', {})).status).toBe(200)
+      } finally { resumeHook.id = undefined }
+      return String(mockRuntime.sendKeys.mock.calls.find((c: any[]) => c[2]?.enter === true)?.[1])
+    }
+    expect(await launched({ launchOptions: { continue: true } }, 'sess-1')).toContain('--resume sess-1')
+    expect(await launched({ launchOptions: { continue: true } }, null)).not.toContain('--resume')
+    expect(await launched({}, 'sess-1')).not.toContain('--resume')
+  })
+
+  it('a wake right after a confirmed hibernate may reopen the conversation (no 10-minute wait)', async () => {
+    const agent = makeAgent({ id: 'agent-h', name: 'my-agent', program: 'claude code', launchOptions: { continue: true } })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockAgentRegistry.loadAgents.mockReturnValue([agent])
+    mockRuntime.sessionExists.mockResolvedValueOnce(true).mockResolvedValue(false)
+    expect((await hibernateAgent('agent-h', {})).status).toBe(200)
+    resumeHook.id = 'sess-1'
+    try { await wakeAgent('agent-h', {}) } finally { resumeHook.id = undefined }
+    const opts = resumeHook.lastArgs[1] as { switchedAt?: string }
+    expect(Date.parse(opts.switchedAt || '')).toBeGreaterThan(Date.now() - 60_000)
+  })
 
   it('sends --permission-mode auto when agent.permissionMode is smartAuto', async () => {
     const agent = makeAgent({ id: 'agent-1', name: 'my-agent', program: 'claude code', permissionMode: 'smartAuto' })

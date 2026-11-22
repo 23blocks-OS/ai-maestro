@@ -151,6 +151,7 @@ const PROTECTED = [
   /^\/api\/meetings\/inject-queue$/,
   /^\/api\/meetings\/[^/]+\/broadcast$/,
   /^\/api\/v1\/route$/,
+  /^\/api\/v1\/register$/,
   /^\/api\/v1\/messages(\/.*)?$/,
   /^\/api\/v1\/quarantine(\/.*)?$/,
 ]

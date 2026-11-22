@@ -193,10 +193,10 @@ describe('caller identity: the header between the server and the routes', () => 
   it('resolves the message routes only, however the path is spelled', () => {
     for (const p of ['/api/caller', '/api/messages', '/api/messages/forward', '/api/messages/meeting', '/api/agents/x/messages', '/api/agents/x/messages/m1',
       '/api/people/p/messages', '/api/meetings/inject-queue', '/api/meetings/m/broadcast', '/api/v1/route', '/api/v1/messages/pending',
-      '/api//messages', '/api/messages/', '/API/Messages', '/api/%6Dessages']) {
+      '/api/v1/register', '/api/v1/register/', '/api//messages', '/api/messages/', '/API/Messages', '/api/%6Dessages']) {
       expect(isProtectedPath(p), p).toBe(true)
     }
-    for (const p of ['/api/agents', '/api/sessions', '/api/meetings', '/api/agents/x/chat', '/', '/api/v1/register']) {
+    for (const p of ['/api/agents', '/api/sessions', '/api/meetings', '/api/agents/x/chat', '/', '/api/v1/registered', '/api/agents/register']) {
       expect(isProtectedPath(p), p).toBe(false)
     }
   })

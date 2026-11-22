@@ -1611,7 +1611,7 @@ const routes: Route[] = [
   { method: 'POST', pattern: /^\/api\/v1\/register$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, await registerAMPAgent(body, authHeader))
+    sendServiceResult(res, await registerAMPAgent(body, authHeader, callerFromHeaders(req.headers)))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/route$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)

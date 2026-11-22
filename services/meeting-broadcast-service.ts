@@ -13,6 +13,7 @@ import { getAgent } from '@/lib/agent-registry'
 import { findPeerHostUrl } from '@/lib/owning-host'
 import { sendMessage } from '@/services/messages-service'
 import { invalidRequest, missingField, type ServiceResult } from '@/services/service-errors'
+import { type Caller, refusal, requireIdentified } from '@/lib/caller-identity'
 
 export interface BroadcastParams {
   meetingId: string
@@ -22,6 +23,8 @@ export interface BroadcastParams {
   participantIds: string[]
   /** Send only to these (a retry, or one agent); default: all participants */
   recipients?: string[]
+  /** Who server.mjs found calling. The broadcast is sent as maestro (the operator), so an agent may not */
+  caller?: Caller
 }
 
 export type DeliveryStatus = 'delivered' | 'failed'
@@ -72,7 +75,12 @@ export async function broadcastToMeeting(
   params: BroadcastParams,
   deps: BroadcastDeps = defaultDeps,
 ): Promise<ServiceResult<BroadcastResult>> {
-  const { meetingId, teamName, message, participantIds } = params
+  const { meetingId, teamName, message, participantIds, caller } = params
+  if (caller && caller.mode !== 'off') {
+    const anon = requireIdentified(caller)
+    if (anon) return anon as ServiceResult<BroadcastResult>
+    if (caller.kind === 'agent') return refusal(403, 'sender_mismatch', `${caller.name || caller.agentId} may send only as itself; a meeting broadcast is sent as maestro`) as ServiceResult<BroadcastResult>
+  }
   if (!meetingId || typeof meetingId !== 'string') return missingField('meetingId') as ServiceResult<BroadcastResult>
   if (!message || typeof message !== 'string' || !message.trim()) return missingField('message') as ServiceResult<BroadcastResult>
   if (message.length > MAX_MESSAGE_CHARS) return invalidRequest(`message is longer than ${MAX_MESSAGE_CHARS} characters`) as ServiceResult<BroadcastResult>

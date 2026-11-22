@@ -328,7 +328,9 @@ export async function writeToAMPInbox(
   recipientAgentId?: string,
   verification?: VerificationRecord,
   /** AMP 04 "Stored Message Format" top-level `security`: trust level, injection flags, the verified payload_hash */
-  security?: { trust_level: string; injection_flags?: string[]; payload_hash?: string; verified_at?: string }
+  security?: { trust_level: string; injection_flags?: string[]; payload_hash?: string; verified_at?: string },
+  /** senderVia: how the server established the sender (lib/caller-identity.ts) */
+  local?: { senderVia?: string }
 ): Promise<string | null> {
   try {
     if (!isSafeMessageId(envelope.id)) {
@@ -380,7 +382,9 @@ export async function writeToAMPInbox(
         status: 'unread',
         // What the receiving server found when it checked the signature
         // (protocol 07-security). Readers show it; see lib/amp-trust.ts.
-        ...(verification ? { verification } : {})
+        ...(verification ? { verification } : {}),
+        // session | key | operator-token | host: the server identified the sender; claimed: the request named it
+        ...(local?.senderVia ? { sender_via: local.senderVia } : {})
       },
       ...(security ? { security } : {}),
       ...(senderPublicKey ? { sender_public_key: senderPublicKey } : {})

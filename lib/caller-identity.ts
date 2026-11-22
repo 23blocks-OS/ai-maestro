@@ -94,7 +94,7 @@ const HEX64 = /^[0-9a-f]{64}$/
  * hash: the lowercase hex SHA-256, or null when the value is malformed (then no token matches: fail closed).
  */
 export function readOperatorTokenHash(
-  env: NodeJS.ProcessEnv = process.env,
+  env: Record<string, string | undefined> = process.env,
   readFile: (p: string) => string | null = (p) => { try { return fs.readFileSync(p, 'utf8') } catch { return null } },
 ): { configured: boolean; hash: string | null; source?: 'env' | 'file' } {
   const fromEnv = String(env.AIMAESTRO_OPERATOR_TOKEN_SHA256 || '').trim().toLowerCase()
@@ -122,7 +122,7 @@ export function matchesOperatorToken(token: string | null | undefined, hashHex: 
 }
 
 export function callerAuthMode(
-  env: NodeJS.ProcessEnv = process.env,
+  env: Record<string, string | undefined> = process.env,
   tokenConfigured: boolean = operatorToken().configured,
 ): CallerAuthMode {
   const m = String(env.AIMAESTRO_CALLER_AUTH || '').trim().toLowerCase()

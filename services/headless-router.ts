@@ -1482,26 +1482,26 @@ const routes: Route[] = [
   }},
 
   // Agent messages
-  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await getAgentMessage(params.id, params.messageId, (query.box as any) || 'inbox'))
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (req, res, params, query) => {
+    sendServiceResult(res, await getAgentMessage(params.id, params.messageId, (query.box as any) || 'inbox', callerFromHeaders(req.headers)))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await updateAgentMessage(params.id, params.messageId, body))
+    sendServiceResult(res, await updateAgentMessage(params.id, params.messageId, body, callerFromHeaders(req.headers)))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await forwardAgentMessage(params.id, params.messageId, body))
+    sendServiceResult(res, await forwardAgentMessage(params.id, params.messageId, body, callerFromHeaders(req.headers)))
   }},
-  { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (_req, res, params) => {
-    sendServiceResult(res, await deleteAgentMessage(params.id, params.messageId))
+  { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (req, res, params) => {
+    sendServiceResult(res, await deleteAgentMessage(params.id, params.messageId, callerFromHeaders(req.headers)))
   }},
-  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await listAgentMessages(params.id, query as any))
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (req, res, params, query) => {
+    sendServiceResult(res, await listAgentMessages(params.id, query as any, callerFromHeaders(req.headers)))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await sendAgentMessage(params.id, body))
+    sendServiceResult(res, await sendAgentMessage(params.id, body, callerFromHeaders(req.headers)))
   }},
 
   // Metadata (uses agents-core-service getAgentById/updateAgentById)
@@ -1619,6 +1619,7 @@ const routes: Route[] = [
       getHeader(req, 'X-AMP-Envelope-Id'),
       getHeader(req, 'X-AMP-Signature'),
       getHeader(req, 'Content-Length'),
+      callerFromHeaders(req.headers),
     )
     sendServiceResult(res, result)
   }},
@@ -1735,41 +1736,44 @@ const routes: Route[] = [
   // =========================================================================
   // Messages (global)
   // =========================================================================
-  { method: 'GET', pattern: /^\/api\/messages\/meeting$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await getMeetingMessages(query as any))
+  { method: 'GET', pattern: /^\/api\/messages\/meeting$/, paramNames: [], handler: async (req, res, _params, query) => {
+    sendServiceResult(res, await getMeetingMessages(query as any, callerFromHeaders(req.headers)))
   }},
   { method: 'POST', pattern: /^\/api\/messages\/forward$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await forwardGlobalMessage(body))
+    sendServiceResult(res, await forwardGlobalMessage(body, callerFromHeaders(req.headers)))
   }},
-  { method: 'GET', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await getMessages(query as any))
+  { method: 'GET', pattern: /^\/api\/messages$/, paramNames: [], handler: async (req, res, _params, query) => {
+    sendServiceResult(res, await getMessages(query as any, callerFromHeaders(req.headers)))
   }},
   { method: 'POST', pattern: /^\/api\/messages$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await sendGlobalMessage(body))
+    sendServiceResult(res, await sendGlobalMessage(body, callerFromHeaders(req.headers)))
   }},
-  { method: 'PATCH', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await updateGlobalMessage(query.agent || null, query.id || null, query.action || null))
+  { method: 'PATCH', pattern: /^\/api\/messages$/, paramNames: [], handler: async (req, res, _params, query) => {
+    sendServiceResult(res, await updateGlobalMessage(query.agent || null, query.id || null, query.action || null, callerFromHeaders(req.headers)))
   }},
-  { method: 'DELETE', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await removeMessage(query.agent || null, query.id || null))
+  { method: 'DELETE', pattern: /^\/api\/messages$/, paramNames: [], handler: async (req, res, _params, query) => {
+    sendServiceResult(res, await removeMessage(query.agent || null, query.id || null, callerFromHeaders(req.headers)))
   }},
 
   // =========================================================================
   // Meetings
   // =========================================================================
-  { method: 'GET', pattern: /^\/api\/meetings\/inject-queue$/, paramNames: [], handler: async (_req, res, _params, query) => {
+  { method: 'GET', pattern: /^\/api\/meetings\/inject-queue$/, paramNames: [], handler: async (req, res, _params, query) => {
     const { drainForSession } = await import('@/lib/meeting-inject-queue')
     const session = query.session
     if (!session) { sendJson(res, 400, { error: 'Missing session parameter' }); return }
+    // The queue is the session's agent's mail: an agent drains its own
+    const refused = checkMailbox(callerFromHeaders(req.headers), session, agentIdOfSession)
+    if (refused) { sendJson(res, refused.status, refused.data); return }
     const messages = drainForSession(session)
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ messages, count: messages.length }))
   }},
   { method: 'POST', pattern: /^\/api\/meetings\/([^/]+)\/broadcast$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     const { broadcastToMeeting } = await import('@/services/meeting-broadcast-service')
-    sendServiceResult(res, await broadcastToMeeting({ meetingId: params.id, message: body.message, participantIds: body.participantIds, teamName: body.teamName, recipients: body.recipients }))
+    sendServiceResult(res, await broadcastToMeeting({ meetingId: params.id, message: body.message, participantIds: body.participantIds, teamName: body.teamName, recipients: body.recipients, caller: callerFromHeaders(req.headers) }))
   }},
   { method: 'GET', pattern: /^\/api\/meetings\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, getMeetingById(params.id))
@@ -1922,19 +1926,19 @@ const routes: Route[] = [
   { method: 'DELETE', pattern: /^\/api\/people\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, deletePerson(params.id, { purge: qp(query, 'purge') === '1' }))
   }},
-  { method: 'GET', pattern: /^\/api\/people\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, listPersonMessages(params.id, { box: qp(query, 'box'), since: qp(query, 'since'), with: qp(query, 'with'), limit: qp(query, 'limit') }))
+  { method: 'GET', pattern: /^\/api\/people\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (req, res, params, query) => {
+    sendServiceResult(res, listPersonMessages(params.id, { box: qp(query, 'box'), since: qp(query, 'since'), with: qp(query, 'with'), limit: qp(query, 'limit') }, callerFromHeaders(req.headers)))
   }},
   { method: 'POST', pattern: /^\/api\/people\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await sendAsPerson(params.id, body))
+    sendServiceResult(res, await sendAsPerson(params.id, body, callerFromHeaders(req.headers)))
   }},
-  { method: 'GET', pattern: /^\/api\/people\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getPersonMessage(params.id, params.messageId))
+  { method: 'GET', pattern: /^\/api\/people\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (req, res, params) => {
+    sendServiceResult(res, getPersonMessage(params.id, params.messageId, callerFromHeaders(req.headers)))
   }},
   { method: 'PATCH', pattern: /^\/api\/people\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updatePersonMessage(params.id, params.messageId, body))
+    sendServiceResult(res, updatePersonMessage(params.id, params.messageId, body, callerFromHeaders(req.headers)))
   }},
   { method: 'GET', pattern: /^\/api\/people-devices$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, listDevices({ personId: qp(query, 'personId') }))

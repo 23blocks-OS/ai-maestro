@@ -343,6 +343,8 @@ import { addAgentDevice, addAgentNetwork, listAgentNetworks, removeAgentNetwork,
 import { programInstallRequest } from '@/services/program-install-service'
 import { unknownAgentResult } from '@/services/agent-guard'
 import { etagJson } from '@/lib/etag'
+import { callerFromHeaders, checkMailbox, agentIdOfSession } from '@/lib/caller-identity'
+import { getCaller } from '@/services/caller-service'
 
 // ---------------------------------------------------------------------------
 // Utility helpers
@@ -537,8 +539,12 @@ const routes: Route[] = [
   // Config & System
   // =========================================================================
   // Operator report: messages on disk that no wake has proved the agent saw
-  { method: 'GET', pattern: /^\/api\/messages\/pending-wakes$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, await getPendingWakesReport())
+  { method: 'GET', pattern: /^\/api\/messages\/pending-wakes$/, paramNames: [], handler: async (req, res) => {
+    sendServiceResult(res, await getPendingWakesReport(callerFromHeaders(req.headers)))
+  }},
+  // Who the server thinks is calling (lib/caller-identity.ts)
+  { method: 'GET', pattern: /^\/api\/caller$/, paramNames: [], handler: async (req, res) => {
+    sendServiceResult(res, getCaller(callerFromHeaders(req.headers)))
   }},
   // The dashboard reports each page load so an unexplained reset can be diagnosed from the log
   { method: 'POST', pattern: /^\/api\/debug\/client-event$/, paramNames: [], handler: async (req, res) => {

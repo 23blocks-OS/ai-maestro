@@ -276,10 +276,11 @@ function newestHookRecord(
 }
 
 /** The last thing the agent's program reported (crash restart): its status and when, or null */
-export function lastHookReport(workingDir: string, otherAgentDirs: string[] = []): { status: string; at: number } | null {
+export function lastHookReport(workingDir: string, otherAgentDirs: string[] = []): { status: string; at: number; notificationType?: string } | null {
   const s = newestHookRecord(workingDir, otherAgentDirs)
   const at = s ? Date.parse(s.updatedAt) : NaN
-  return s && typeof s.status === 'string' && Number.isFinite(at) ? { status: s.status, at } : null
+  if (!s || typeof s.status !== 'string' || !Number.isFinite(at)) return null
+  return { status: s.status, at, ...(typeof s.notificationType === 'string' && { notificationType: s.notificationType }) }
 }
 
 /**

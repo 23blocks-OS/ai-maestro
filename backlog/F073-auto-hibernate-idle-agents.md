@@ -24,8 +24,18 @@ why nobody hibernates agents today.
 **Done 2026-11-20 (0.106.254): wake on message.** `preferences.wakeOnMessage` (Agent Profile > Work Configuration >
 "Wake for messages", or `PATCH /api/agents/<id>` with `{"preferences":{"wakeOnMessage":true}}`). `deliver()` in
 `lib/message-delivery.ts` starts an asleep agent with `wakeAgent` before the wake chain; the wake queue types the
-notice once the program settles. Off by default: each start is a new program using memory. Not done: board
-instructions, the idle-hibernate rule, resuming the last conversation, and the `aimaestro-agent.sh` flag.
+notice once the program settles. Off by default: each start is a new program using memory.
+
+**Done 2026-11-21 (0.106.255): wake on board instruction.** The same setting. `handToAgent` in
+`services/agent-tasks-service.ts` starts the asleep agent, waits for its first hook report (`waitUntilReady` in
+`lib/session-idle.ts`), then types the instruction and marks the comment sent; forwarded instructions go the same way on
+the agent's host.
+
+**Done 2026-11-21 (0.106.256): hibernate when idle.** Per agent, not per host (it answers the open question below: each
+agent opts in, so no host owner surprises another's agent): `preferences.hibernateAfterIdleHours` (1-168).
+`services/idle-hibernate-service.ts` runs every 5 minutes; only Claude Code agents (the hook says idle), never while
+working, asking, in a meeting, with wakes queued or streaming. Not done: resuming the last conversation, and the
+`aimaestro-agent.sh` flags.
 
 ## Why It's Needed
 

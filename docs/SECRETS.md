@@ -43,7 +43,7 @@ The card (or `aim-secret set`) shows what the machine said and what to do. Run `
 | macOS: `User interaction is not allowed` (-25308) | The login keychain is locked and nobody can answer its prompt. Typical after a reboot with no one signed in. | Unlock it on that Mac: `security unlock-keychain ~/Library/Keychains/login.keychain-db`, or sign in at its screen. On a host nobody signs in to, use `aim-secret backend file`. |
 | macOS: `User canceled` or an authorization error | The keychain refused access. | Unlock it, approve the prompt if one appears on that Mac, and try again. |
 | Linux: `did not answer within 15s` | The keyring is locked or missing, usually on a server or over ssh. Nothing can answer its password prompt. | Unlock it in a desktop session, or `aim-secret backend file` (encrypted file, only as safe as its permissions). |
-| `no secure store found` | Linux without `libsecret-tools`. | Install `libsecret-tools`, or `aim-secret backend file`. |
+| `no secure store found` | Linux without `libsecret-tools`, or a server nobody logs in to. | `aim-secret backend file` on a server; `libsecret-tools` on a desktop. The installer and the updater do this by themselves when the store is automatic (0.106.257). |
 
 A failed save stores nothing, so enter the value again after the fix. AI Maestro never needs your keychain password and will not ask for it.
 

@@ -419,6 +419,32 @@ export async function forwardInstruction(
   return { ok: false, reason }
 }
 
+/**
+ * Type an instruction into an agent on this host. An agent that opted in to being woken
+ * (`preferences.wakeOnMessage`) and is asleep is started first; the text then goes in once the program
+ * reports ready, in the background, and `onLanded` runs when it did. Returns 'starting' in that case.
+ */
+async function handToAgent(agentId: string, text: string, onLanded?: () => void): Promise<ServiceResult<Record<string, unknown>> | 'starting'> {
+  const agent = getAgent(agentId)
+  if (agent?.preferences?.wakeOnMessage) {
+    const since = Date.now()
+    const { wakeIfAsleep } = await import('@/lib/message-delivery')
+    if (await wakeIfAsleep(agent, 'a board instruction')) {
+      void (async () => {
+        const { waitUntilReady } = await import('@/lib/session-idle')
+        await waitUntilReady(agent.name, since)
+        const r = await injectMeetingPrompt({ agentId, injection: text })
+        if (r.status >= 200 && r.status < 300) onLanded?.()
+        else console.warn(`[Tasks] ${agent.name} started but did not take the instruction: ${(r.data as { message?: string } | undefined)?.message || r.status}`)
+      })().catch(err => console.warn(`[Tasks] instruction for ${agent.name} after start failed:`, err))
+      return 'starting'
+    }
+  }
+  return injectMeetingPrompt({ agentId, injection: text })
+}
+
+const STARTING = 'The agent was asleep and is starting; the instruction goes in when it is ready'
+
 /** The assignee's side of a forwarded instruction: type it into the agent's session on this host. */
 export async function receiveInstruction(agentId: string, body: { text?: unknown }): Promise<ServiceResult<{ delivered: boolean; reason?: string }>> {
   // A card may name its assignee ("pas-lola") instead of holding the id; this host knows it by either
@@ -426,7 +452,9 @@ export async function receiveInstruction(agentId: string, body: { text?: unknown
     || loadAgents().find(a => !a.deletedAt && a.name?.toLowerCase() === agentId.toLowerCase())
   if (!agent) return notFound('Agent', agentId)
   if (typeof body.text !== 'string' || !body.text.trim()) return missingField('text')
-  const result = await injectMeetingPrompt({ agentId: agent.id, injection: clean(body.text) })
+  const result = await handToAgent(agent.id, clean(body.text))
+  // This host owns it from here: it types the text in once the agent is up
+  if (result === 'starting') return { data: { delivered: true, reason: STARTING }, status: 200 }
   if (result.status >= 200 && result.status < 300) return { data: { delivered: true }, status: 200 }
   const reason = (result.data as { message?: string; error?: string } | undefined)?.message || (result.data as { error?: string } | undefined)?.error || 'The agent could not take it'
   return { data: { delivered: false, reason }, status: 200 }
@@ -453,7 +481,8 @@ export async function deliverComment(scope: TaskScope, taskId: string, commentId
     }
     return { data: { delivered: false, reason: fwd.reason }, status: 200 }
   }
-  const result = await injectMeetingPrompt({ agentId: task.assigneeAgentId, injection: text })
+  const result = await handToAgent(task.assigneeAgentId, text, () => markCommentDelivered(scope, taskId, commentId))
+  if (result === 'starting') return { data: { delivered: false, reason: STARTING }, status: 200 }
   if (result.status >= 200 && result.status < 300) {
     markCommentDelivered(scope, taskId, commentId)
     return { data: { delivered: true }, status: 200 }

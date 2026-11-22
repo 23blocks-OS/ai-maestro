@@ -2949,6 +2949,7 @@ async function startServer(handleRequest) {
 
     // F044 item 8: a woken program stuck before its input box (login, trust dialog) reads as Needs you, not Ready
     import('./services/startup-watch-service.ts').then(m => m.ensureStartupWatcher()).catch(err => console.warn('[Startup] watcher did not start:', err.message))
+    import('./services/idle-hibernate-service.ts').then(m => m.ensureIdleHibernate()).catch(err => console.warn('[IdleHibernate] did not start:', err.message))
 
     // Run startup self-diagnostics (non-blocking)
     setTimeout(async () => {

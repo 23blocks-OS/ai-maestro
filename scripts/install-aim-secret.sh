@@ -40,3 +40,20 @@ WRAP
 chmod +x "$BIN/aim-secret"
 echo "installed: $BIN/aim-secret (node: ${NODE_BIN:-none found})"
 case ":$PATH:" in *":$BIN:"*) ;; *) echo "note: $BIN is not on your PATH yet" ;; esac
+
+# A headless Linux host has no working libsecret (no secret-tool, or no login keyring without a desktop login),
+# so the first secret save fails during the first agent setup (#857). When the store is chosen automatically and
+# cannot save here, use the encrypted file store instead and say so. A store set by hand is never changed.
+if [ "$(uname -s)" = Linux ] && [ -z "${AIM_VAULT_BACKEND:-}" ]; then
+    src="$("$BIN/aim-secret" status 2>/dev/null || true)"
+    case "$src" in *"saved setting"*) ;; *)
+        if ! "$BIN/aim-secret" doctor >/dev/null 2>&1; then
+            if "$BIN/aim-secret" backend file >/dev/null && "$BIN/aim-secret" doctor >/dev/null 2>&1; then
+                echo "secrets: libsecret cannot save on this machine (no desktop login keyring), so aim-secret uses the file store:"
+                echo "  an encrypted file with its key beside it, protected by file permissions. 'aim-secret backend auto' undoes this."
+            else
+                echo "warning: no store can save a secret on this machine yet; run 'aim-secret doctor'" >&2
+            fi
+        fi ;;
+    esac
+fi

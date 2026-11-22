@@ -637,9 +637,23 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         onChange={(e) => updateField('preferences', { ...agent.preferences, wakeOnMessage: e.target.checked })}
                       />
                       <span>
-                        Wake for messages
-                        <span className="block text-gray-500">When a message arrives while the agent is hibernated, AI Maestro starts it and hands it the message. It starts a new conversation and uses memory until you hibernate it again.</span>
+                        Wake for messages and board instructions
+                        <span className="block text-gray-500">When a message or a board instruction arrives while the agent is hibernated, AI Maestro starts it and hands it over. It starts a new conversation and uses memory until you hibernate it again.</span>
                       </span>
+                    </label>
+
+                    <label className="flex items-start gap-2 text-xs text-gray-300" data-testid="hibernate-when-idle">
+                      <span className="flex-1">
+                        Hibernate when idle
+                        <span className="block text-gray-500">Ends the agent&apos;s session after it has waited this long with nothing to do (Claude Code agents). Never while it works or has a question open. Turn on Wake for messages so mail still reaches it.</span>
+                      </span>
+                      <select
+                        className="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-gray-200"
+                        value={agent.preferences?.hibernateAfterIdleHours || 0}
+                        onChange={(e) => updateField('preferences', { ...agent.preferences, hibernateAfterIdleHours: Number(e.target.value) || null })}
+                      >
+                        {[0, 1, 4, 12, 24, 72].map(h => <option key={h} value={h}>{h ? `after ${h} h` : 'Never'}</option>)}
+                      </select>
                     </label>
 
                     {/* Which account or key the agent uses (#65) */}

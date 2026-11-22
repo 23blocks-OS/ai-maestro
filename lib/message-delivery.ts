@@ -233,19 +233,27 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
 
 const starting = new Set<string>()
 
-/** Start a sleeping agent with its own wake (identity, program, credential), once at a time; never throws */
-async function wakeIfAsleep(agent: NonNullable<ReturnType<typeof getAgent>>): Promise<void> {
-  if (starting.has(agent.id) || hasStreamSession(agent.id)) return
+/**
+ * Start a sleeping agent with its own wake (identity, program, credential), once at a time; never throws.
+ * True only when this call started it.
+ */
+export async function wakeIfAsleep(agent: NonNullable<ReturnType<typeof getAgent>>, why = 'a message'): Promise<boolean> {
+  if (starting.has(agent.id) || hasStreamSession(agent.id)) return false
   starting.add(agent.id)
   try {
-    if (await getRuntime().sessionExists(computeSessionName(agent.name, 0))) return
+    if (await getRuntime().sessionExists(computeSessionName(agent.name, 0))) return false
     const { wakeAgent } = await import('@/services/agents-core-service')
     const woke = await wakeAgent(agent.id, { startProgram: true })
     const data = woke.data as { woken?: boolean; message?: string } | undefined
-    if (woke.status === 200 && data?.woken) console.log(`[Delivery] ${agent.name} was asleep; started it for a message`)
-    else console.warn(`[Delivery] ${agent.name} was asleep and did not start: ${data?.message || woke.status}`)
+    if (woke.status === 200 && data?.woken) {
+      console.log(`[Delivery] ${agent.name} was asleep; started it for ${why}`)
+      return true
+    }
+    console.warn(`[Delivery] ${agent.name} was asleep and did not start: ${data?.message || woke.status}`)
+    return false
   } catch (err) {
     console.warn(`[Delivery] ${agent.name} was asleep and did not start:`, err instanceof Error ? err.message : err)
+    return false
   } finally {
     starting.delete(agent.id)
   }

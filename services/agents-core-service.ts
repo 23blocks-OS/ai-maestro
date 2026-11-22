@@ -1173,6 +1173,8 @@ export function updateAgentById(id: string, body: UpdateAgentRequest, caller?: P
 
     const wakeOnMessage = (body.preferences as { wakeOnMessage?: unknown } | undefined)?.wakeOnMessage
     if (wakeOnMessage !== undefined && typeof wakeOnMessage !== 'boolean') return invalidRequest('preferences.wakeOnMessage must be true or false')
+    const idleHours = (body.preferences as { hibernateAfterIdleHours?: unknown } | undefined)?.hibernateAfterIdleHours
+    if (!(idleHours === undefined || idleHours === null || idleHours === 0 || (Number.isInteger(idleHours) && (idleHours as number) >= 1 && (idleHours as number) <= 168))) return invalidRequest('preferences.hibernateAfterIdleHours must be a whole number of hours from 1 to 168, or 0 for never')
 
     if (body.experiments !== undefined && body.experiments !== null) {
       const { speakingSide, ...other } = body.experiments as { speakingSide?: unknown }

@@ -91,6 +91,20 @@ export function isSessionIdle(sessionName: string): boolean {
 }
 
 /**
+ * After a start: wait until the program has reported since `since` and is idle, or until the timeout.
+ * Resolves true when it is ready; false means it never said so (a non-hooked program, or a start that stopped).
+ */
+export async function waitUntilReady(sessionName: string, since: number, timeoutMs = 120_000, stepMs = 2_000): Promise<boolean> {
+  const end = Date.now() + timeoutMs
+  while (Date.now() < end) {
+    const r = hookStatus?.get(sessionName)
+    if (r && r.at >= since && isSessionIdle(sessionName)) return true
+    await new Promise(res => setTimeout(res, stepMs))
+  }
+  return false
+}
+
+/**
  * True if the Claude Code hook has reported for this session recently — i.e. an
  * agent TUI is live in the pane rather than a bare shell. Used to decide
  * whether a notification can be sent as plain text or must be wrapped in

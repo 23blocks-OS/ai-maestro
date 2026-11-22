@@ -943,6 +943,13 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
         TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
     fi
 
+    # aim-secret on the PATH, with a store that can save on this machine (#857)
+    if [ -x "scripts/install-aim-secret.sh" ]; then
+        echo ""
+        print_step "Installing aim-secret (credentials agents use without seeing them)..."
+        ./scripts/install-aim-secret.sh || print_warning "Could not install aim-secret (re-run: ./scripts/install-aim-secret.sh)"
+    fi
+
     # The way back in: the ai-maestro command, the AI Maestro app (macOS) or menu entry (Linux desktop)
     if [ "$SKIP_LAUNCHER" != true ] && [ -f "scripts/install-launcher.sh" ]; then
         echo ""

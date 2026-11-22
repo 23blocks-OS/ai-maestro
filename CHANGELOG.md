@@ -3,6 +3,23 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.257] - 2026-11-22 - Secrets work on a fresh install
+
+### Fixed
+- A fresh install now sets up `aim-secret` (#857). `install.sh` (and so `remote-install.sh`) never ran `scripts/install-aim-secret.sh`; only the updater did, so a new host had no `aim-secret` until its first update and agents with `--secret` could not get their key.
+- On a Linux server nobody logs in to, the first secret save no longer fails. With `secret-tool` installed but no login keyring (there is none without a desktop login), the automatic choice was libsecret, which cannot save there. The installer and the updater now run `aim-secret doctor` on Linux; when the store is automatic and cannot save, they switch to the file store (an encrypted file with its key beside it, protected by file permissions) and say so. A store set by hand is never changed; `aim-secret backend auto` undoes it.
+- The "no secure store found" error now names `aim-secret backend file` for servers and `aim-secret doctor`.
+
+## [0.106.256] - 2026-11-22 - Hibernate when idle
+
+### Added
+- An agent can be hibernated by itself when it has been idle a while (F073 step 3). Pick "Hibernate when idle" in the Agent Profile (Work Configuration): never, or after 1, 4, 12, 24 or 72 hours; or `PATCH /api/agents/<id>` with `{"preferences":{"hibernateAfterIdleHours":4}}` (1 to 168, 0 for never). Every 5 minutes the server checks local Claude Code agents that opted in. One is hibernated only when Claude Code's last report says its turn ended (not working, no permission or question open) that long ago, its terminal has printed nothing for as long, it has no notices waiting and it has no streaming session. Off by default. Turn on "Wake for messages and board instructions" too, so mail and board instructions start it again.
+
+## [0.106.255] - 2026-11-21 - Wake for board instructions
+
+### Added
+- "Wake for messages" now also covers board instructions (F073 step 2). An operator comment on a card whose agent is hibernated and opted in (`preferences.wakeOnMessage`) starts the agent; the instruction is typed in once the program has reported ready (up to 2 minutes), and the comment shows as sent when it lands. Until then the comment reads "the agent was asleep and is starting". This works for an agent on another host too: that host starts it and types the instruction. The setting is now labelled "Wake for messages and board instructions".
+
 ## [0.106.254] - 2026-11-20 - Wake for messages
 
 ### Added

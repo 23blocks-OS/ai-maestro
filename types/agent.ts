@@ -522,7 +522,8 @@ export interface AgentPreferences {
   defaultWorkingDirectory?: string
   autoStart?: boolean           // Auto-start session on AI Maestro startup
   notificationLevel?: 'all' | 'urgent' | 'none'
-  wakeOnMessage?: boolean       // F073: start the agent when a message finds it asleep (hibernated, no session)
+  hibernateAfterIdleHours?: number | null  // F073: hibernate when idle this many hours (1-168); unset or 0 = never
+  wakeOnMessage?: boolean       // F073: start the agent when a message or a board instruction finds it asleep (hibernated, no session)
 }
 
 export interface AgentDocumentation {

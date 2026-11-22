@@ -8,6 +8,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { checkPolicyRules } from '@/services/doctor-checks'
+import type { PolicyReport } from '@/services/policy-service'
 
 const DENY = JSON.stringify({ version: 2, rules: [{ id: 'no-payroll', effect: 'deny', from: 'agent:*', to: 'agent:payroll' }] })
 const ALLOW_ALL = JSON.stringify({ version: 2, default: 'allow', rules: [] })
@@ -91,12 +92,12 @@ describe('AIMAESTRO_POLICY_FILE', () => {
     expect(fs.readFileSync(file, 'utf8')).toBe(DENY)
 
     const { getPolicy } = await import('@/services/policy-service')
-    const report = getPolicy().data!
+    const report = getPolicy().data as PolicyReport
     expect(report).toMatchObject({ file, configured: true, failClosed: false })
     // A temporary folder is writable by this user: the Doctor says the file protects nothing
     expect(report.writable).toEqual([file, rules])
     const doctor = checkPolicyRules(report)
-    expect(doctor.items.map(i => i.key)).toEqual([`policy:writable:${file}`, `policy:writable:${rules}`])
+    expect(doctor.items!.map(i => i.key)).toEqual([`policy:writable:${file}`, `policy:writable:${rules}`])
   })
 
   it('a copy planted beside a configured file is never used, before or after a restart', async () => {
@@ -179,11 +180,11 @@ describe('AIMAESTRO_POLICY_FAIL_CLOSED', () => {
     vi.stubEnv('AIMAESTRO_POLICY_FAIL_CLOSED', '1')
     vi.resetModules()
     const { getPolicy } = await import('@/services/policy-service')
-    const report = getPolicy().data!
+    const report = getPolicy().data as PolicyReport
     expect(report).toMatchObject({ failClosed: true, refusing: true })
     const doctor = checkPolicyRules(report)
     expect(doctor.status).toBe('fail')
-    expect(doctor.items[0]).toMatchObject({ key: 'policy:fail-closed', status: 'fail', message: expect.stringContaining('AGENTS ARE REFUSED') })
+    expect(doctor.items![0]).toMatchObject({ key: 'policy:fail-closed', status: 'fail', message: expect.stringContaining('AGENTS ARE REFUSED') })
   })
 
   it('accepts 1, true, yes and on; anything else is off', async () => {

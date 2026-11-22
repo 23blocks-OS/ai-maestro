@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.258] - 2026-11-22 - An imported agent belongs to its new host
+
+### Fixed
+- An agent copied or moved to another host (`POST /api/agents/<id>/transfer`, or an import) kept the source host's `hostId`, `hostName` and `hostUrl`, so the new host treated it as an agent that lives on the old one (#856). Import now sets them to the importing host.
+- Its working folder kept the source path even when the two hosts have different home folders. A folder under another user's home (`/home/<user>/…` or `/Users/<user>/…`) that does not exist on the new host is now moved to the same place under this host's home, and the import says so in its warnings. The folder's files are not copied.
+
 ## [0.106.257] - 2026-11-22 - Secrets work on a fresh install
 
 ### Fixed

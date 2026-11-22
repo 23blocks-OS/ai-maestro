@@ -1897,11 +1897,17 @@ async function startServer(handleRequest) {
       return
     }
     try {
+      // Its own account, as in its terminal (#65); without it the session would use this computer's login
+      if (starting && agentId && agentRecord?.credential) {
+        const { loadAgentCredential } = await import('./lib/streaming-runtime.mjs')
+        await loadAgentCredential(agentId, agentRecord.credential)
+      }
       session = getOrCreateStreamSession(agentKey, {
         cwd: workingDir,
         agentId: agentId || null,
         agentName,
         resumeSessionId,
+        credential: agentRecord?.credential,
       })
       if (starting && agentId && agentRecord?.runtimeMode !== 'streaming') {
         import('./lib/agent-registry.ts').then(({ updateAgent }) => updateAgent(agentId, { runtimeMode: 'streaming' })).catch(() => {})
@@ -2801,13 +2807,20 @@ async function startServer(handleRequest) {
         hubAddress: getLocalIPs().find((i) => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(i.ip))?.ip ?? null,
         onEvent: async (event) => {
           console.log(`[Devices] ${event.type} ${event.deviceKey} for ${event.agent}`)
+          // An agent with its own account: read it now, so its speaking side is ready for the first words
+          if (event.type === 'device.online' || event.type === 'device.activated') {
+            const id = globalThis._deviceHost.agentIdOf(event.agent)
+            const { getAgent } = await import('./lib/agent-registry.ts')
+            const agent = id && getAgent(id)
+            if (agent?.experiments?.speakingSide && agent.credential) void globalThis._speakingSides?.prepare?.(agent)
+          }
           const { deliverDeviceEvent } = await import('./lib/device-events.ts')
           await deliverDeviceEvent(event, (address) => globalThis._deviceHost.agentIdOf(address))
         },
       })
       // The speaking side of agents that use the F100 experiment: created now, started on the first tap or words
       try {
-        const [{ createSpeakingSides }, { query, tool, createSdkMcpServer }, { buildEnv }, { appendSpeakingLog }] = await Promise.all([
+        const [{ createSpeakingSides }, { query, tool, createSdkMcpServer }, { buildEnv, loadAgentCredential, credentialReady }, { appendSpeakingLog }] = await Promise.all([
           import('./lib/cerebellum/speaking-side.mjs'), import('@anthropic-ai/claude-agent-sdk'), import('./lib/streaming-runtime.mjs'), import('./lib/speaking-log.mjs'),
         ])
         const { toChatEntry } = await import('./lib/speaking-log.mjs')
@@ -2815,7 +2828,7 @@ async function startServer(handleRequest) {
         const devices = () => import('./services/agent-devices-service.ts')
         const value = (r) => { if (r.status !== 200 || r.data?.ok === false) throw new Error(r.data?.error || r.data?.message || 'refused'); return r.data.value }
         globalThis._speakingSides = createSpeakingSides({
-          query, buildEnv,
+          query, buildEnv, loadCredential: (id, c) => loadAgentCredential(id, c), credentialReady,
           say: async (agentId, key, text) => {
             const { invokeAgentDevice } = await import('./services/agent-devices-service.ts')
             return (await invokeAgentDevice(agentId, key, { capability: 'speaker.say', args: { text } })).data?.value
@@ -2847,6 +2860,15 @@ async function startServer(handleRequest) {
             }
           },
         })
+        // 'always' agents (a host with memory to spare): their speaking side runs whenever their main session does
+        const keepWarm = async () => {
+          try {
+            const [{ loadAgents }, { isSelf }] = await Promise.all([import('./lib/agent-registry.ts'), import('./lib/hosts-config.ts')])
+            await globalThis._speakingSides?.keepWarm(loadAgents().filter(a => !a.deletedAt && (!a.hostId || isSelf(a.hostId))))
+          } catch (err) { console.warn(`[Speaking] keep warm failed: ${err.message}`) }
+        }
+        setTimeout(keepWarm, 15_000).unref?.()
+        setInterval(keepWarm, 60_000).unref?.()
       } catch (err) {
         console.error('[Speaking] Not available:', err.message)
       }

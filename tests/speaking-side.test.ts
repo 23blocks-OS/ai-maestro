@@ -114,6 +114,64 @@ function setup(turns: object[][], extra = {}) {
 const wait = () => new Promise((r) => setTimeout(r, 30))
 
 describe('the speaking side', () => {
+  it('an agent with its own account: the first turn waits for it, never this computer\'s login', async () => {
+    let ready = false
+    const loadCredential = vi.fn(async () => { ready = true; return true })
+    const { sides, agent, fake } = setup([[result]], { loadCredential, credentialReady: () => ready })
+    const own = { ...agent, credential: { kind: 'oauth-token', secret: 'ACME_TOKEN' } }
+    expect(await sides.handleReady(own, { deviceKey: 'k', deviceName: 'Phone', text: 'Hi', source: 'voice' })).toBe(true)
+    expect(loadCredential).toHaveBeenCalledWith('lola-id', own.credential)
+    await wait()
+    expect(fake.seen.prompts.join(' ')).toContain('"Hi"')
+  })
+
+  it('a turn that fails before saying anything goes to the main session; one that spoke does not go twice', async () => {
+    const failed = { type: 'result', is_error: true, result: 'Not logged in · Please run /login' }
+    const { sides, agent } = setup([[failed], [start, delta('Hello Juan.'), stop, failed]])
+    const fallback = vi.fn()
+    expect(sides.handle(agent, { deviceKey: 'k', deviceName: 'Phone', text: 'Hi', source: 'voice', fallback })).toBe(true)
+    await wait()
+    expect(fallback).toHaveBeenCalledOnce()
+    const second = vi.fn()
+    sides.handle(agent, { deviceKey: 'k', deviceName: 'Phone', text: 'Hi again', source: 'voice', fallback: second })
+    await wait()
+    expect(second).not.toHaveBeenCalled()
+    sides.stopAll()
+  })
+
+  it('words still open when it stops go the usual way', async () => {
+    const { sides, agent } = setup([[]])
+    const fallback = vi.fn()
+    sides.handle(agent, { deviceKey: 'k', deviceName: 'Phone', text: 'Hi', source: 'voice', fallback })
+    await wait()
+    sides.stop(agent.id, 'test')
+    expect(fallback).toHaveBeenCalledOnce()
+  })
+
+  it('cannot start without its credential, and does not start on the host login', async () => {
+    const loadCredential = vi.fn(async () => false)
+    const { sides, agent, fake } = setup([[result]], { loadCredential, credentialReady: () => false })
+    const own = { ...agent, credential: { kind: 'oauth-token', secret: 'ACME_TOKEN' } }
+    expect(await sides.handleReady(own, { deviceKey: 'k', deviceName: 'Phone', text: 'Hi', source: 'voice' })).toBe(false)
+    await wait()
+    expect(fake.seen.options).toBeNull()
+  })
+
+  it('keepWarm starts an always agent, leaves an on-tap one stopped, and restarts on a new credential', async () => {
+    const loadCredential = vi.fn(async () => true)
+    const { sides, agent } = setup([[result], [result]], { loadCredential, credentialReady: () => true })
+    const tap = { ...agent, id: 'tap-id', experiments: { speakingSide: true }, credential: { kind: 'oauth-token', secret: 'T' } }
+    const always = { ...agent, experiments: { speakingSide: 'always' }, credential: { kind: 'oauth-token', secret: 'A' } }
+    await sides.keepWarm([tap, always])
+    expect(sides.get('tap-id')).toBeUndefined()
+    const first = sides.get('lola-id')
+    expect(first).toBeTruthy()
+    await sides.keepWarm([{ ...always, credential: { kind: 'oauth-token', secret: 'B' } }])
+    expect(sides.get('lola-id')).not.toBe(first)
+    expect(first.closed).toBe(true)
+    sides.stopAll()
+  })
+
   it('starts with one tool, no outside tools, the agent card, and the lock', async () => {
     const { sides, agent, fake } = setup([[result]])
     expect(sides.handle(agent, { deviceKey: 'k', deviceName: 'MacBook', text: 'Hi', source: 'voice' })).toBe(true)

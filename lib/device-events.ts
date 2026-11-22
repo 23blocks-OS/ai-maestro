@@ -52,14 +52,8 @@ export async function deliverDeviceEvent(event: DeviceEvent, agentIdOf: (address
     return
   }
 
-  // Experiment F100: the agent's speaking side answers. When it cannot, the words go the usual way below
-  const speaking = (globalThis as { _speakingSides?: { handle(a: unknown, e: unknown): boolean } })._speakingSides
-  if (input && agent.experiments?.speakingSide && speaking?.handle(agent, { deviceKey: event.deviceKey, deviceName: device, text: event.text, source: event.source, via: event.via, person, ...(heard ? { note: heard } : {}) })) {
-    seen.add(event.id)
-    return
-  }
   const relayed = input ? relayNote(event.via) : ''
-  await sendFromUI({
+  const usual = () => sendFromUI({
     from: `device-${event.deviceKey.slice(0, 8)}`,
     fromAlias: person ? `${person} at ${device}` : `Device ${device}`,
     to: agent.id,
@@ -76,6 +70,16 @@ export async function deliverDeviceEvent(event: DeviceEvent, agentIdOf: (address
     fromVerified: !!person,
     fromParty,
   } as Parameters<typeof sendFromUI>[0])
+
+  // Experiment F100: the agent's speaking side answers. When it cannot take the words, or its turn fails before it
+  // said or handed on anything, they go the usual way: nothing a person says is lost
+  const speaking = (globalThis as { _speakingSides?: { handleReady(a: unknown, e: unknown): Promise<boolean> } })._speakingSides
+  const fallback = () => usual().catch((err: Error) => console.error(`[Devices] Input at ${device} not delivered after the speaking side failed: ${err.message}`))
+  if (input && agent.experiments?.speakingSide && await speaking?.handleReady(agent, { deviceKey: event.deviceKey, deviceName: device, text: event.text, source: event.source, via: event.via, person, fallback, ...(heard ? { note: heard } : {}) })) {
+    seen.add(event.id)
+    return
+  }
+  await usual()
 
   seen.add(event.id)
   if (seen.size > REMEMBERED) seen.delete(seen.values().next().value as string)

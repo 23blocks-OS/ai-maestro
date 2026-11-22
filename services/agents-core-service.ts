@@ -2199,6 +2199,13 @@ async function wakeAgentStart(agentId: string, params: WakeAgentParams): Promise
         // One builder for waking and creating (lib/launch-command): the tool, the agent's extra arguments and model,
         // the permission flags, the tool's declared options, and for Claude Code the fixed AI Maestro additions.
         // This wake's options win, else the ones remembered on the agent.
+        const launchOptions = params.launchOptions ?? agent.launchOptions
+        // "Continue the last conversation" (Claude Code): its own conversation, when it is safe to reopen
+        let resumeSessionId = params.resumeSessionId
+        if (!resumeSessionId && resolved.kind === 'claude' && launchOptions?.continue === true) {
+          resumeSessionId = resumableSessionId(agent, { dir: workingDirectory, switchedAt: confirmedStops.get(agent.id) }) || undefined
+          console.log(`[Wake] ${agentName}: ${resumeSessionId ? `continuing conversation ${resumeSessionId.slice(0, 8)}` : 'no conversation to continue, starting a new one'}`)
+        }
         const fullCommand = buildLaunchCommand({
           command: startCommand,
           kind: resolved.kind,
@@ -2206,8 +2213,8 @@ async function wakeAgentStart(agentId: string, params: WakeAgentParams): Promise
           programArgs: agent.programArgs,
           model: agent.model,
           permissionMode: params.permissionMode || agent.permissionMode,
-          launchOptions: params.launchOptions ?? agent.launchOptions,
-          resumeSessionId: params.resumeSessionId,
+          launchOptions,
+          resumeSessionId,
           credential: agent.credential,
           launcher: path.join(process.cwd(), 'scripts', 'aim-launch.sh'),
         })
@@ -2299,6 +2306,9 @@ async function wakeAgentStart(agentId: string, params: WakeAgentParams): Promise
 // ---------------------------------------------------------------------------
 // POST /api/agents/[id]/hibernate -- hibernate an agent
 // ---------------------------------------------------------------------------
+
+/** agentId -> when a hibernate saw its terminal end (in memory: after a server restart the quiet rule applies) */
+const confirmedStops: Map<string, string> = ((globalThis as { _aimConfirmedStops?: Map<string, string> })._aimConfirmedStops ??= new Map())
 
 export async function hibernateAgent(agentId: string, params: HibernateAgentParams): Promise<ServiceResult<{
   success: boolean
@@ -2429,6 +2439,8 @@ export async function hibernateAgent(agentId: string, params: HibernateAgentPara
 
     // Remove from session persistence
     unpersistSession(sessionName)
+    // A stop seen to finish: the next wake may reopen a conversation not written since (resumableSessionId)
+    if (!(await runtime.sessionExists(sessionName))) confirmedStops.set(agentId, new Date().toISOString())
 
     // Update agent status in registry
     updateAgentSessionInRegistry(agentId, sessionIndex, 'offline')

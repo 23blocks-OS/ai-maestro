@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.261] - 2026-11-22 - The fast voice and streaming use the agent's own account
+
+### Fixed
+- An agent's fast speaking side (F100) and its streaming sessions ignored the agent's credential (#65) and signed in with the computer's own Claude login. On a computer with no login of its own the speaking side failed ("Not logged in"), and on one with a login it ran on the computer's account instead of the agent's. They now use the agent's own credential, read from the vault the way the terminal launcher does: a subscription token, an API key, a gateway or a Claude config folder. The credential is read ahead for every agent with a speaking side (at server start, every minute, and when a device comes online), and a device's first turn waits for it rather than going elsewhere. A speaking side is never started on the computer's login for an agent that has its own; if its credential cannot be read, the words go to the main session and the log says why.
+- "Always warm" (`experiments.speakingSide: 'always'`) only kept a speaking side from stopping once something had started it. The server now starts it whenever the agent's main session runs, checks every minute, and starts it again on the new account when the agent's credential changes.
+- Words said at a device were lost when the speaking side's turn failed: it logged "turn failed" and nobody answered. A turn that fails before the speaking side said or handed on anything, or that is still open when the speaking side stops, now goes to the main session the usual way.
+
 ## [0.106.260] - 2026-11-22 - Continue right after a hibernate
 
 ### Fixed

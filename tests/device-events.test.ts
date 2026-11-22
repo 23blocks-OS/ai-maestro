@@ -68,7 +68,7 @@ describe('a device that speaks for a person (F103)', () => {
   })
   it('the cerebellum is told who it is', async () => {
     const handle = vi.fn(() => true)
-    g._speakingSides = { handle }
+    g._speakingSides = { handle, handleReady: async (...a: unknown[]) => (handle as (...x: unknown[]) => unknown)(...a) }
     await deliverDeviceEvent(event({ deviceKey: 'PHONEKEY0123456789ab', name: 'iPhone' }), expOf)
     expect(handle).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ person: 'Juan' }))
     delete g._speakingSides
@@ -84,21 +84,25 @@ describe('the speaking side experiment (F100)', () => {
   const expOf = (address: string) => (address === 'lola@x' ? 'exp-id' : undefined)
   it('with the flag on, the speaking side takes the words and nothing goes the usual way', async () => {
     const handle = vi.fn(() => true)
-    g._speakingSides = { handle }
+    g._speakingSides = { handle, handleReady: async (...a: unknown[]) => (handle as (...x: unknown[]) => unknown)(...a) }
     await deliverDeviceEvent(event({ source: 'voice' }), expOf)
-    expect(handle).toHaveBeenCalledWith(expect.objectContaining({ id: 'exp-id' }), { deviceKey: 'WCKlMemnV7JtD6Yln67o', deviceName: 'MacBook', text: 'Hello', source: 'voice', person: undefined })
+    expect(handle).toHaveBeenCalledWith(expect.objectContaining({ id: 'exp-id' }), { deviceKey: 'WCKlMemnV7JtD6Yln67o', deviceName: 'MacBook', text: 'Hello', source: 'voice', person: undefined, fallback: expect.any(Function) })
     expect(sendFromUI).not.toHaveBeenCalled()
+    // Its turn failed before it said anything: the same words go the usual way
+    const turn = (handle.mock.calls[0] as unknown[])[1] as { fallback: () => Promise<unknown> }
+    await turn.fallback()
+    expect(sendFromUI).toHaveBeenCalledOnce()
     delete g._speakingSides
   })
   it('when the speaking side cannot take them, the words go the usual way', async () => {
-    g._speakingSides = { handle: () => false }
+    g._speakingSides = { handle: () => false, handleReady: async () => false }
     await deliverDeviceEvent(event(), expOf)
     expect(sendFromUI).toHaveBeenCalledTimes(1)
     delete g._speakingSides
   })
   it('with the flag off, the speaking side is never asked', async () => {
     const handle = vi.fn(() => true)
-    g._speakingSides = { handle }
+    g._speakingSides = { handle, handleReady: async (...a: unknown[]) => (handle as (...x: unknown[]) => unknown)(...a) }
     await deliverDeviceEvent(event(), idOf)
     expect(handle).not.toHaveBeenCalled()
     expect(sendFromUI).toHaveBeenCalledTimes(1)
@@ -132,7 +136,7 @@ describe('who the voice sounds like (#78)', () => {
   })
   it('the speaking side gets the note and no person when they disagree', async () => {
     const handle = vi.fn(() => true)
-    g._speakingSides = { handle }
+    g._speakingSides = { handle, handleReady: async (...a: unknown[]) => (handle as (...x: unknown[]) => unknown)(...a) }
     await deliverDeviceEvent(event({ ...phone, speaker: { id: 'p2', name: 'Alice', confidence: 0.9 } }), expOf)
     expect(handle).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ person: undefined, note: expect.stringContaining('sounds like Alice') }))
     delete g._speakingSides

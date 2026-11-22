@@ -23,17 +23,21 @@ fetch() { # url file expected-sha
 mkdir -p "$DIR"
 # uv's installer puts it in ~/.local/bin (older ones ~/.cargo/bin), which a new shell may not have on PATH yet
 export PATH="$PATH:$HOME/.local/bin:$HOME/.cargo/bin"
+# kokoro-onnx 0.6.1 supports Python 3.10 to 3.13. Ubuntu 26.04 ships only 3.14, so uv is asked for 3.12 and brings
+# its own copy when the system has none. A venv made earlier with an unsupported Python is made again.
+supported() { "$1" -c 'import sys; sys.exit(not ((3, 10) <= sys.version_info[:2] <= (3, 13)))' 2>/dev/null; }
+[ -x "$DIR/.venv/bin/python" ] && ! supported "$DIR/.venv/bin/python" && rm -rf "$DIR/.venv"
 if command -v uv >/dev/null; then
-  [ -x "$DIR/.venv/bin/python" ] || uv venv -q "$DIR/.venv"
+  [ -x "$DIR/.venv/bin/python" ] || uv venv -q --python 3.12 "$DIR/.venv"
   uv pip install -q --python "$DIR/.venv/bin/python" kokoro-onnx==0.6.1 soundfile==0.14.0 faster-whisper==1.2.1 kaldi-native-fbank==1.23.1
 else
   # macOS ships Python 3.9, and Kokoro needs 3.10 or newer
   if [ ! -x "$DIR/.venv/bin/python" ]; then
     PY=""
     for candidate in python3.13 python3.12 python3.11 python3.10 python3 "$HOME"/.pyenv/versions/3.1[0-3]*/bin/python; do
-      if command -v "$candidate" >/dev/null && "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 10))'; then PY="$candidate"; break; fi
+      if command -v "$candidate" >/dev/null && supported "$candidate"; then PY="$candidate"; break; fi
     done
-    [ -n "$PY" ] || { echo "Error: local speech needs Python 3.10 or newer. Install it, or install uv, then run this again." >&2; exit 1; }
+    [ -n "$PY" ] || { echo "Error: local speech needs Python 3.10 to 3.13 (this system has $(python3 --version 2>&1)). Install uv (it brings its own Python), then run this again." >&2; exit 1; }
     "$PY" -m venv "$DIR/.venv"
   fi
   "$DIR/.venv/bin/python" -m pip install -q kokoro-onnx==0.6.1 soundfile==0.14.0 faster-whisper==1.2.1 kaldi-native-fbank==1.23.1

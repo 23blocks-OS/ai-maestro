@@ -18,6 +18,8 @@ export class ReverseHub extends EventEmitter {
     ) => void | Promise<void>;
     heartbeatMs?: number;
     silentMs?: number;
+    /** Which source addresses count as a home network (default: private IPv4 ranges) */
+    isHome?: (address: string | undefined) => boolean;
   });
   server: Server;
   connections: ReadonlyMap<string, unknown>;
@@ -35,6 +37,8 @@ export class DeviceConnection extends EventEmitter {
     ) => Promise<{ status: number; body: unknown }>;
     retryMinMs?: number;
     retryMaxMs?: number;
+    /** S003: connect to /v1/secure, encrypted; may use a home network address; never falls back to /v1/connect */
+    secure?: boolean;
   });
   connected: boolean;
   ready: Promise<void>;
@@ -49,3 +53,8 @@ export function boundedJson(
   response: Response,
   limit?: number,
 ): Promise<unknown>;
+/** A private (home network) IPv4 address: 10/8, 172.16/12 or 192.168/16 */
+export function homeAddress(address: string | undefined): boolean;
+/** A controller origin for an encrypted connection: loopback, Tailscale or a home network IPv4 address */
+export function secureOrigin(value: string): string;
+

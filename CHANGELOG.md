@@ -3,6 +3,24 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.264] - 2026-11-22 - Devices on the home network, encrypted
+
+### Added
+- Boards that cannot run Tailscale, such as an ESP32 camera, can connect to an agent over the home network, encrypted (S003 of the Agent Device Protocol). It is off by default. Set `AIMAESTRO_DEVICE_HOME_ADDRESS` to one of this computer's private IPv4 addresses, and the device hub also takes device connections there, on port 23112. An encrypted connection (`/v1/secure`) gets everything a Tailscale connection gets. A plain connection from the home network gets only health, screen text and "in use", as before. The hub's HTTP API is not served on the home address. `GET /api/agents/<id>/devices/identity` returns the address as `home`.
+
+### Changed
+- The device SDK copy is now at agent-device-protocol `0c055dc` (adds `secure.mjs`; the hub accepts `/v1/secure` and limits plain home network connections).
+
+## [0.106.263] - 2026-11-22 - Local voice installs on Ubuntu 26.04
+
+### Fixed
+- `scripts/install-voice.sh` failed on Ubuntu 26.04, which ships only Python 3.14: it took any Python from 3.10 up, but `kokoro-onnx` 0.6.1 supports 3.10 to 3.13, so the install stopped with "No matching distribution found". It now accepts only 3.10 to 3.13, asks `uv` for Python 3.12 (uv brings its own copy when the system has none), makes again a voice folder left with an unsupported Python, and says what to install when no supported Python is found.
+
+## [0.106.262] - 2026-11-22 - A backup voice of the agent's own
+
+### Added
+- An agent with an ElevenLabs voice can have its own backup voice for when ElevenLabs cannot be reached: `voice.localVoiceId`, a local (Kokoro) voice, set in the profile under Voice or with `PATCH /api/agents/<id>`. Until now the local fallback always used the default local voice, `af_heart`, so every agent sounded the same, and like a woman, whenever ElevenLabs failed. The host needs local speech installed (`scripts/install-voice.sh`); without it the agent stays silent when ElevenLabs fails, and the log says so.
+
 ## [0.106.261] - 2026-11-22 - The fast voice and streaming use the agent's own account
 
 ### Fixed

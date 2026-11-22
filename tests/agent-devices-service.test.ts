@@ -351,6 +351,45 @@ describe('a device that connects in, such as a phone', () => {
     expect((await svc.getAgentDeviceIdentity('a') as any).data.hub).toBeNull()
     expect((await svc.addAgentDevice('a', { key: identity().key, endpoint: 'reverse' })).status).toBe(409)
   })
+
+  // S003: '::1' stands in for the home network address, so one computer can run it
+  it('connects encrypted, and the home listener takes device connections only, never the HTTP API', async () => {
+    const host = createDeviceHost({ agentsDir: dir, hubAddress: '127.0.0.1', homeAddress: '::1' } as any)
+    hosts.push(host)
+    g._deviceHost = host
+    const { data } = await svc.getAgentDeviceIdentity('a') as any
+    expect(data.home).toBe('http://::1:23112')
+    const device = identity()
+    deviceKeys.set(device.key, device)
+    const peer = { key: data.key, assignedAgent: data.address, revision: 'r1', camera: true }
+    const server = bridge(device, () => peer, hardware)
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    servers.push(server)
+    const origin = `http://127.0.0.1:${(server.address() as any).port}`
+    await svc.addAgentDevice('a', { key: device.key, endpoint: 'reverse', name: 'board' })
+
+    const connection = new DeviceConnection({
+      origin: data.hub, identity: device, getPeer: () => peer, retryMinMs: 10, retryMaxMs: 20, secure: true,
+      adapter: async (method: string, body: unknown, signal: AbortSignal) => {
+        const res = await fetch(`${origin}/v1/${method}`, { signal, method: method === 'challenge' ? 'GET' : 'POST', ...(body ? { body: JSON.stringify(body) } : {}) })
+        return { status: res.status, body: await res.json() }
+      },
+    })
+    await connection.ready
+    await vi.waitFor(async () => expect(((await svc.refreshAgentDevice('a', device.key)) as any).data.device.verified).toBe(true))
+    await svc.jumpAgentDevice('a', device.key)
+    expect(((await svc.invokeAgentDevice('a', device.key, { capability: 'camera.snapshot' })) as any).data.value.mime).toBe('image/jpeg')
+    await connection.stop()
+
+    // The home address: the key exchange starts there, and nothing else is served
+    const { default: WebSocket } = await import('ws')
+    const ws = new WebSocket(`ws://[::1]:23112/v1/secure/${device.key}`)
+    const [hello] = await once(ws, 'message')
+    expect(JSON.parse(hello.toString()).body).toBeTruthy()
+    ws.terminate()
+    expect((await fetch(`http://[::1]:23112/v1/devices/${device.key}`)).status).toBe(404)
+  })
 })
 
 describe('a person speaking at a device', () => {
@@ -644,7 +683,7 @@ describe('agents that change (review of step 1)', () => {
     const device = await pair('a')
     const key = ((await svc.getAgentDeviceIdentity('a')).data as any).key
     agents.get('a').metadata.amp.address = 'a2@town.local'
-    expect(((await svc.getAgentDeviceIdentity('a')).data as any)).toEqual({ hub: null, address: 'a2@town.local', key })
+    expect(((await svc.getAgentDeviceIdentity('a')).data as any)).toEqual({ hub: null, home: null, address: 'a2@town.local', key })
     expect(((await svc.listAgentDevices('a')).data as any).devices.map((d: any) => d.key)).toEqual([device.key])
     expect(svc.listHostDevices().status).toBe(200)
   })

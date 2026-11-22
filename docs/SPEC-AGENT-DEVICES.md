@@ -43,6 +43,7 @@ differs from its recorded hash. A hand edit then fails CI. Updating means copyin
   It is created by `server.mjs`, not imported by a route: `ws` and the hub must not end up in a Next bundle.
 - `services/agent-devices-service.ts` is the only code that calls it: pure functions returning `ServiceResult<T>`, with Next and headless routes as usual.
 - The hub listens on its own port, 23112, on this host's Tailscale address. It starts only when an agent has a device with a `reverse` endpoint.
+- Home network (S003 of the protocol, opt-in): with `AIMAESTRO_DEVICE_HOME_ADDRESS=<one of this host's private IPv4 addresses>`, the hub also takes device connections on that address, port 23112. It serves only WebSocket upgrades there, not the HTTP API. A board connects to `ws://<that address>:23112/v1/secure/<device key>`, encrypted, and gets the full profile; a plain `/v1/connect` from a home address gets only `device.health`, `display.text` and `device.used`. A host without Tailscale runs the hub's HTTP API on loopback instead. An address that is not private or not this host's is ignored, and the log says so. `GET /api/agents/<id>/devices/identity` returns it as `home`.
 - `controller.start({ intervalMs })` runs only when at least one device exists. A host with no devices does nothing.
 
 ## 5. Storage

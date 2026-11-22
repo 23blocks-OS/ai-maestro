@@ -133,6 +133,12 @@ describe('picking the engine', () => {
     expect(await list(speakWith('First. Second.', { engine: 'elevenlabs', voiceId: 'v' }, failing))).toEqual(['eleven:First.', 'local:default:Second.'])
   })
 
+  it('the agent\'s own backup voice finishes the reply, not the shared default', async () => {
+    const failing = engines({ elevenLabs: async function* () { throw Object.assign(new Error('fetch failed'), { rest: 'Hi.' }) } })
+    vi.spyOn(console, 'error').mockImplementationOnce(() => {})
+    expect(await list(speakWith('Hi.', { engine: 'elevenlabs', voiceId: 'v', localVoiceId: 'am_michael' }, failing))).toEqual(['local:am_michael:Hi.'])
+  })
+
   it('with no local speech the failure is an answer', async () => {
     const failing = engines({ localReady: () => false, elevenLabs: async function* () { throw new Error('down') } })
     vi.spyOn(console, 'error').mockImplementationOnce(() => {})

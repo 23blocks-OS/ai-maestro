@@ -1151,12 +1151,15 @@ export function updateAgentById(id: string, body: UpdateAgentRequest, caller?: P
     }
 
     if (body.voice !== undefined && body.voice !== null) {
-      const { engine, voiceId, ...other } = body.voice as AgentVoice
+      const { engine, voiceId, localVoiceId, ...other } = body.voice as AgentVoice
       if (!AGENT_VOICE_ENGINES.includes(engine)) return invalidRequest(`voice.engine must be one of: ${AGENT_VOICE_ENGINES.join(', ')}`)
       if (voiceId !== undefined && (typeof voiceId !== 'string' || !/^[\w.-]{1,80}$/.test(voiceId))) {
         return invalidRequest('voice.voiceId must be letters, digits, dots, dashes or underscores, at most 80')
       }
-      if (Object.keys(other).length) return invalidRequest('voice has only engine and voiceId: a key belongs to the host')
+      if (localVoiceId !== undefined && (typeof localVoiceId !== 'string' || !/^[\w.-]{1,80}$/.test(localVoiceId))) {
+        return invalidRequest('voice.localVoiceId must be letters, digits, dots, dashes or underscores, at most 80')
+      }
+      if (Object.keys(other).length) return invalidRequest('voice has only engine, voiceId and localVoiceId: a key belongs to the host')
     }
 
     // Which account or key the agent uses (#65): names of vault entries only, never a value

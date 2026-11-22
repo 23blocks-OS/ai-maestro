@@ -6,7 +6,7 @@ import { loadTeams } from '@/lib/team-registry'
 import { getSelfHostId, isSelf } from '@/lib/hosts-config'
 import { personIdFromAddress } from '@/lib/person-address'
 import { getPerson, loadPeople } from '@/lib/people-registry'
-import { decide, loadPolicy, logPolicyDecision, partyLabel, shouldLog, type PolicyAction, type PolicyDecision, type PolicyParty } from '@/lib/policy'
+import { ACTION_WORDS, decide, loadPolicy, logPolicyDecision, partyLabel, shouldLog, type LoadedPolicy, type PolicyAction, type PolicyDecision, type PolicyParty } from '@/lib/policy'
 import { createQuarantine, takePass, type ApproverLookup, type HeldPath } from '@/lib/policy-approvals'
 
 const hostOf = (hostId?: string) => (!hostId || hostId === 'local' || isSelf(hostId) ? getSelfHostId() : hostId)
@@ -50,13 +50,15 @@ export function teamsOf(p: PolicyParty): string[] {
 
 /**
  * This host's decision. Never throws: with no rules file (or a broken one that never loaded) everyone may reach
- * everyone. An ask that an approved quarantine entry covers is allowed, once: the replay of that held message
+ * everyone, unless AIMAESTRO_POLICY_FAIL_CLOSED is on (failClosedDecision). An ask that an approved quarantine entry covers is allowed, once: the replay of that held message
  * (`approved: <quarantine id>`), or the next identical call. An approval never opens a deny. Refusals, asks and audit
  * hits go to the decision log; `log: false` for a "why" question, which decides nothing and uses no pass.
  */
 export function checkPolicy(from: PolicyParty, to: PolicyParty, action: PolicyAction = 'message', opts: { log?: boolean; approved?: string } = {}): PolicyDecision {
-  const { policy, hash } = loadPolicy()
+  const loaded = loadPolicy()
+  const { policy, hash } = loaded
   const host = getSelfHostId()
+  if (loaded.failClosed) return failClosedDecision(loaded, from, to, action, host, opts.log !== false)
   if (!policy) return { allowed: true, effect: 'allow', reason: `Allowed: host ${host} has no rules, so everyone may reach everyone`, host }
   let d = decide(policy, from, to, action, { host, teamsOf })
   if (d.effect === 'ask' && opts.log !== false) {
@@ -70,6 +72,25 @@ export function checkPolicy(from: PolicyParty, to: PolicyParty, action: PolicyAc
       version: policy.version, hash,
     })
   }
+  return d
+}
+
+/**
+ * AIMAESTRO_POLICY_FAIL_CLOSED with a rules file that cannot be used (lib/policy loadPolicy). AI Maestro itself may
+ * always send. A person (the dashboard, a person's device, the operator) may still message and call, so the host can
+ * still be steered while the file is fixed. Everything an agent sends, and every governance action, is refused.
+ */
+function failClosedDecision(loaded: LoadedPolicy, from: PolicyParty, to: PolicyParty, action: PolicyAction, host: string, log: boolean): PolicyDecision {
+  if (from.kind === 'system') return { allowed: true, effect: 'allow', reason: 'AI Maestro itself may always send', host }
+  const comms = action === 'message' || action === 'call'
+  if (from.kind === 'person' && comms) {
+    return { allowed: true, effect: 'allow', reason: `Allowed: this host's rules file cannot be used (${loaded.file}), and while it is fixed a person may still ${action} anyone (AIMAESTRO_POLICY_FAIL_CLOSED)`, host }
+  }
+  const d: PolicyDecision = {
+    allowed: false, effect: 'deny', host,
+    reason: `${partyLabel(from)} may not ${ACTION_WORDS[action] || action} ${partyLabel(to)}: this host's rules file cannot be used (${loaded.file}), and AIMAESTRO_POLICY_FAIL_CLOSED refuses ${comms ? 'what agents send' : 'changes to agents'} until it is fixed`,
+  }
+  if (log) logPolicyDecision({ host, action, from: partyLabel(from), to: partyLabel(to), effect: 'deny', note: 'fail-closed: the rules file cannot be used' })
   return d
 }
 

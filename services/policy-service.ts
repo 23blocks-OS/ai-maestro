@@ -12,9 +12,11 @@
  * POST /api/v1/quarantine/{id}/approve | /reject     — { by?, host? } (host: the host that keeps it)
  * A message to `_provider` answering an approval request (AMP 07 "Approval by message") — answerProviderMessage
  */
+import fs from 'fs'
+import path from 'path'
 import { getHostById, getPeerHosts, getSelfHostId, isSelf } from '@/lib/hosts-config'
 import {
-  loadPolicy, lintPolicy, partyLabel, policyLogFile, runPolicyTests, POLICY_ACTIONS,
+  loadPolicy, lintPolicy, partyLabel, policyLogFile, policySettings, runPolicyTests, POLICY_ACTIONS,
   type Policy, type PolicyAction, type PolicyDecision, type PolicyEffect, type PolicyLint, type PolicyRuleV2, type PolicyTestResult,
 } from '@/lib/policy'
 import { checkPolicy, resolveParty, teamsOf } from '@/lib/policy-check'
@@ -39,14 +41,36 @@ export interface PolicyReport {
   tests: PolicyTestResult[]
   decisionLog: string
   error?: string
+  /** The file is AIMAESTRO_POLICY_FILE */
+  configured: boolean
+  /** AIMAESTRO_POLICY_FAIL_CLOSED is on */
+  failClosed: boolean
+  /** The file cannot be used and fail-closed is on: agents' messages, calls and governance actions are refused now */
+  refusing?: boolean
+  /** The rules in force are not the file's: the version this process loaded, or the saved copy */
+  lastGood?: 'memory' | 'saved'
+  /** A configured file, or its folder, that this server's OS user (so every agent on the host) can write */
+  writable?: string[]
+}
+
+/** The configured file and its folder, where the server's own user can change them (fs.access W_OK) */
+function writableBy(file: string): string[] {
+  const out: string[] = []
+  for (const p of [file, path.dirname(file)]) {
+    try { fs.accessSync(p, fs.constants.W_OK); out.push(p) } catch { /* not writable, or missing */ }
+  }
+  return out
 }
 
 export function getPolicy(): ServiceResult<PolicyReport> {
-  const { file, rules, policy, hash, error } = loadPolicy()
+  const settings = policySettings()
+  const { file, rules, policy, hash, error, failClosed: refusing, lastGood } = loadPolicy()
   const host = getSelfHostId()
+  const writable = settings.configured && !settings.error ? writableBy(file) : []
   return {
     data: {
-      host, file, rules,
+      host, file, rules, configured: settings.configured, failClosed: settings.failClosed,
+      ...(refusing ? { refusing: true } : {}), ...(lastGood ? { lastGood } : {}), ...(writable.length ? { writable } : {}),
       ...(policy ? { version: policy.version, default: policy.default, mode: policy.mode, hash } : {}),
       lint: policy ? lintPolicy(policy) : [],
       tests: policy ? runPolicyTests(policy, ref => resolveParty(ref), { host, teamsOf }) : [],

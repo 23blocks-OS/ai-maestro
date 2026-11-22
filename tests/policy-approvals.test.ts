@@ -307,6 +307,7 @@ describe('quarantine at the send paths (AMP 07/08)', () => {
   it('with no rules file nothing changes on any path, and no store is written', async () => {
     fs.rmSync(ruleFile(home))
     fs.rmSync(`${ruleFile(home)}.last-good`, { force: true }) // a host with no rules at all, not a deleted file
+    vi.resetModules() // and a server that never loaded any (a deleted file keeps the version this process loaded)
     const { startCall } = await import('@/services/calls-service')
     const { checkPolicy, resolveParty } = await import('@/lib/policy-check')
     expect(startCall({ caller: 'agent:backend', callee: 'person:bob' }).status).toBe(201)

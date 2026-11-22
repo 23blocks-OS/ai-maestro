@@ -224,6 +224,7 @@ export interface AgentExperiments {
 export interface AgentVoice {
   engine: (typeof AGENT_VOICE_ENGINES)[number]
   voiceId?: string              // The engine's name for the voice; empty means its default
+  localVoiceId?: string         // ElevenLabs agents: the local (Kokoro) voice that finishes a reply when ElevenLabs fails; empty means af_heart
 }
 
 type MemberFields = Pick<Agent, 'kind' | 'platform' | 'registrationStatus'> & { metadata?: Record<string, any> }

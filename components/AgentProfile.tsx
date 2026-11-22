@@ -548,7 +548,22 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       </select>
                     </label>
                     {agent.voice?.engine === 'elevenlabs' && (
-                      <ElevenLabsVoicePicker baseUrl={baseUrl} voiceId={agent.voice.voiceId} onPick={(voiceId) => updateField('voice', { engine: 'elevenlabs', voiceId })} />
+                      <>
+                        <ElevenLabsVoicePicker baseUrl={baseUrl} voiceId={agent.voice.voiceId} onPick={(voiceId) => updateField('voice', { ...agent.voice!, engine: 'elevenlabs', voiceId })} />
+                        <label className="block text-xs text-gray-400" data-testid="backup-local-voice">
+                          Backup voice when ElevenLabs cannot be reached (local, Kokoro)
+                          <input
+                            value={agent.voice.localVoiceId ?? ''}
+                            maxLength={80}
+                            placeholder="af_heart (a woman's voice); for example am_michael, am_fenrir, bm_george"
+                            onChange={(e) => {
+                              const { localVoiceId: _old, ...rest } = agent.voice!
+                              updateField('voice', e.target.value ? { ...rest, localVoiceId: e.target.value } : rest)
+                            }}
+                            className="block w-full mt-1 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-100"
+                          />
+                        </label>
+                      </>
                     )}
                     {agent.voice?.engine === 'local' && (
                       <label className="block text-xs text-gray-400">

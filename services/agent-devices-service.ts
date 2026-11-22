@@ -43,6 +43,7 @@ interface DeviceHost {
   record(agent: Agent, key: string, seconds: number): Promise<Buffer>
   canSpeak(agent: Agent, key: string): Promise<boolean>
   hubOrigin(): string | null
+  homeOrigin(): string | null
   speak(agent: Agent, key: string, text: string, voice: Agent['voice']): Promise<unknown>
   latestSnapshot(agent: Agent, key: string): string | null
 }
@@ -99,10 +100,10 @@ export async function listAgentDevices(agentId: string, { refresh = false } = {}
 }
 
 export function getAgentDeviceIdentity(agentId: string) {
-  return withAgent<{ address: string; key: string; hub: string | null }>(agentId, (h, agent) => {
+  return withAgent<{ address: string; key: string; hub: string | null; home: string | null }>(agentId, (h, agent) => {
     const identity = h.publicIdentity(agent)
     if (!identity) return fail(409, 'no_amp_address', 'This agent has no AMP address yet, so it cannot own a device')
-    return { data: { ...identity, hub: h.hubOrigin() }, status: 200 }
+    return { data: { ...identity, hub: h.hubOrigin(), home: h.homeOrigin() }, status: 200 }
   })
 }
 

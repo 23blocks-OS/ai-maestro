@@ -2795,7 +2795,11 @@ async function startServer(handleRequest) {
 
     // Device controller: one for the host (docs/SPEC-AGENT-DEVICES.md). An agent with no device costs nothing here
     try {
-      const [{ createDeviceHost }, { loadAgents, getAgent }] = await Promise.all([import('./lib/device-host.mjs'), import('./lib/agent-registry.ts')])
+      const [{ createDeviceHost }, { loadAgents, getAgent }, { homeAddress: isHomeAddress }] = await Promise.all([import('./lib/device-host.mjs'), import('./lib/agent-registry.ts'), import('./lib/device-sdk/reverse.mjs')])
+      // S003, opt-in: boards on the home network connect at this address, which the operator names (one of this host's own)
+      const homeAddress = process.env.AIMAESTRO_DEVICE_HOME_ADDRESS?.trim() || null
+      const homeOk = !homeAddress || (isHomeAddress(homeAddress) && getLocalIPs().some((i) => i.ip === homeAddress))
+      if (!homeOk) console.error(`[Devices] AIMAESTRO_DEVICE_HOME_ADDRESS=${homeAddress} is not a private IPv4 address of this host; home network devices stay off`)
       globalThis._deviceHost = createDeviceHost({
         agentExists: (id) => { const a = getAgent(id); return !!a && !a.deletedAt },
         labelOf: (id) => { const a = getAgent(id); return a?.label || a?.name },
@@ -2804,6 +2808,7 @@ async function startServer(handleRequest) {
         onUsed: (id) => { const a = getAgent(id); if (a?.experiments?.speakingSide) globalThis._speakingSides?.ensure(a) },
         // The one status feed: a device shows what every other view shows
         activity: async () => (await (await fetch(`http://127.0.0.1:${port}/api/sessions/activity?local=true`, { signal: AbortSignal.timeout(4000) })).json()).activity || {},
+        homeAddress: homeOk ? homeAddress : null,
         hubAddress: getLocalIPs().find((i) => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(i.ip))?.ip ?? null,
         onEvent: async (event) => {
           console.log(`[Devices] ${event.type} ${event.deviceKey} for ${event.agent}`)

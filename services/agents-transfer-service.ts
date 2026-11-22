@@ -687,12 +687,21 @@ export async function importAgent(
       return invalidField('agent.id', 'The imported agent id is not a plain name')
     }
 
+    // The export carries the source host and its home folder: the agent now lives here (#856)
+    const self = getSelfHost()
+    const workingDirectory = mapHomeFolder(importedAgent.workingDirectory)
+    if (workingDirectory !== importedAgent.workingDirectory) {
+      warnings.push(`Working folder ${importedAgent.workingDirectory} is not on this host; using ${workingDirectory}`)
+    }
     const agentToImport: Agent = {
       ...importedAgent,
       id: newAgentId,
       name: newAgentName,
       alias: newAgentName,
-      workingDirectory: importedAgent.workingDirectory,
+      hostId: self.id,
+      hostName: self.name,
+      hostUrl: self.url,
+      workingDirectory,
       deployment: {
         type: 'local',
         local: {
@@ -702,6 +711,7 @@ export async function importAgent(
       },
       sessions: (importedAgent.sessions || []).map(s => ({
         ...s,
+        ...(s.workingDirectory && { workingDirectory: mapHomeFolder(s.workingDirectory) }),
         status: 'offline' as const
       })),
       status: 'offline',
@@ -1167,4 +1177,16 @@ export async function transferAgent(
     },
     status: 200
   }
+}
+
+/**
+ * A folder under another user's home (`/home/<user>/…`, `/Users/<user>/…`) that does not exist here is moved to the
+ * same place under this host's home. Anything else is kept as it is.
+ */
+export function mapHomeFolder(dir: string | undefined, home: string = os.homedir(), exists: (p: string) => boolean = fs.existsSync): string | undefined {
+  if (!dir || exists(dir)) return dir
+  const m = dir.match(/^\/(?:home|Users)\/[^/]+(\/.*)?$/)
+  if (!m) return dir
+  const mapped = home + (m[1] || '')
+  return mapped === dir ? dir : mapped
 }

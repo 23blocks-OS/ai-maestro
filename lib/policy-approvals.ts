@@ -14,7 +14,8 @@
  *
  * Approve releases that one message, once. A call (not AMP) uses the same entries: an approved call entry lets the next
  * identical call through, once, within the rule's expiry window. No login: a dashboard decision is recorded as an
- * unverified person. A reviewer may instead answer the approval request notice with a signed message (07 "Approval by
+ * unverified person. A caller the server identified (lib/caller-identity) is recorded as who it is instead: the
+ * operator, or an agent, which decides only as a named approver and never on what it sent (`known`). A reviewer may instead answer the approval request notice with a signed message (07 "Approval by
  * message"); that decision is verified, keeps the signed answer as proof, and is the only way to approve a rule with
  * proof "signed".
  */
@@ -76,7 +77,11 @@ export interface QuarantineEntry {
   /** The approval request notice sent to each reviewer: its message id is that reviewer's request (07) */
   requests?: { to: string; id: string; at: string }[]
   /** Who approved or rejected, when, and how (07 Policy Holds, reviewers rule 6); a signed answer is kept as proof */
-  decided?: { by: string; at: string; via?: 'rest' | 'signed-message'; answer?: SignedAnswer }
+  decided?: {
+    by: string; at: string; via?: 'rest' | 'signed-message'; answer?: SignedAnswer
+    /** How the server knew who decided over REST (lib/caller-identity): the operator token, or the agent's session or key */
+    caller?: 'operator' | 'agent-session' | 'agent-key'
+  }
   /** Approved: the one pass through the send path's policy check, until this time; consumed by it */
   pass_until?: string
   delivery?: { at: string; ok: boolean; status?: number; message?: string; message_id?: string }
@@ -348,11 +353,42 @@ export type DecideResult =
 
 const fail = (status: 400 | 403 | 404 | 409 | 410, error: string, message: string): DecideResult => ({ ok: false, status, error, message })
 
+/** Who the server knows is deciding (lib/caller-identity), instead of the `by` the request names */
+export type KnownDecider =
+  | { kind: 'operator'; name?: string }
+  | { kind: 'agent'; agentId: string; name?: string; via: 'session' | 'key'; host: string }
+
+/** The entry's sender is this agent (by registry id, else by name on this host) */
+export function sentBy(r: Pick<QuarantineEntry, 'fromParty'>, agent: { agentId: string; name?: string }, isLocalHost: (h: string) => boolean): boolean {
+  const p = r.fromParty
+  if (!p || p.kind !== 'agent') return false
+  if (p.id && p.id === agent.agentId) return true
+  return !!agent.name && lc(p.name) === lc(agent.name) && (!p.host || isLocalHost(p.host))
+}
+
+/**
+ * The agent is one of the entry's approvers: an `agent:` approver naming it by name or id. An approver pinned to a
+ * host (agent:alice@host-b) is that host's agent; one without a host is an agent of the host that keeps the entry.
+ */
+export function approvesAsAgent(r: Pick<QuarantineEntry, 'approvers' | 'host'>, agent: { agentId: string; name?: string }, isLocalHost: (h: string) => boolean): boolean {
+  const me = [lc(agent.agentId), lc(agent.name)].filter(Boolean)
+  return (r.approvers || []).some(a => {
+    if (!a.ref.startsWith('agent:')) return false
+    const [who, at] = a.ref.slice(6).split('@')
+    return me.includes(lc(who)) && isLocalHost(at || r.host)
+  })
+}
+
 /**
  * Approves or rejects a pending entry (AMP 08). Rejecting never needs proof (it can only stop something). An entry whose
  * rule asks for proof "signed" cannot be approved from the dashboard.
  */
-export function decideQuarantine(id: string, decision: 'approve' | 'reject', input: { by?: unknown; signed?: SignedAnswer } = {}, now = Date.now()): DecideResult {
+export function decideQuarantine(
+  id: string,
+  decision: 'approve' | 'reject',
+  input: { by?: unknown; signed?: SignedAnswer; known?: KnownDecider; isLocalHost?: (h: string) => boolean } = {},
+  now = Date.now(),
+): DecideResult {
   if (input.by !== undefined && (typeof input.by !== 'string' || input.by.length > 200)) return fail(400, 'invalid_field', 'by must be text')
   const signed = input.signed
   const store = readQuarantine()
@@ -363,21 +399,39 @@ export function decideQuarantine(id: string, decision: 'approve' | 'reject', inp
   if (r.status === 'expired') return done(fail(410, 'quarantine_expired', `Quarantine entry ${id} expired at ${r.expires_at} and can no longer be approved`))
   if (r.status !== 'pending') return done(fail(409, 'quarantine_decided', `Quarantine entry ${id} is already ${r.status}`))
 
-  const claimed = signed ? signed.from : typeof input.by === 'string' ? input.by.trim() : ''
+  const known = signed ? undefined : input.known
+  const isLocalHost = input.isLocalHost || ((h: string) => lc(h) === lc(r.host))
+  const typed = typeof input.by === 'string' ? input.by.trim() : ''
+  const claimed = signed ? signed.from : known?.kind === 'agent' ? `agent:${known.name || known.agentId}@${known.host}` : known ? '' : typed
+  if (known?.kind === 'agent') {
+    // The caller is this agent, whatever the body says: never its own entry, and only as a named approver
+    if (sentBy(r, known, isLocalHost)) return fail(403, 'forbidden', 'Whoever sent it cannot approve or reject it')
+    if (!approvesAsAgent(r, known, isLocalHost)) {
+      return fail(403, 'forbidden', `${known.name || known.agentId} is not an approver of this entry (approvers: ${r.approvers.map(a => a.label).join(', ')})`)
+    }
+  }
   // 07 Policy Holds, reviewers rule 3: the sender never decides on its own entry
   if (claimed && (lc(claimed) === lc(r.from) || lc(claimed) === lc(r.sender))) return fail(403, 'forbidden', 'Whoever sent it cannot approve or reject it')
   // Rule 2: a signed decision only from a listed reviewer
   if (signed && !r.reviewers.some(a => lc(a) === lc(claimed))) return fail(403, 'forbidden', `${claimed} is not a reviewer of this entry`)
-  if (claimed.startsWith('agent:') && !r.approvers.some(a => lc(a.ref) === lc(claimed.split('@')[0]))) {
+  if (!known && claimed.startsWith('agent:') && !r.approvers.some(a => lc(a.ref) === lc(claimed.split('@')[0]))) {
     return fail(403, 'forbidden', `${claimed} is not an approver of this entry (approvers: ${r.approvers.map(a => a.label).join(', ')})`)
   }
   if (decision === 'approve' && r.proof === 'signed' && !signed) {
     return fail(403, 'forbidden', `Rule ${r.rules_triggered.join(', ')} asks for proof "signed": the approval must be a verified, signed reply from ${r.approvers.map(a => a.label).join(' or ')} to the approval request AI Maestro sent them, so a dashboard approval is not enough. Rejecting needs no proof.`)
   }
 
-  const by = signed ? signed.from : claimed ? `${claimed} (unverified)` : 'an unverified person'
+  const by = signed ? signed.from
+    : known?.kind === 'operator' ? (known.name ? `the operator (${known.name})` : 'the operator')
+      : known ? claimed
+        : claimed ? `${claimed} (unverified)` : 'an unverified person'
+  const callerVia = known?.kind === 'operator' ? 'operator' as const : known ? (known.via === 'key' ? 'agent-key' as const : 'agent-session' as const) : undefined
   r.status = decision === 'approve' ? 'approved' : 'rejected'
-  r.decided = { by, at: new Date(now).toISOString(), ...(signed ? { via: 'signed-message' as const, answer: signed } : { via: 'rest' as const }) }
+  r.decided = {
+    by, at: new Date(now).toISOString(),
+    ...(signed ? { via: 'signed-message' as const, answer: signed } : { via: 'rest' as const }),
+    ...(callerVia ? { caller: callerVia } : {}),
+  }
   let held: { path: HeldPath; payload: unknown } | undefined
   if (r.held) {
     if (r.status === 'approved') {
@@ -390,7 +444,7 @@ export function decideQuarantine(id: string, decision: 'approve' | 'reject', inp
     r.pass_until = new Date(now + (Date.parse(r.expires_at) - Date.parse(r.quarantined_at))).toISOString()
   }
   writeQuarantine(store, now)
-  record({ event: r.status, request: id, host: r.host, action: r.action, from: r.from, to: r.to, effect: r.status === 'rejected' ? 'deny' : 'allow', rules: r.rules_triggered, by, proof: signed ? 'signed' : 'dashboard' })
+  record({ event: r.status, request: id, host: r.host, action: r.action, from: r.from, to: r.to, effect: r.status === 'rejected' ? 'deny' : 'allow', rules: r.rules_triggered, by, proof: signed ? 'signed' : callerVia || 'dashboard' })
   return { ok: true, entry: r, ...(held ? { held } : {}) }
 }
 

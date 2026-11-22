@@ -199,6 +199,7 @@ const PROTECTED = [
   /^\/api\/meetings\/[^/]+\/broadcast$/,
   /^\/api\/v1\/route$/,
   /^\/api\/v1\/messages(\/.*)?$/,
+  /^\/api\/v1\/quarantine(\/.*)?$/,
 ]
 
 /**

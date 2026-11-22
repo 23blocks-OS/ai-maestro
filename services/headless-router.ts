@@ -1959,19 +1959,20 @@ const routes: Route[] = [
     sendServiceResult(res, getPolicy())
   }},
   // AMP 08 quarantine (F118 step 2)
-  { method: 'GET', pattern: /^\/api\/v1\/quarantine$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await listPolicyQuarantine({ status: qp(query, 'status'), limit: qp(query, 'limit'), localOnly: qp(query, 'localOnly') === '1' }))
+  { method: 'GET', pattern: /^\/api\/v1\/quarantine$/, paramNames: [], handler: async (req, res, _params, query) => {
+    sendServiceResult(res, await listPolicyQuarantine({ status: qp(query, 'status'), limit: qp(query, 'limit'), localOnly: qp(query, 'localOnly') === '1' }, undefined,
+      callerFromHeaders(req.headers), getHeader(req, 'x-forwarded-from')))
   }},
-  { method: 'GET', pattern: /^\/api\/v1\/quarantine\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await getPolicyQuarantine(params.id, qp(query, 'host')))
+  { method: 'GET', pattern: /^\/api\/v1\/quarantine\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params, query) => {
+    sendServiceResult(res, await getPolicyQuarantine(params.id, qp(query, 'host'), undefined, callerFromHeaders(req.headers), getHeader(req, 'x-forwarded-from')))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/quarantine\/([^/]+)\/approve$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req).catch(() => ({}))
-    sendServiceResult(res, await decidePolicyQuarantine(params.id, 'approve', body))
+    sendServiceResult(res, await decidePolicyQuarantine(params.id, 'approve', body, undefined, callerFromHeaders(req.headers), getHeader(req, 'x-forwarded-from')))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/quarantine\/([^/]+)\/reject$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req).catch(() => ({}))
-    sendServiceResult(res, await decidePolicyQuarantine(params.id, 'reject', body))
+    sendServiceResult(res, await decidePolicyQuarantine(params.id, 'reject', body, undefined, callerFromHeaders(req.headers), getHeader(req, 'x-forwarded-from')))
   }},
   { method: 'GET', pattern: /^\/api\/policy\/check$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, await explainPolicy({ from: qp(query, 'from'), to: qp(query, 'to'), action: qp(query, 'action'), localOnly: qp(query, 'localOnly') === '1' }))

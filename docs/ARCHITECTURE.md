@@ -484,6 +484,50 @@ the job of whatever client runs beside it.
 - `NOTIFICATIONS_ENABLED=false` - Disable push notifications
 - `NOTIFICATION_FORMAT` - Customize notification format
 
+### Who is sending: caller identity
+
+The server works out who is calling a message route; it never takes it from the request text
+(`lib/caller-identity.ts`). `server.mjs` resolves the caller for the message routes only, before Next
+and before the headless router, and passes it to the routes in the `x-aimaestro-caller` request header.
+It removes that header from every incoming request first, so a client cannot set it. Routes read it
+with `callerFromHeaders()` and hand it to their service.
+
+A caller is one of:
+
+- **agent, by session**: the request comes from this machine (loopback or one of its own addresses) and
+  its client process descends from an agent's tmux pane. The chain is kernel facts: the socket's client
+  port, the process holding it (`/proc/net/tcp` and `/proc/<pid>/fd` on Linux, `lsof` on macOS), its
+  parent chain, the pane pid (`tmux list-panes`), the tmux session, and the registry agent of that
+  session. Environment variables and arguments play no part.
+- **agent, by key**: a valid AMP API key (`lib/amp-auth.ts`).
+- **operator**: the server calling its own API (`via: host`), for example the subconscious inbox poll.
+- **anonymous**: none of these. It keeps today's access (the dashboard, scripts, other hosts).
+
+`AIMAESTRO_CALLER_AUTH` is `session` (the default) or `off` (no caller is worked out). There is no mode
+that refuses anonymous callers: AI Maestro has no app-level authentication by design; an opt-in token
+is F058.
+
+What an identified agent may do on the message routes (`/api/messages*`, `/api/agents/<id>/messages*`,
+`/api/meetings/inject-queue`, `/api/meetings/<id>/broadcast`, `/api/people/<id>/messages*`,
+`/api/v1/route`, `/api/v1/messages/*`, `/api/v1/quarantine*`):
+
+- Send only as itself (403 `sender_mismatch`); a missing `from` is filled in. Its alias, label and host
+  come from the registry. A meeting broadcast is sent as maestro, so an agent cannot send one.
+- Read, mark, archive, delete and forward only its own mail (403 `not_your_mailbox`). It forwards by
+  message id, not by handing in a message. The list of every mailbox (`action=agents`), the pending-wakes
+  report and a person's mailbox are not its own. `action=resolve` and `action=search` stay open.
+- An API key of one agent from the session of another: 403 `caller_mismatch`.
+- `X-Forwarded-From` on `/api/v1/route` (a mesh host speaking for its agents) is refused from an agent (403).
+- Approve or reject a held message only as a named approver, never its own (`docs/SPEC-POLICY-RULES.md` 19.1).
+
+The stored message records how its sender was established in `local.sender_via`: `session`, `key`,
+`host`, or `claimed` (named by an anonymous request, as before). `fromVerified` is true for an agent
+caller sending as itself; for an anonymous sender it is computed as before.
+`GET /api/caller` answers `{ kind, agentId?, name?, via?, mode }`.
+
+Limits: agents on one host run as one OS user (B021), so an agent with a shell can read files directly,
+or start a process outside its pane, which is then anonymous. The rest of the API stays open (F058).
+
 ### Message Storage
 
 All messages are stored in AMP per-agent directories:
@@ -671,6 +715,7 @@ WS_RECONNECT_DELAY=3000              # WebSocket reconnect delay (ms)
 WS_MAX_RECONNECT_ATTEMPTS=5          # Max reconnection attempts
 TERMINAL_FONT_SIZE=14                # xterm.js font size
 TERMINAL_SCROLLBACK=10000            # Terminal scrollback buffer
+AIMAESTRO_CALLER_AUTH=session|off    # Caller identity on the message routes (see AMP above)
 ```
 
 Set via `.env.local` (gitignored). Never commit `.env.local`.

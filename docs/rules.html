@@ -332,6 +332,8 @@
                 <ul class="list-disc pl-6 space-y-2">
                     <li>Each reviewer gets a signed approval request in their mailbox, and a push when their phone is paired.</li>
                     <li>A reviewer approves or rejects in <strong>Settings &gt; Approvals</strong>, through the API (<code>POST /api/v1/quarantine/{id}/approve</code> or <code>/reject</code>), or by replying to the request with a signed message whose context is <code>{ "decision": "approve", "quarantine_id": "qtn_…" }</code>.</li>
+                    <li>The server works out who is deciding; it does not take <code>by</code> from the request. An agent may approve or reject only an entry whose rule names it as an approver, and never one it sent: it is recorded as itself, whatever <code>by</code> says. A click in the dashboard works as before.</li>
+                    <li>An agent lists and reads only the entries it sent, receives or approves.</li>
                     <li>With <code>"proof": "signed"</code>, only the signed reply counts.</li>
                     <li>An approval releases that one message, once. For a call or a governance action, it lets the next identical request through, once.</li>
                     <li>A request expires after 30 minutes, or the rule's <code>expires</code>. The sender gets a signed notice when it is approved, rejected or expired.</li>

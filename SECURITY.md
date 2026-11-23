@@ -30,8 +30,19 @@ A web page open in your browser could otherwise send requests to the server or o
 
 Requests without an `Origin` (the CLI, scripts, agents, other hosts) are not affected.
 
-## Rules agents cannot move or switch off
+## Who is calling the message routes
 
+The server works out who is calling the message routes (`lib/caller-identity.ts`) and does not take the sender or the mailbox owner from the request:
+
+- An agent is identified by its **session** (the request comes from a process inside its tmux pane, read from the kernel, not from environment variables) or by its **AMP API key**. It can send only as itself and read and change only its own mailbox (`sender_mismatch`, `not_your_mailbox`). An API key of one agent used from the session of another is refused (`caller_mismatch`).
+- Requests that are neither (the dashboard, scripts, other hosts) keep today's access. There is no login and no token: the network is the trust boundary. `AIMAESTRO_CALLER_AUTH=off` turns the check off.
+- `GET /api/caller` shows who the server thinks you are.
+
+What it does not do: agents on one host share one OS user (B021), so an agent with a shell can still read message files and keys directly, or run a process outside its pane, which is then anonymous. This stops an agent from using the API as another agent by mistake or by a forged field; it is not isolation between agents. The rest of the API (terminals, agent settings) stays open as described above.
+
+## Rules agents cannot approve, move or switch off
+
+- **Approvals need the right caller.** `POST /api/v1/quarantine/{id}/approve` and `/reject` use the caller the server found (above), not `by` from the body. An agent decides only an entry whose rule names it as an approver and never one it sent, and it is recorded as itself. The dashboard decides as before. An agent lists and reads (`GET /api/v1/quarantine*`) only the entries it sent, receives or approves. A decision passed on by a peer host (`X-Forwarded-From` naming a host in `hosts.json`) is taken as before.
 - **The rules file's place is a setting.** `AIMAESTRO_POLICY_FILE=/absolute/path` replaces `~/.aimaestro/policy.json`. The server only reads it and keeps no copy beside it. Give the file and its folder to another OS user (or root), readable by the server, and the agents' user cannot edit, replace or delete it. The Doctor warns while that user can still write it. See `docs/rules.html`, "Keeping agents away from the rules".
 - **Fail closed, as an option.** `AIMAESTRO_POLICY_FAIL_CLOSED=1`: a missing, unreadable or broken rules file refuses what agents send and every governance action until it is fixed (the Doctor fails), instead of keeping the last good version. People and AI Maestro itself may still send.
 - **The last good version.** Without fail-closed, a broken or deleted file keeps the version this server process loaded. The copy saved next to the default file (`policy.json.last-good`) is used only after a restart, and never for a configured file, because it sits where agents can write.

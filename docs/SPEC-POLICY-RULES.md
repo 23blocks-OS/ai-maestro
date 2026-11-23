@@ -473,7 +473,7 @@ Under the AMP provider prefix, also in headless mode:
 - `POST /api/v1/quarantine/{id}/approve` — releases the message, once: 200 `{ quarantine_id, status: "approved", message_id, delivered }`. A call entry answers `message_id: null, delivered: false` (the next identical call goes through).
 - `POST /api/v1/quarantine/{id}/reject` — 200 `{ quarantine_id, status: "rejected" }`. The message is never delivered.
 - Errors: 410 `quarantine_expired`, 409 `quarantine_decided`, 404 `not_found`, 400 `invalid_field` (a bad id, status or limit), 403 `forbidden` (the sender, an agent that is not a reviewer, or a `signed` rule).
-- Body of approve and reject: `{ by?, host? }`. `host` sends the decision to the host that keeps the entry. `by` is what the person typed, recorded as `"<by> (unverified)"`, or `"an unverified person"` (no login). There are no other answers: "for a time" and "always" are rule changes, not approvals, and come back as policy edits in F118 step 3.
+- Body of approve and reject: `{ by?, host? }`. `host` sends the decision to the host that keeps the entry. `by` is what the person typed, recorded as `"<by> (unverified)"`, or `"an unverified person"` (no login). Since section 19, an identified agent is recorded as who it is, not as `by`. There are no other answers: "for a time" and "always" are rule changes, not approvals, and come back as policy edits in F118 step 3.
 
 **`"proof": "signed"`.** An approve from the dashboard is refused (403 `forbidden`, with a plain reason). Rejecting needs no proof. Only a signed reply (17.8) approves it.
 
@@ -496,7 +496,7 @@ The store is ready to take other kinds, but secret requests and SQL write approv
 ### 17.7 Limits
 
 - No login: a dashboard decision proves nothing about who clicked. A signed reply (17.8) does.
-- 08 says the quarantine endpoints need the tenant admin or a reviewer. AI Maestro has no app-level login by design (the network is the trust boundary), so anyone on the network can list and decide; a reviewer-only list needs reviewer authentication.
+- 08 says the quarantine endpoints need the tenant admin or a reviewer. AI Maestro has no app-level login by design (the network is the trust boundary), so anyone on the network can list and decide; a reviewer-only list needs reviewer authentication. Section 19 binds the callers the server can identify: an agent, by its session or key.
 - A quarantined message keeps the envelope it had when it was quarantined; its time is the time it was sent, not the time it was approved.
 - A call pass is matched on labels (`agent:dev@host-a`); an agent that moves to another host is a new party.
 
@@ -570,21 +570,39 @@ With no login, the caller of the dashboard and the API is an unidentified person
 - `agent.config` (needs F067's protected-file writer), `secret.use`, `sql.write` (F033 and F037 into the store, 17.6), `policy.edit` (no editor API yet).
 - The agent layer from F067 profiles, closed teams as rules, `role:` and `org:` subjects, answers "for a time" and "always" as policy edits.
 
-## 19. Rules an agent cannot move or switch off
+## 19. Rules an agent cannot approve, move or switch off
 
-Code: `getPolicy` in `services/policy-service.ts`, `policySettings` and `loadPolicy` in `lib/policy.ts`, `failClosedDecision` in `lib/policy-check.ts`, `checkPolicyRules` in `services/doctor-checks.ts`. Tests: `tests/policy-integrity.test.ts`.
+Code: `services/policy-service.ts` (`askerOf`, `involves`, `getPolicy`), `decideQuarantine` in `lib/policy-approvals.ts` (`known`), `policySettings` and `loadPolicy` in `lib/policy.ts`, `failClosedDecision` in `lib/policy-check.ts`, `checkPolicyRules` in `services/doctor-checks.ts`. Tests: `tests/policy-integrity.test.ts`, `tests/services/policy-quarantine-caller.test.ts`.
 
-### 19.1 Where the rules file is
+### 19.1 Who may decide
+
+The quarantine routes are caller-resolved paths (`lib/caller-identity.ts`), so the service gets the caller the server found, never one from the body.
+
+| Caller | Approve / reject | List / read an entry |
+|---|---|---|
+| the server itself (`via: host`) | any entry; `decided.by` is `the operator` (with the typed name in brackets), `decided.caller: "operator"` | everything |
+| agent (session or API key) | only when an `agent:` approver of the entry names it (by name or id; `agent:x@host` only on that host), and never when it sent the held message or call; `decided.by` is `agent:<name>@<host>`, `decided.caller` `agent-session` or `agent-key`, whatever `by` says. Else 403 `forbidden` | only entries it sent, receives or approves: others are left out of the list, and `GET …/{id}` is 403 `not_your_mailbox` |
+| anonymous (the dashboard) | as before (`by` as typed, unverified) | everything |
+| a peer host | as before | everything |
+| mode `off`, or an in-process call | as before | everything |
+
+`"proof": "signed"` still needs the signed reply, whoever approves over REST. The signed reply (17.8) is checked on its own signed `from`, which the route binds to the sending agent; the sender of the held message is never a reviewer (17.2), and an answer from it is refused (`Whoever sent it cannot approve or reject it`).
+
+**Peers.** Federation authentication is not part of this step. A request is a peer's when it is anonymous and carries `X-Forwarded-From` naming an enabled host in `hosts.json`; it keeps today's behaviour, as `/api/v1/route` does for the same header. An agent may never send `X-Forwarded-From` (403 `sender_mismatch`). When this host passes a decision on, it sends `X-Forwarded-From` and names its own caller in `by` (`agent:<name>@<this host>`), so the keeping host's sender and approver checks apply to that agent. A decision a peer passed on is never passed on again.
+
+The policy routes `GET /api/policy` and `GET /api/policy/check` only read the rules and show no held message, so they stay as they are. No route writes the rules file.
+
+### 19.2 Where the rules file is
 
 `AIMAESTRO_POLICY_FILE` (an absolute path) replaces `~/.aimaestro/policy.json` everywhere: the send paths, `GET /api/policy` (`file`, `configured: true`), the "why" answer and the Doctor. The server only reads it; it writes neither the file nor a copy beside it. A relative value is a broken setting: no file is read, the error is reported, and fail-closed applies when it is on. The recipe (file and folder owned by another user or root, readable by the server) is in `docs/rules.html`. The Doctor warns (`policy:writable:<path>`) while the server's user can write the file or its folder, since every agent on the host is that user.
 
-### 19.2 The last good version
+### 19.3 The last good version
 
 - Default file: when the file breaks or is deleted, the version this process loaded applies; the saved copy `policy.json.last-good` only when the process never loaded one (after a restart). Before, a deleted file applied only the saved copy, so writing an allow-all into `policy.json.last-good` and deleting `policy.json` switched the rules off at once. The saved copy is still writable by agents, so after a restart it is as trustworthy as the file it copies.
 - Configured file: no saved copy. Only the version this process loaded applies; after a restart a broken or missing configured file has no last good version.
 - A replaced file that loads is the new last good version: an agent that can write the file can switch the rules off by replacing it with an allow-all, and deleting it afterwards keeps that allow-all. Only a configured file out of the agents' reach prevents this.
 
-### 19.3 Fail closed
+### 19.4 Fail closed
 
 `AIMAESTRO_POLICY_FAIL_CLOSED=1` (also `true`, `yes`, `on`). When the file is missing, unreadable or broken, or the setting is broken, no last good version is applied and `checkPolicy` decides without rules:
 
@@ -594,7 +612,7 @@ Code: `getPolicy` in `services/policy-service.ts`, `policySettings` and `loadPol
 
 `GET /api/policy` says `failClosed: true, refusing: true`, the decision log gets a `deny` line with `note: "fail-closed: …"`, and the Doctor fails with `policy:fail-closed` ("AGENTS ARE REFUSED"). A host with the setting and no file at all refuses agents from the start; an empty rules list allows everything. With the setting off, the behaviour is 19.3.
 
-### 19.4 Limits
+### 19.5 Limits
 
 - The quarantine store and held payloads (`~/.aimaestro/policy/`) are the server's files; with agents and server as one OS user, an agent with a shell can edit them (B021).
-- What changes: a server that loaded rules keeps them after the file is deleted, until it restarts (before, a deleted file with no saved copy meant no rules at once). With fail-closed on and no rules file, agents are refused from the start; save `{"version":2,"rules":[]}` to allow everything.
+- What changes: an agent that approved entries it was not an approver of, or its own, gets 403. A server that loaded rules keeps them after the file is deleted, until it restarts (before, a deleted file with no saved copy meant no rules at once). With fail-closed on and no rules file, agents are refused from the start; save `{"version":2,"rules":[]}` to allow everything.

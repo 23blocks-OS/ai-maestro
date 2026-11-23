@@ -224,6 +224,7 @@ export interface AgentExperiments {
 export interface AgentVoice {
   engine: (typeof AGENT_VOICE_ENGINES)[number]
   voiceId?: string              // The engine's name for the voice; empty means its default
+  hearingLanguage?: string      // what it hears on every medium (BCP 47: en, es, pt-BR); English when unset
   localVoiceId?: string         // ElevenLabs agents: the local (Kokoro) voice that finishes a reply when ElevenLabs fails; empty means af_heart
 }
 
@@ -262,6 +263,8 @@ export interface Agent {
   credentialLogin?: CredentialLogin // set by the agent list for a host-login or config-dir profile: the account that login is
   /** F103: paired devices that speak for one person, by device key. Set by the operator only; a device can never claim it */
   devicePeople?: Record<string, DevicePerson>
+  /** F129: Wi-Fi networks for the agent's boards, in priority order. `secret` names the vault entry holding the password; open networks have none */
+  deviceNetworks?: DeviceNetwork[]
   kind?: 'agent' | 'assistant'  // Missing means 'agent'. An assistant connects over AMP only: no terminal, stream or wake
   platform?: string             // Where an assistant lives ("muse", "grok", or free text)
   registrationStatus?: 'pending' // Set only while a new AMP registration waits for the owner; missing means a full member
@@ -636,6 +639,11 @@ export interface CreateAgentRequest {
  * Agent update request
  */
 /** The person a paired device speaks for (F103). The name is a snapshot: the person's record may live on another host */
+export interface DeviceNetwork {
+  ssid: string
+  secret?: string
+}
+
 export interface DevicePerson {
   personId: string
   name: string
@@ -646,6 +654,7 @@ export interface UpdateAgentRequest {
   experiments?: AgentExperiments | null // null clears them
   credential?: AgentCredential | null // null = the host's own login
   devicePeople?: Record<string, DevicePerson> | null // the whole map; null clears it
+  deviceNetworks?: DeviceNetwork[] | null // set only by services/agent-devices-service.ts; PATCH drops it
   name?: string                 // Update agent identity (was alias)
   label?: string                // Update display override (was displayName)
   title?: string | null         // null or '' clears it

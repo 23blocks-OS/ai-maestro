@@ -130,6 +130,14 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F118** — [Governance actions and approvals through the policy engine](./backlog/F118-governance-actions-and-approvals.md) — `In Progress` (step 1, the version 2 engine, in 0.106.229; step 2, approvals, in 0.106.230; step 3 started in 0.106.239 (create, delete, move, permission mode); spec: `docs/SPEC-POLICY-RULES.md`)
 - **F128** — [Switch to a fallback credential when a session hits its usage limit](./backlog/F128-fallback-credential-on-usage-limit.md) — `Done` (0.106.241)
 
+### Mobile toy (Bruce)
+
+An agent's body in a toy that travels with its person: no screen, no button, any network. Protocol and firmware items for the same work are in the ADP repository's backlog (B002, F010, F011, F012).
+
+- **F129** — [An agent's Wi-Fi networks, set up on its devices by AI Maestro (settings and the phone app)](./backlog/F129-agent-networks-for-devices.md) — `Todo`
+- **F130** — [The device endpoint on the internet through a Cloudflare tunnel](./backlog/F130-device-endpoint-on-the-internet.md) — `Todo`
+- **F131** — [Device speech that is loud and clean on small speakers](./backlog/F131-device-speech-loud-and-clean.md) — `Done` (0.106.265, 0.106.267)
+
 ## Bugs
 
 - **B001** — [Two browsers on one agent fight over the terminal size](./backlog/B001-multi-client-terminal-sizing.md) — `Todo`

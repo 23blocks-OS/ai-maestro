@@ -119,8 +119,22 @@ export class Voice {
     this.sounds = new Set();
     this.hushed = false;
   }
-  async #run(start, signal, levels) {
-    if (this.hushed) return { played: false };
+  // capabilities.md: speech plays in the order it arrives. A call that comes while another plays waits for it, so
+  // a controller can send the next sentence before this one ends and there is no gap.
+  #last = null;
+  #run(start, signal, levels) {
+    const prev = this.#last;
+    const run = prev ? prev.then(() => this.#play(start, signal, levels)) : this.#play(start, signal, levels);
+    const done = run.catch(() => {});
+    this.#last = done;
+    void done.then(() => {
+      if (this.#last === done) this.#last = null;
+    });
+    return run;
+  }
+  async #play(start, signal, levels) {
+    // Waited while a person started talking, or the controller gave up on it
+    if (this.hushed || signal?.aborted) return { played: false };
     const stop = new AbortController();
     const sound = { stop, levels, at: this.now() };
     this.sounds.add(sound);

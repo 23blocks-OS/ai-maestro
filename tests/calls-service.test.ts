@@ -37,7 +37,7 @@ describe('starting a call', () => {
   it('creates an inviting call that expires', () => {
     const r = startCall({ caller: LOLA, callee: JUAN })
     expect(r.status).toBe(201)
-    expect(call(r)).toMatchObject({ caller: LOLA, callee: JUAN, state: 'inviting', expiresAt: '2026-10-29T20:00:30.000Z' })
+    expect(call(r)).toMatchObject({ caller: LOLA, callee: JUAN, state: 'inviting', expiresAt: '2026-10-29T20:01:15.000Z' })
     expect(getCallById(call(r).callId).status).toBe(200)
     expect((getCalls().data as any).calls).toHaveLength(1)
   })

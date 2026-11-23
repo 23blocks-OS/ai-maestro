@@ -16,7 +16,8 @@ import { policyDeniedResult } from '@/lib/policy'
 import { type ServiceResult, missingField, invalidField, notFound, serviceError, operationFailed } from '@/services/service-errors'
 
 const PARTY = /^[A-Za-z0-9][A-Za-z0-9@._:-]{0,127}$/
-const DEFAULT_TTL_S = 30
+// 2026-11-23: 30 s ran out while a phone woke, opened the app and found the call (Lola rang Juan; the call was gone)
+const DEFAULT_TTL_S = 75
 const MAX_TTL_S = 120
 
 const party = (v: unknown) => typeof v === 'string' && PARTY.test(v)

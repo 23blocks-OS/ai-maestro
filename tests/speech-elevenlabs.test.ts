@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import { listVoices, splitSentences, synthesize, wavFrom } from '@/lib/speech-elevenlabs.mjs'
-import { speakWith, voiceReady } from '@/lib/speech.mjs'
+import { speakWith, rawSpeech, voiceReady } from '@/lib/speech.mjs'
 
 const KEY = 'sk_secret_key_value'
 const pcm = (bytes: number) => new Response(new Uint8Array(bytes))
@@ -120,29 +120,29 @@ describe('picking the engine', () => {
   const list = async (source: AsyncIterable<string>) => { const got: string[] = []; for await (const f of source) got.push(f); return got }
 
   it('a local voice behaves as before', async () => {
-    expect(await list(speakWith('Hi.', { engine: 'local', voiceId: 'af_heart' }, engines()))).toEqual(['local:af_heart:Hi.'])
+    expect(await list(rawSpeech('Hi.', { engine: 'local', voiceId: 'af_heart' }, engines()))).toEqual(['local:af_heart:Hi.'])
   })
 
   it('an ElevenLabs voice uses ElevenLabs', async () => {
-    expect(await list(speakWith('Hi.', { engine: 'elevenlabs', voiceId: 'v' }, engines()))).toEqual(['eleven:Hi.'])
+    expect(await list(rawSpeech('Hi.', { engine: 'elevenlabs', voiceId: 'v' }, engines()))).toEqual(['eleven:Hi.'])
   })
 
   it('local speech finishes the reply when ElevenLabs fails midway, in its own default voice', async () => {
     const failing = engines({ elevenLabs: async function* () { yield 'eleven:First.'; throw Object.assign(new Error('ElevenLabs answered 401'), { rest: 'Second.' }) } })
     vi.spyOn(console, 'error').mockImplementationOnce(() => {})
-    expect(await list(speakWith('First. Second.', { engine: 'elevenlabs', voiceId: 'v' }, failing))).toEqual(['eleven:First.', 'local:default:Second.'])
+    expect(await list(rawSpeech('First. Second.', { engine: 'elevenlabs', voiceId: 'v' }, failing))).toEqual(['eleven:First.', 'local:default:Second.'])
   })
 
   it('the agent\'s own backup voice finishes the reply, not the shared default', async () => {
     const failing = engines({ elevenLabs: async function* () { throw Object.assign(new Error('fetch failed'), { rest: 'Hi.' }) } })
     vi.spyOn(console, 'error').mockImplementationOnce(() => {})
-    expect(await list(speakWith('Hi.', { engine: 'elevenlabs', voiceId: 'v', localVoiceId: 'am_michael' }, failing))).toEqual(['local:am_michael:Hi.'])
+    expect(await list(rawSpeech('Hi.', { engine: 'elevenlabs', voiceId: 'v', localVoiceId: 'am_michael' }, failing))).toEqual(['local:am_michael:Hi.'])
   })
 
   it('with no local speech the failure is an answer', async () => {
     const failing = engines({ localReady: () => false, elevenLabs: async function* () { throw new Error('down') } })
     vi.spyOn(console, 'error').mockImplementationOnce(() => {})
-    await expect(list(speakWith('Hi.', { engine: 'elevenlabs', voiceId: 'v' }, failing))).rejects.toThrow('speech_failed: down')
+    await expect(list(rawSpeech('Hi.', { engine: 'elevenlabs', voiceId: 'v' }, failing))).rejects.toThrow('speech_failed: down')
   })
 
   it('is ready when it can speak somehow, and never with no voice', async () => {

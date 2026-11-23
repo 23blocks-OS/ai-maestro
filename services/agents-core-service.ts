@@ -1151,7 +1151,7 @@ export function updateAgentById(id: string, body: UpdateAgentRequest, caller?: P
     }
 
     if (body.voice !== undefined && body.voice !== null) {
-      const { engine, voiceId, localVoiceId, ...other } = body.voice as AgentVoice
+      const { engine, voiceId, localVoiceId, hearingLanguage, ...other } = body.voice as AgentVoice
       if (!AGENT_VOICE_ENGINES.includes(engine)) return invalidRequest(`voice.engine must be one of: ${AGENT_VOICE_ENGINES.join(', ')}`)
       if (voiceId !== undefined && (typeof voiceId !== 'string' || !/^[\w.-]{1,80}$/.test(voiceId))) {
         return invalidRequest('voice.voiceId must be letters, digits, dots, dashes or underscores, at most 80')
@@ -1159,7 +1159,10 @@ export function updateAgentById(id: string, body: UpdateAgentRequest, caller?: P
       if (localVoiceId !== undefined && (typeof localVoiceId !== 'string' || !/^[\w.-]{1,80}$/.test(localVoiceId))) {
         return invalidRequest('voice.localVoiceId must be letters, digits, dots, dashes or underscores, at most 80')
       }
-      if (Object.keys(other).length) return invalidRequest('voice has only engine, voiceId and localVoiceId: a key belongs to the host')
+      if (hearingLanguage !== undefined && (typeof hearingLanguage !== 'string' || !/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/.test(hearingLanguage))) {
+        return invalidRequest('voice.hearingLanguage must be a language code such as en, es or pt-BR')
+      }
+      if (Object.keys(other).length) return invalidRequest('voice has only engine, voiceId, localVoiceId and hearingLanguage: a key belongs to the host')
     }
 
     // Which account or key the agent uses (#65): names of vault entries only, never a value
@@ -1217,7 +1220,7 @@ export function updateAgentById(id: string, body: UpdateAgentRequest, caller?: P
 
     // The mode and its switch time decide what may resume a conversation: only the mode switch sets them
     // The same goes for who a member is: registration and approval set those
-    const { runtimeMode: _mode, runtimeSwitchedAt: _switched, lastRuntime: _last, registrationStatus: _status, kind: _kind, ...patch } = body as UpdateAgentRequest
+    const { runtimeMode: _mode, runtimeSwitchedAt: _switched, lastRuntime: _last, registrationStatus: _status, kind: _kind, deviceNetworks: _networks, ...patch } = body as UpdateAgentRequest
     const agent = updateAgent(id, patch)
     if (!agent) {
       return notFound('Agent', id)

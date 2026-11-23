@@ -3,6 +3,76 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.274] - 2026-11-23 - Calls in the agent's voice, and the language it hears
+
+### Added
+- The language an agent hears is an agent setting (`voice.hearingLanguage`: en, es, pt-BR...; English when unset), set under the voice in its profile. Its devices, kiosks and boards hear in it (ElevenLabs and local hearing alike), and the phone app reads it for calls.
+
+### Changed
+- Phone calls through the speaking side use the messages the app asked for: `call:heard`, then for each sentence `call:text` at once and `call:clip` per clip, then `call:done` when the reply is over. See docs/CHAT-ARCHITECTURE.md. The speaking side now tells a medium when a reply ends.
+
+## [0.106.273] - 2026-11-23 - A board's setup code after a restart
+
+### Fixed
+- A board that reconnects without an "online" event (after AI Maestro restarts, it was already online) now gives its Bluetooth setup code too: listing the agent's devices asks it, in the background, at most once every 5 minutes per board.
+
+
+## [0.106.272] - 2026-11-23 - One voice for an agent, on every medium
+
+### Changed
+- An agent sounds and behaves the same on a phone call, in a meeting, on a kiosk and on a board. The shared voice engine (`speakWith` in `lib/speech.mjs`) now makes every clip louder in the same way (it was only done for devices) and makes speech ahead: the speaking side starts the next sentence while one plays, so meetings, kiosks and boards have no gap between sentences.
+
+### Added
+- Phone calls can go through the agent's speaking side, like meetings, kiosks and boards: the app sends `call:said` on the chat socket and gets the answer back as `call:say` messages (text and a WAV per clip), in the agent's own voice. A phone paired to a person is that person, as a device the operator marked. An agent without a speaking side gets the words in its pane, as before. Older apps are unchanged (they never send `call:said`). Contract in docs/CHAT-ARCHITECTURE.md.
+
+## [0.106.271] - 2026-11-23 - Voice enrollment on a board, and the setup code read in time
+
+### Added
+- Voice enrollment works on a board that has no live microphone, such as an ESP32 toy. During enrollment, AI Maestro takes the board's next recording as the sample instead of passing it to the agent (it waits up to 45 s). The People page says to press Record, then say the wake phrase (for example "Hey Bruce") and read the sentence. A board cannot be made to record by AI Maestro (ADP S004); the person starts each recording.
+
+### Fixed
+- A board's Bluetooth setup code was not learned when it connected: the online event came before its capabilities were read. AI Maestro now reads the device first.
+
+## [0.106.270] - 2026-11-23 - An agent's call rings long enough to answer
+
+### Fixed
+- The plugin's `aimaestro-call.sh` rings for 75 s by default, not 30 s (plugin 1.19.26). It sends its own ring time, so 0.106.269's new host default did not reach calls placed by agents; this does.
+
+## [0.106.269] - 2026-11-23 - Calls that a phone can reach, and steadier chat on a call
+
+### Fixed
+- A call from an agent rings for 75 s by default, not 30 s. On 2026-11-23 Lola rang Juan; the call expired 11 s after he reached her chat, while the phone was still waking and finding it. (The call script in the plugin sends its own 30 s and changes separately.)
+- The chat heartbeat drops a client only after two missed pings (about 60 s), not one. A phone on a voice call lost its chat socket three times in three minutes, and the text that arrived while it reconnected was never spoken.
+
+## [0.106.268] - 2026-11-23 - A board's Bluetooth setup code, for the phone
+
+### Added
+- When a board connects, AI Maestro asks its `network.list` once and keeps the Bluetooth setup code it returns (ADP S005), in `devices/setup.json` beside the agent's devices (readable only by this user). The device lists (`GET /api/agents/<id>/devices`, `GET /api/devices`) show it as `setup: { name, code }`, so the phone app can give a board a network away from home without a sticker. Anyone on the network can read it, like the rest of the API; Wi-Fi passwords are never in these answers.
+
+## [0.106.267] - 2026-11-23 - Speech with no gaps between sentences
+
+### Changed
+- An agent's speech on a device has no gap between sentences: the next sentence is sent about a second before the device finishes the one it is playing, and the device plays them in order (ADP: `speaker.play` calls play in the order they arrive). Before, each sentence was sent only after the last one ended, so a board paused about 1.7 s between them. A clip whose length is unknown is still sent only after the last one ends. A person who starts talking still stops the rest.
+- The device SDK copy and the kiosk fixtures are at agent-device-protocol `e8c5759` (the kiosk queues speech).
+
+## [0.106.266] - 2026-11-23 - Boards that travel: Wi-Fi networks and a tunnel
+
+### Added
+- An agent keeps a list of Wi-Fi networks for the boards it lives in, so a board that travels (a toy) joins new networks without a new build (F129, ADP S005). Add and remove them under the agent's devices ("Wi-Fi networks"), or with `GET`, `POST {ssid, password}` and `DELETE ?ssid=` on `/api/agents/<id>/devices/networks`. At most 8; the order is the priority. Each password goes to the host vault (`WIFI_<agent>_<hash>`); the agent record keeps only the name and the vault entry, and no answer or log carries a password. A change goes at once to every online device that offers `network.add` / `network.remove`, and a device that comes online gets the whole list (added only: the board's built-in network stays). Passwords with spaces at the ends or line breaks are refused, because the vault trims them. The phone (Bluetooth) setup is not done yet.
+
+- Boards on any network reach their agent through a tunnel the operator runs (F130, ADP S006), off by default. With `AIMAESTRO_DEVICE_RELAY_PORT=<port>` the device hub also takes device connections on `127.0.0.1:<port>`, for example from `cloudflared`. Only the encrypted `/v1/secure` is taken there; a plain `/v1/connect` is refused with `secure_only`, because a tunnel connects from loopback. The HTTP API is not served there. `AIMAESTRO_DEVICE_RELAY_URL=https://<name>` is the public name boards use; `GET /api/agents/<id>/devices/identity` returns it as `relay`.
+
+### Changed
+- The device SDK copy is now at agent-device-protocol `756860b` (adds `network.add`, `network.remove`, `network.list`, and the relay option of the hub).
+
+## [0.106.265] - 2026-11-23 - Louder speech on small speakers
+
+### Changed
+- Speech an agent sends to a device (`speaker.play`) is now made louder on average for small speakers: a low cut at 180 Hz, a compressor and a limiter at -1 dBFS (`lib/speech-loudness.mjs`, no new dependency). On an ESP32 board with a MAX98357A amplifier, speech that was too quiet at the board's clean volume became clearly louder and stayed clean. Speech in the browser is unchanged.
+
+### Docs
+- Backlog: a "Mobile toy (Bruce)" category with F129 (an agent's Wi-Fi networks for its devices), F130 (the device endpoint through a Cloudflare tunnel) and F131 (this change).
+
 ## [0.106.264] - 2026-11-22 - Devices on the home network, encrypted
 
 ### Added

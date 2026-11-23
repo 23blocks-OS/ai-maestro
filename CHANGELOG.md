@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - The announced message is opened for the agent
+
+### Changed
+- A message pushed into an agent's pane arrives as a notice with only the last eight letters and digits of its id and the first 400 characters of its body, so the agent's first step on every message was a model call to find the id and open it (`amp-inbox`, `amp-read`). Now the Claude Code hook opens it on UserPromptSubmit and adds the whole message, as `amp-read` shows it, to the prompt's context: the agent can answer at once with `amp-reply <id>`. The hook runs the same `amp-inbox --json` and `amp-read` in the session's own environment, as the agent itself would, and never passes `--id`; it opens a message only when the prompt carries exactly one notice whose ref matches exactly one unread message in that agent's inbox. `amp-read` marks it read and records it as the message last read, as when the agent opens it itself. A message whose text would pass Claude Code's 10,000-character limit for hook context (over it, Claude Code keeps only a preview) is not opened: the context names its full id and the command, `amp-read <id>`. The same when the read fails or the hook's time runs short. Claude Code only. `AIM_OPEN_ANNOUNCED_MESSAGE=0` in the agent's environment turns it off.
+
 ## [0.106.264] - 2026-11-22 - Devices on the home network, encrypted
 
 ### Added

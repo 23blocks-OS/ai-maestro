@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.277] - 2026-11-23 - The server finds agent sessions again under pm2
+
+### Fixed
+- The server could not tell which agent was calling (0.106.276): pm2 starts it with no locale, and without a UTF-8 locale tmux prints a tab in a `-F` format as `_`, so the pane list read empty and every caller was anonymous. The pane list now uses `:` as the separator; tmux never allows `:` in a session name.
+- The same tab made agent discovery fall back, without an error, to one tmux call per session (the slow path fixed on 2026-09-23). It is one call again.
+
 ## [0.106.276] - 2026-11-23 - An agent acts only as itself
 
 ### Security

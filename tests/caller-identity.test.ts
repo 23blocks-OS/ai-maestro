@@ -21,6 +21,7 @@ import {
   stripCallerHeader,
   type Caller,
   type CallerProbes,
+  parsePanes,
 } from '@/lib/caller-identity'
 
 const KEY_ALICE = 'amp_live_sk_' + 'a'.repeat(64)
@@ -265,5 +266,14 @@ describe('caller identity: kernel facts parsing', () => {
   it('reads the parent pid from /proc/<pid>/stat, even with spaces in the name', () => {
     expect(ppidFromStat('220 (node (worker) x) S 210 220 200 0')).toBe(210)
     expect(ppidFromStat('garbage')).toBeNull()
+  })
+
+  it('reads the pane list tmux prints without a UTF-8 locale (pm2 gives the server none)', () => {
+    expect(parsePanes('34340:23b-cmo\n20591:ai-maestro\n')).toEqual([
+      { pid: 34340, session: '23b-cmo' },
+      { pid: 20591, session: 'ai-maestro' },
+    ])
+    // The old tab format came back as "34340_23b-cmo" there: never a pane by accident
+    expect(parsePanes('34340_23b-cmo\n')).toEqual([])
   })
 })

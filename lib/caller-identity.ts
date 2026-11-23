@@ -467,6 +467,16 @@ export function ppidFromStat(stat: string): number | null {
   return Number.isFinite(ppid) ? ppid : null
 }
 
+// Without a UTF-8 locale (pm2 starts the server with none) tmux prints a tab in a -F format as "_", and no
+// pane was found. A session name never holds ':' (tmux turns it into '_'), so ':' separates the fields.
+const PANE_FORMAT = '#{pane_pid}:#{session_name}'
+
+/** `list-panes -F PANE_FORMAT` output -> each pane's shell pid and session name */
+export function parsePanes(out: string): { pid: number; session: string }[] {
+  return out.split('\n').map((l) => /^(\d+):(.+)$/.exec(l)).filter((m) => m !== null)
+    .map((m) => ({ pid: Number(m![1]), session: m![2] }))
+}
+
 /** A tmux session name -> its registry agent */
 export function agentOfSession(session: string): AgentRef | null {
   const a = getAgentByName(agentNameOfSession(session)) || getAgentByName(session)
@@ -481,9 +491,8 @@ export function defaultProbes(platform: NodeJS.Platform = process.platform): Cal
   let addrCache: { at: number; set: Set<string> } | null = null
   return {
     async listPanes() {
-      const { stdout } = await tmux(['list-panes', '-a', '-F', '#{pane_pid}\t#{session_name}'], { timeout: PROBE_TIMEOUT_MS })
-      return String(stdout).split('\n').map((l) => l.split('\t')).filter((f) => f.length === 2 && /^\d+$/.test(f[0]))
-        .map(([pid, session]) => ({ pid: Number(pid), session }))
+      const { stdout } = await tmux(['list-panes', '-a', '-F', PANE_FORMAT], { timeout: PROBE_TIMEOUT_MS })
+      return parsePanes(String(stdout))
     },
     async processTable() {
       const table = new Map<number, number>()

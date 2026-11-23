@@ -13,13 +13,12 @@
  * A message to `_provider` answering an approval request (AMP 07 "Approval by message") — answerProviderMessage
  *
  * Who may decide and read (lib/caller-identity; server.mjs resolves the caller for /api/v1/quarantine*):
- *   operator   decides any entry, recorded as "the operator"; reads everything
+ *   operator   the server itself: decides any entry, recorded as "the operator"; reads everything
  *   agent      decides only an entry it is an approver of and did not send, recorded as itself whatever `by` says;
  *              lists and reads only entries it sent, is the recipient of, or approves
- *   anonymous  session mode: as before (the dashboard, `by` as typed, unverified). strict mode: 401
- *   a peer     an anonymous request from another machine with X-Forwarded-From naming a host in hosts.json: as before
- *              (a peer has no operator token; its host checked its own caller). Never from this machine in strict
- *              mode, never from an agent
+ *   anonymous  as before (the dashboard, `by` as typed, unverified)
+ *   a peer     an anonymous request with X-Forwarded-From naming a host in hosts.json: as before (its host checked
+ *              its own caller). Never from an agent
  */
 import fs from 'fs'
 import path from 'path'
@@ -34,7 +33,7 @@ import {
   type DecideResult, type HeldPath, type KnownDecider, type QuarantineEntry, type QuarantineStatus, type SignedAnswer,
 } from '@/lib/policy-approvals'
 import { type ServiceResult, missingField, invalidField, notFound, operationFailed } from '@/services/service-errors'
-import { refusal, requireIdentified, type Caller, type CallerRefusal } from '@/lib/caller-identity'
+import { refusal, type Caller, type CallerRefusal } from '@/lib/caller-identity'
 
 const PEER_TIMEOUT_MS = 5_000
 
@@ -180,8 +179,7 @@ type Asker =
 
 /**
  * The caller of a quarantine route. No caller (an in-process call) or mode off: as before. A request with
- * X-Forwarded-From is a peer host passing something on: never an agent, never this machine in strict mode, and only a
- * host this host knows.
+ * X-Forwarded-From is a peer host passing something on: never an agent, and only a host this host knows counts as one.
  */
 function askerOf(caller: Caller | undefined, forwardedFrom?: string | null): { asker: Asker } | { refused: CallerRefusal } {
   if (!caller || caller.mode === 'off') return { asker: { as: 'open' } }
@@ -193,13 +191,9 @@ function askerOf(caller: Caller | undefined, forwardedFrom?: string | null): { a
   if (forwardedFrom) {
     const peer = getHostById(forwardedFrom)
     const known = !!peer && peer.enabled !== false && !isSelf(peer.id)
-    if (caller.mode === 'strict' && (caller.local || !known)) {
-      return { refused: refusal(401, 'caller_required', `X-Forwarded-From ${forwardedFrom} is not accepted here: ${caller.local ? 'the request comes from this machine' : 'that host is not in hosts.json'}. Send the operator token`) }
-    }
     return { asker: known ? { as: 'peer', host: peer!.id } : { as: 'open' } }
   }
-  const anon = requireIdentified(caller)
-  return anon ? { refused: anon } : { asker: { as: 'open' } }
+  return { asker: { as: 'open' } }
 }
 
 /** This host's own id or one of its aliases */

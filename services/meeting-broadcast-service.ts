@@ -13,7 +13,7 @@ import { getAgent } from '@/lib/agent-registry'
 import { findPeerHostUrl } from '@/lib/owning-host'
 import { sendMessage } from '@/services/messages-service'
 import { invalidRequest, missingField, type ServiceResult } from '@/services/service-errors'
-import { type Caller, refusal, requireIdentified } from '@/lib/caller-identity'
+import { type Caller, refusal } from '@/lib/caller-identity'
 
 export interface BroadcastParams {
   meetingId: string
@@ -77,8 +77,6 @@ export async function broadcastToMeeting(
 ): Promise<ServiceResult<BroadcastResult>> {
   const { meetingId, teamName, message, participantIds, caller } = params
   if (caller && caller.mode !== 'off') {
-    const anon = requireIdentified(caller)
-    if (anon) return anon as ServiceResult<BroadcastResult>
     if (caller.kind === 'agent') return refusal(403, 'sender_mismatch', `${caller.name || caller.agentId} may send only as itself; a meeting broadcast is sent as maestro`) as ServiceResult<BroadcastResult>
   }
   if (!meetingId || typeof meetingId !== 'string') return missingField('meetingId') as ServiceResult<BroadcastResult>

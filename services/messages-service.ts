@@ -48,7 +48,7 @@ import {
 } from '@/lib/meeting-registry'
 import type { SidebarMode } from '@/types/team'
 import { type ServiceResult, missingField, notFound, invalidRequest, operationFailed } from '@/services/service-errors'
-import { type Caller, checkMailbox, checkNotAgent, checkSender, requireIdentified, refusal, senderViaOf } from '@/lib/caller-identity'
+import { type Caller, checkMailbox, checkNotAgent, checkSender, refusal, senderViaOf } from '@/lib/caller-identity'
 
 /** A mailbox or sender name -> the local agent's id, for the caller checks */
 const agentIdOf = (identifier: string) => resolveAgentIdentifier(identifier)?.agentId ?? null
@@ -417,8 +417,6 @@ export async function getMeetingMessages(
 ): Promise<ServiceResult<{ meetingId: string; messages: MessageSummary[]; count: number; unreachable?: string[] }>> {
   const { meetingId, participants: participantsParam, since } = params
   type Result = ServiceResult<{ meetingId: string; messages: MessageSummary[]; count: number; unreachable?: string[] }>
-  const anon = requireIdentified(caller)
-  if (anon) return anon as Result
 
   if (!meetingId) {
     return missingField('meetingId')

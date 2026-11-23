@@ -26,7 +26,7 @@ import { GET as nextGetCaller } from '@/app/api/caller/route'
 import { routeMessage } from '@/services/amp-service'
 
 const alice: Caller = { kind: 'agent', agentId: 'id-alice', name: 'alice', via: 'session', mode: 'session', local: true }
-const strictAnon: Caller = { kind: 'anonymous', mode: 'strict', local: true }
+const anonLocal: Caller = { kind: 'anonymous', mode: 'session', local: true }
 
 async function headless(method: string, url: string, caller?: Caller, body?: unknown) {
   const req: any = new PassThrough()
@@ -76,9 +76,15 @@ describe('both routers pass the caller to the services', () => {
     expect(m.listInboxMessages).not.toHaveBeenCalled()
   })
 
-  it('strict mode refuses an anonymous caller on both', async () => {
-    expect((await nextGetMessages(next('GET', '/api/messages?agent=bob', strictAnon))).status).toBe(401)
-    expect((await headless('GET', '/api/messages?agent=bob', strictAnon)).status).toBe(401)
+  it('an anonymous caller keeps today\'s access on both, whatever AIMAESTRO_CALLER_AUTH says (there is no strict mode)', async () => {
+    const prev = process.env.AIMAESTRO_CALLER_AUTH
+    process.env.AIMAESTRO_CALLER_AUTH = 'strict'
+    try {
+      expect((await nextGetMessages(next('GET', '/api/messages?agent=bob', anonLocal))).status).toBe(200)
+      expect((await headless('GET', '/api/messages?agent=bob')).status).toBe(200)
+    } finally {
+      if (prev === undefined) delete process.env.AIMAESTRO_CALLER_AUTH; else process.env.AIMAESTRO_CALLER_AUTH = prev
+    }
   })
 
   it('default install: the dashboard (no caller header, session mode) works as before', async () => {
@@ -109,10 +115,9 @@ describe('/api/v1/route: an agent session is not a mesh host', () => {
     expect(m.recordAmpRefusal).toHaveBeenCalled()
   })
 
-  it('strict: refuses it from an unidentified process on this machine, not from another machine', async () => {
-    expect((await routeMessage(body, null, 'self', null, null, null, strictAnon)).status).toBe(401)
-    const peer = await routeMessage(body, null, 'no-such-host', null, null, null, { kind: 'anonymous', mode: 'strict', local: false })
+  it('an unidentified caller is not refused by the caller check; the mesh checks decide as before', async () => {
+    const peer = await routeMessage(body, null, 'no-such-host', null, null, null, { kind: 'anonymous', mode: 'session', local: false })
     expect(peer.status).toBe(401) // an unknown host, refused as before by the mesh check, not by the caller check
-    expect((peer.data as any).error).not.toBe('caller_required')
+    expect((peer.data as any).error).not.toBe('sender_mismatch')
   })
 })

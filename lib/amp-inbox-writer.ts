@@ -383,7 +383,7 @@ export async function writeToAMPInbox(
         // What the receiving server found when it checked the signature
         // (protocol 07-security). Readers show it; see lib/amp-trust.ts.
         ...(verification ? { verification } : {}),
-        // session | key | operator-token | host: the server identified the sender; claimed: the request named it
+        // session | key | host: the server identified the sender; claimed: the request named it
         ...(local?.senderVia ? { sender_via: local.senderVia } : {})
       },
       ...(security ? { security } : {}),

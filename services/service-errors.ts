@@ -61,11 +61,9 @@ export type ServiceErrorCode =
   | 'timestamp_expired'
   | 'timestamp_future'
   // Caller identity (lib/caller-identity.ts)
-  | 'caller_required'
   | 'sender_mismatch'
   | 'not_your_mailbox'
   | 'caller_mismatch'
-  | 'session_required'
   // Generic codes (12)
   | 'already_exists'
   | 'gone'

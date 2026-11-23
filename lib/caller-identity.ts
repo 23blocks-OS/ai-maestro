@@ -2,10 +2,8 @@
  * Caller identity: the server works out who is calling, and never takes it from the request text.
  *
  * A request is one of:
- *   - operator   `Authorization: Bearer <token>` whose SHA-256 equals the configured operator token hash
- *                (AIMAESTRO_OPERATOR_TOKEN_SHA256, or ~/.aimaestro/operator-token.sha256; only the hash is
- *                on the host, see scripts/operator-token.mjs). Also the server itself calling its own API
- *                (via 'host').
+ *   - operator   the server itself calling its own API (via 'host'). There is no operator token: an opt-in
+ *                token for people belongs to F058 (Juan, 2026-11-23, F132).
  *   - agent      by session: a request from this machine whose client process descends from an agent's
  *                tmux pane is that agent. Kernel facts only (socket -> pid -> parent chain -> pane pid ->
  *                tmux session -> registry agent), never the environment or the arguments.
@@ -13,25 +11,23 @@
  *   - anonymous  none of the above.
  *
  * AIMAESTRO_CALLER_AUTH:
- *   session  default when no operator token is set. Anonymous callers keep today's trust (the dashboard
- *            works with no configuration); identified agents are bound to themselves.
- *   strict   default when an operator token is set. Anonymous callers are refused on protected routes;
- *            an agent with a live session here is identified by that session only.
- *   off      today's behaviour: nothing is resolved, nothing is refused.
+ *   session  the default. Anonymous callers keep today's trust (the dashboard, scripts, the email bridge
+ *            and other hosts work with no configuration); identified agents are bound to themselves.
+ *   off      the behaviour before this check: nothing is resolved, nothing is refused.
+ * There is no mode that refuses anonymous callers: AI Maestro has no app-level authentication by design
+ * (the network is the trust boundary); an opt-in gate for people is F058.
  *
  * server.mjs resolves the caller for the protected paths only (isProtectedPath), before Next and before
  * the headless router, and hands it to the routes in the CALLER_HEADER request header. It strips that
  * header from every incoming request first, so a client cannot set it. Routes read it with
- * callerFromHeaders() and pass the Caller to their service, which decides with checkSender / checkMailbox /
- * requireIdentified.
+ * callerFromHeaders() and pass the Caller to their service, which decides with checkSender / checkMailbox.
  *
  * What this is not: agents on one host still run as one OS user (B021). A session caller is bound to
  * itself on these routes, but an agent with a shell can still read files directly, or detach from its pane
- * (then it is anonymous: trusted in session mode, refused in strict mode). The rest of the API stays open
+ * (then it is anonymous, and keeps today's trust). The rest of the API stays open
  * (F058 is the gate for that).
  */
 
-import crypto from 'crypto'
 import fs from 'fs'
 import net from 'net'
 import os from 'os'
@@ -49,8 +45,8 @@ import { validateApiKey } from '@/lib/amp-auth'
 
 export type CallerKind = 'operator' | 'agent' | 'anonymous'
 /** How the caller was established. 'host': the server calling its own API */
-export type CallerVia = 'session' | 'key' | 'operator-token' | 'host'
-export type CallerAuthMode = 'session' | 'strict' | 'off'
+export type CallerVia = 'session' | 'key' | 'host'
+export type CallerAuthMode = 'session' | 'off'
 
 export interface Caller {
   kind: CallerKind
@@ -64,11 +60,11 @@ export interface Caller {
   local?: boolean
 }
 
-export type CallerErrorCode = 'caller_required' | 'sender_mismatch' | 'not_your_mailbox' | 'caller_mismatch' | 'session_required'
+export type CallerErrorCode = 'sender_mismatch' | 'not_your_mailbox' | 'caller_mismatch'
 
 /** A refusal, shaped like a ServiceResult so a service can return it as it is */
 export interface CallerRefusal {
-  status: 401 | 403
+  status: 403
   data: { error: CallerErrorCode; message: string }
 }
 
@@ -79,56 +75,12 @@ export type SenderVia = CallerVia | 'claimed'
 export const CALLER_HEADER = 'x-aimaestro-caller'
 
 // ---------------------------------------------------------------------------
-// Settings: mode and operator token
+// Settings: the mode
 // ---------------------------------------------------------------------------
 
-export function operatorTokenFile(home = os.homedir()): string {
-  return path.join(home, '.aimaestro', 'operator-token.sha256')
-}
-
-const HEX64 = /^[0-9a-f]{64}$/
-
-/**
- * The configured operator token hash.
- * configured: a token is set (env or file), so the default mode is strict.
- * hash: the lowercase hex SHA-256, or null when the value is malformed (then no token matches: fail closed).
- */
-export function readOperatorTokenHash(
-  env: Record<string, string | undefined> = process.env,
-  readFile: (p: string) => string | null = (p) => { try { return fs.readFileSync(p, 'utf8') } catch { return null } },
-): { configured: boolean; hash: string | null; source?: 'env' | 'file' } {
-  const fromEnv = String(env.AIMAESTRO_OPERATOR_TOKEN_SHA256 || '').trim().toLowerCase()
-  if (fromEnv) return { configured: true, hash: HEX64.test(fromEnv) ? fromEnv : null, source: 'env' }
-  const text = readFile(operatorTokenFile())
-  if (text === null) return { configured: false, hash: null }
-  const first = text.split('\n')[0].trim().toLowerCase()
-  return { configured: true, hash: HEX64.test(first) ? first : null, source: 'file' }
-}
-
-/** The file is read again at most this often, so a new token works without a restart */
-const TOKEN_TTL_MS = 5_000
-let tokenCache: { at: number; value: ReturnType<typeof readOperatorTokenHash> } | null = null
-
-function operatorToken(): ReturnType<typeof readOperatorTokenHash> {
-  if (!tokenCache || Date.now() - tokenCache.at > TOKEN_TTL_MS) tokenCache = { at: Date.now(), value: readOperatorTokenHash() }
-  return tokenCache.value
-}
-
-/** Constant-time: SHA-256 of the presented token against the configured hash */
-export function matchesOperatorToken(token: string | null | undefined, hashHex: string | null | undefined): boolean {
-  if (!token || !hashHex || !HEX64.test(hashHex)) return false
-  const presented = crypto.createHash('sha256').update(token).digest()
-  return crypto.timingSafeEqual(presented, Buffer.from(hashHex, 'hex'))
-}
-
-export function callerAuthMode(
-  env: Record<string, string | undefined> = process.env,
-  tokenConfigured: boolean = operatorToken().configured,
-): CallerAuthMode {
-  const m = String(env.AIMAESTRO_CALLER_AUTH || '').trim().toLowerCase()
-  if (m === 'session' || m === 'strict' || m === 'off') return m
-  // Unset or unknown: strict once the operator has a token, else session
-  return tokenConfigured ? 'strict' : 'session'
+/** AIMAESTRO_CALLER_AUTH=off turns the check off; anything else (unset, or an old "strict") is session */
+export function callerAuthMode(env: Record<string, string | undefined> = process.env): CallerAuthMode {
+  return String(env.AIMAESTRO_CALLER_AUTH || '').trim().toLowerCase() === 'off' ? 'off' : 'session'
 }
 
 // ---------------------------------------------------------------------------
@@ -143,7 +95,7 @@ export function decodeCaller(value: string | null | undefined): Caller | null {
   if (!value || typeof value !== 'string') return null
   try {
     const c = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'))
-    if (!c || !['operator', 'agent', 'anonymous'].includes(c.kind) || !['session', 'strict', 'off'].includes(c.mode)) return null
+    if (!c || !['operator', 'agent', 'anonymous'].includes(c.kind) || !['session', 'off'].includes(c.mode)) return null
     if (c.kind === 'agent' && (typeof c.agentId !== 'string' || !c.agentId)) return null
     return c as Caller
   } catch {
@@ -156,7 +108,7 @@ type HeaderBag = { get(name: string): string | null } | Record<string, string | 
 /**
  * The caller server.mjs resolved for this request. Works with a Fetch `Headers` (Next routes) and with a
  * Node header object (headless router). No header (a path the server does not resolve, or a direct call):
- * anonymous in the configured mode, so strict mode still refuses it.
+ * anonymous in the configured mode.
  */
 export function callerFromHeaders(headers: HeaderBag | null | undefined): Caller {
   let raw: string | null | undefined = null
@@ -237,8 +189,6 @@ export interface CallerProbes {
   agentForSession(session: string): AgentRef | null
   /** The agent a valid AMP API key belongs to; null for an unknown, pending or expired key */
   agentForKey(apiKey: string): AgentRef | null
-  /** Operator token: is one configured, and its hash */
-  operatorToken(): { configured: boolean; hash: string | null }
   /** This machine's own addresses (a request from one of them comes from this machine) */
   localAddresses(): Set<string>
 }
@@ -279,13 +229,13 @@ export function agentNameOfSession(session: string): string {
   return session.replace(/__call$/, '').replace(/_\d+$/, '')
 }
 
-export function refusal(status: 401 | 403, error: CallerErrorCode, message: string): CallerRefusal {
+export function refusal(status: 403, error: CallerErrorCode, message: string): CallerRefusal {
   return { status, data: { error, message } }
 }
 
 export function createCallerResolver(opts: ResolverOptions = {}) {
   const probes: CallerProbes = { ...defaultProbes(), ...(opts.probes || {}) }
-  const mode = opts.mode || (() => callerAuthMode(process.env, probes.operatorToken().configured))
+  const mode = opts.mode || (() => callerAuthMode(process.env))
   const serverPid = opts.serverPid ?? process.pid
   const paneTtl = opts.paneTtlMs ?? 2_000
   const log = opts.log || ((m: string) => console.warn(m))
@@ -348,14 +298,6 @@ export function createCallerResolver(opts: ResolverOptions = {}) {
     return probes.agentForSession(hit.session)
   }
 
-  /** True when the agent has a pane in the server's tmux right now */
-  async function hasLiveSession(agentId: string): Promise<boolean> {
-    for (const p of await paneList()) {
-      if (probes.agentForSession(p.session)?.id === agentId) return true
-    }
-    return false
-  }
-
   function isLocal(address: string | undefined): boolean {
     if (isLoopbackAddress(address)) return true
     try { return probes.localAddresses().has(normaliseAddress(address)) } catch { return false }
@@ -363,8 +305,7 @@ export function createCallerResolver(opts: ResolverOptions = {}) {
 
   /**
    * Who is calling. Never throws: a failed probe means "not from a session".
-   * Refuses (instead of picking one) an API key of one agent used from the session of another, and in
-   * strict mode the key of an agent that has a live session here, used from outside that session.
+   * Refuses (instead of picking one) an API key of one agent used from the session of another.
    */
   async function resolve(req: Pick<IncomingMessage, 'headers' | 'socket'>): Promise<Resolution> {
     const m = mode()
@@ -373,10 +314,6 @@ export function createCallerResolver(opts: ResolverOptions = {}) {
     const local = isLocal(socket?.remoteAddress)
     try {
       const bearer = bearerOf(req.headers?.authorization)
-      const token = probes.operatorToken()
-      if (bearer && token.hash && matchesOperatorToken(bearer, token.hash)) {
-        return { caller: { kind: 'operator', via: 'operator-token', mode: m, local } }
-      }
       const keyAgent = bearer && AMP_KEY.test(bearer) ? probes.agentForKey(bearer) : null
 
       let session: AgentRef | 'host' | null = null
@@ -395,9 +332,6 @@ export function createCallerResolver(opts: ResolverOptions = {}) {
       }
       if (session) return { caller: { kind: 'agent', agentId: session.id, name: session.name, via: 'session', mode: m, local } }
       if (keyAgent) {
-        if (m === 'strict' && await hasLiveSession(keyAgent.id)) {
-          return { refused: refusal(403, 'session_required', `${keyAgent.name || keyAgent.id} has a session on this host; its requests must come from that session`) }
-        }
         return { caller: { kind: 'agent', agentId: keyAgent.id, name: keyAgent.name, via: 'key', mode: m, local } }
       }
     } catch (err) {
@@ -423,22 +357,12 @@ function sameAgent(caller: Caller, identifier: string, idOf: AgentIdOf): boolean
   try { return idOf(identifier) === caller.agentId } catch { return false }
 }
 
-/** strict mode: an anonymous caller is refused (401). Everyone else passes */
-export function requireIdentified(caller: Caller | undefined): CallerRefusal | null {
-  if (caller && caller.mode === 'strict' && caller.kind === 'anonymous') {
-    return refusal(401, 'caller_required', 'This route needs an identified caller: an agent session, an agent API key or the operator token')
-  }
-  return null
-}
-
 /**
- * Reading or changing a mailbox. An agent may use its own only; the operator any; an anonymous caller as
- * before in session mode, refused in strict mode. No caller (an in-process call): allowed.
+ * Reading or changing a mailbox. An agent may use its own only; the server itself and an anonymous caller
+ * any, as before. No caller (an in-process call): allowed.
  */
 export function checkMailbox(caller: Caller | undefined, mailbox: string | null | undefined, idOf: AgentIdOf): CallerRefusal | null {
   if (!caller || caller.mode === 'off') return null
-  const anon = requireIdentified(caller)
-  if (anon) return anon
   if (caller.kind !== 'agent') return null
   if (mailbox && sameAgent(caller, String(mailbox), idOf)) return null
   return refusal(403, 'not_your_mailbox', `${caller.name || caller.agentId} may read and change only its own mailbox`)
@@ -447,15 +371,13 @@ export function checkMailbox(caller: Caller | undefined, mailbox: string | null 
 /** Agent-only surfaces of other mailboxes (all agents' counts, a person's mailbox, the pending-wakes report) */
 export function checkNotAgent(caller: Caller | undefined): CallerRefusal | null {
   if (!caller || caller.mode === 'off') return null
-  const anon = requireIdentified(caller)
-  if (anon) return anon
   if (caller.kind === 'agent') return refusal(403, 'not_your_mailbox', `${caller.name || caller.agentId} may read only its own mailbox`)
   return null
 }
 
 /**
- * A person's mailbox: never an agent's to read or send from. Anonymous callers keep today's access in every
- * mode, because a person's own device reads it (it signs what it sends with its device key).
+ * A person's mailbox: never an agent's to read or send from. Anonymous callers keep today's access, because
+ * a person's own device reads it (it signs what it sends with its device key).
  */
 export function checkPersonMailbox(caller: Caller | undefined): CallerRefusal | null {
   if (!caller || caller.mode === 'off' || caller.kind !== 'agent') return null
@@ -463,8 +385,8 @@ export function checkPersonMailbox(caller: Caller | undefined): CallerRefusal | 
 }
 
 /**
- * Sending as `from`. An agent sends as itself only (a missing `from` is its own); the operator as anyone;
- * an anonymous caller as before in session mode, refused in strict mode.
+ * Sending as `from`. An agent sends as itself only (a missing `from` is its own); the server itself and an
+ * anonymous caller as before.
  * Returns the `from` to use, or a refusal.
  */
 export function checkSender(
@@ -473,8 +395,6 @@ export function checkSender(
   idOf: AgentIdOf,
 ): { from: string | null | undefined; refused?: undefined } | { refused: CallerRefusal; from?: undefined } {
   if (!caller || caller.mode === 'off') return { from }
-  const anon = requireIdentified(caller)
-  if (anon) return { refused: anon }
   if (caller.kind !== 'agent') return { from }
   if (!from) return { from: caller.agentId }
   if (sameAgent(caller, String(from), idOf)) return { from }
@@ -613,7 +533,6 @@ export function defaultProbes(platform: NodeJS.Platform = process.platform): Cal
       const a = getAgent(rec.agent_id)
       return { id: rec.agent_id, name: a?.name }
     },
-    operatorToken: () => operatorToken(),
     localAddresses() {
       if (!addrCache || Date.now() - addrCache.at > 30_000) {
         const set = new Set<string>()

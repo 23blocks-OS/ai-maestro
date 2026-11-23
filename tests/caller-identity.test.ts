@@ -1,5 +1,4 @@
 import { describe, it, expect, vi } from 'vitest'
-import crypto from 'crypto'
 import {
   CALLER_HEADER,
   agentNameOfSession,
@@ -15,11 +14,8 @@ import {
   encodeCaller,
   findSocketInode,
   isProtectedPath,
-  matchesOperatorToken,
   parseLsofOwner,
   ppidFromStat,
-  readOperatorTokenHash,
-  requireIdentified,
   senderViaOf,
   setCallerHeader,
   stripCallerHeader,
@@ -27,8 +23,6 @@ import {
   type CallerProbes,
 } from '@/lib/caller-identity'
 
-const sha = (t: string) => crypto.createHash('sha256').update(t).digest('hex')
-const TOKEN = 'operator-token-for-tests'
 const KEY_ALICE = 'amp_live_sk_' + 'a'.repeat(64)
 const KEY_BOB = 'amp_live_sk_' + 'b'.repeat(64)
 const AGENTS: Record<string, { id: string; name: string }> = {
@@ -46,14 +40,13 @@ const AGENTS: Record<string, { id: string; name: string }> = {
 const TABLE = new Map<number, number>([[100, 1], [200, 100], [210, 200], [220, 210], [300, 100], [310, 300], [400, 1], [410, 400], [500, 1], [510, 500]])
 const PANES = [{ pid: 200, session: 'alice' }, { pid: 300, session: 'bob' }]
 
-function probes(over: Partial<CallerProbes> & { owner?: number | null; panes?: typeof PANES; token?: string | null } = {}): Partial<CallerProbes> {
+function probes(over: Partial<CallerProbes> & { owner?: number | null; panes?: typeof PANES } = {}): Partial<CallerProbes> {
   return {
     listPanes: async () => over.panes ?? PANES,
     processTable: async () => TABLE,
     socketOwner: async (_c, _s, candidates) => (over.owner != null && candidates.includes(over.owner) ? over.owner : null),
     agentForSession: (s) => AGENTS[agentNameOfSession(s)] || null,
     agentForKey: (k) => (k === KEY_ALICE ? AGENTS.alice : k === KEY_BOB ? AGENTS.bob : null),
-    operatorToken: () => (over.token === undefined ? { configured: false, hash: null } : { configured: true, hash: over.token }),
     localAddresses: () => new Set(['192.168.1.10']),
     ...over,
   }
@@ -64,7 +57,7 @@ function req(opts: { auth?: string; remote?: string; socket?: object } = {}) {
   return { headers: opts.auth ? { authorization: opts.auth } : {}, socket } as any
 }
 
-const resolver = (mode: 'session' | 'strict' | 'off', p: Partial<CallerProbes>) =>
+const resolver = (mode: 'session' | 'off', p: Partial<CallerProbes>) =>
   createCallerResolver({ probes: p, mode: () => mode, serverPid: 500, log: () => {} })
 
 describe('caller identity: who is calling', () => {
@@ -133,23 +126,10 @@ describe('caller identity: who is calling', () => {
     expect(own).toMatchObject({ caller: { kind: 'agent', agentId: 'id-alice', via: 'session' } })
   })
 
-  it('strict: the key of an agent with a live session works only from that session', async () => {
-    const outside = await resolver('strict', probes({ owner: 410 })).resolve(req({ auth: `Bearer ${KEY_BOB}` }))
-    expect(outside).toMatchObject({ refused: { status: 403, data: { error: 'session_required' } } })
-    // session mode keeps the key working from anywhere
+  it('an agent key works from anywhere, and a bearer that is not an agent key is nobody (there is no operator token)', async () => {
     const session = await resolver('session', probes({ owner: 410 })).resolve(req({ auth: `Bearer ${KEY_BOB}` }))
     expect(session).toMatchObject({ caller: { agentId: 'id-bob', via: 'key' } })
-    // an agent with no session here (an API agent, a container) is identified by its key
-    const noPane = await resolver('strict', probes({ owner: 410, panes: [PANES[0]] })).resolve(req({ auth: `Bearer ${KEY_BOB}` }))
-    expect(noPane).toMatchObject({ caller: { agentId: 'id-bob', via: 'key' } })
-  })
-
-  it('the operator token is the operator, from anywhere; a wrong token is nobody', async () => {
-    const p = probes({ token: sha(TOKEN), owner: 220 })
-    expect(await resolver('strict', p).resolve(req({ auth: `Bearer ${TOKEN}`, remote: '10.0.0.5' }))).toMatchObject({ caller: { kind: 'operator', via: 'operator-token' } })
-    expect(await resolver('strict', probes({ token: sha(TOKEN) })).resolve(req({ auth: 'Bearer nope', remote: '10.0.0.5' }))).toMatchObject({ caller: { kind: 'anonymous' } })
-    // a malformed hash matches nothing
-    expect(await resolver('strict', probes({ token: null })).resolve(req({ auth: `Bearer ${TOKEN}`, remote: '10.0.0.5' }))).toMatchObject({ caller: { kind: 'anonymous' } })
+    expect(await resolver('session', probes({})).resolve(req({ auth: 'Bearer some-operator-token', remote: '10.0.0.5' }))).toEqual({ caller: { kind: 'anonymous', mode: 'session', local: false } })
   })
 
   it('off resolves nothing', async () => {
@@ -160,26 +140,12 @@ describe('caller identity: who is calling', () => {
 })
 
 describe('caller identity: settings', () => {
-  it('mode: session by default, strict once a token is set, the setting wins', () => {
-    expect(callerAuthMode({}, false)).toBe('session')
-    expect(callerAuthMode({}, true)).toBe('strict')
-    expect(callerAuthMode({ AIMAESTRO_CALLER_AUTH: 'off' }, true)).toBe('off')
-    expect(callerAuthMode({ AIMAESTRO_CALLER_AUTH: 'STRICT' }, false)).toBe('strict')
-    expect(callerAuthMode({ AIMAESTRO_CALLER_AUTH: 'whatever' }, false)).toBe('session')
-  })
-
-  it('operator token: env first, then the file; a malformed value is configured but matches nothing', () => {
-    expect(readOperatorTokenHash({ AIMAESTRO_OPERATOR_TOKEN_SHA256: sha(TOKEN).toUpperCase() }, () => null)).toEqual({ configured: true, hash: sha(TOKEN), source: 'env' })
-    expect(readOperatorTokenHash({}, () => `${sha(TOKEN)}\n`)).toEqual({ configured: true, hash: sha(TOKEN), source: 'file' })
-    expect(readOperatorTokenHash({}, () => 'not a hash')).toEqual({ configured: true, hash: null, source: 'file' })
-    expect(readOperatorTokenHash({}, () => null)).toEqual({ configured: false, hash: null })
-  })
-
-  it('compares the token by its hash', () => {
-    expect(matchesOperatorToken(TOKEN, sha(TOKEN))).toBe(true)
-    expect(matchesOperatorToken('other', sha(TOKEN))).toBe(false)
-    expect(matchesOperatorToken(TOKEN, 'short')).toBe(false)
-    expect(matchesOperatorToken(null, sha(TOKEN))).toBe(false)
+  it('mode: session unless the setting says off; there is no strict mode', () => {
+    expect(callerAuthMode({})).toBe('session')
+    expect(callerAuthMode({ AIMAESTRO_CALLER_AUTH: 'off' })).toBe('off')
+    expect(callerAuthMode({ AIMAESTRO_CALLER_AUTH: 'OFF' })).toBe('off')
+    expect(callerAuthMode({ AIMAESTRO_CALLER_AUTH: 'strict' })).toBe('session')
+    expect(callerAuthMode({ AIMAESTRO_CALLER_AUTH: 'whatever', AIMAESTRO_OPERATOR_TOKEN_SHA256: 'a'.repeat(64) })).toBe('session')
   })
 })
 
@@ -188,13 +154,14 @@ describe('caller identity: the header between the server and the routes', () => 
 
   it('round-trips, and a forged or broken value is not a caller', () => {
     expect(decodeCaller(encodeCaller(alice))).toEqual(alice)
+    expect(decodeCaller(Buffer.from('{"kind":"anonymous","mode":"strict"}').toString('base64url'))).toBeNull()
     expect(decodeCaller('{"kind":"operator"}')).toBeNull()
     expect(decodeCaller(Buffer.from('{"kind":"root","mode":"off"}').toString('base64url'))).toBeNull()
     expect(decodeCaller(Buffer.from('{"kind":"agent","mode":"session"}').toString('base64url'))).toBeNull()
   })
 
   it('a header sent by the client is stripped before the server sets its own', () => {
-    const forged = encodeCaller({ kind: 'operator', via: 'operator-token', mode: 'session' })
+    const forged = encodeCaller({ kind: 'operator', via: 'host', mode: 'session' })
     const r: any = { headers: { [CALLER_HEADER]: forged, host: 'x' }, rawHeaders: ['Host', 'x', 'X-AIMaestro-Caller', forged] }
     stripCallerHeader(r)
     expect(r.headers[CALLER_HEADER]).toBeUndefined()
@@ -216,7 +183,7 @@ describe('caller identity: the header between the server and the routes', () => 
 
   it('GET /api/caller tells only kind, agent, via and mode', () => {
     expect(describeCaller(alice)).toEqual({ kind: 'agent', agentId: 'id-alice', name: 'alice', via: 'session', mode: 'session' })
-    expect(describeCaller({ kind: 'anonymous', mode: 'strict', local: false })).toEqual({ kind: 'anonymous', mode: 'strict' })
+    expect(describeCaller({ kind: 'anonymous', mode: 'session', local: false })).toEqual({ kind: 'anonymous', mode: 'session' })
   })
 
   it('resolves the message routes only, however the path is spelled', () => {
@@ -234,9 +201,8 @@ describe('caller identity: the header between the server and the routes', () => 
 describe('caller identity: decisions', () => {
   const idOf = (i: string) => (AGENTS[i] ? AGENTS[i].id : Object.values(AGENTS).find(a => a.id === i)?.id ?? null)
   const alice: Caller = { kind: 'agent', agentId: 'id-alice', name: 'alice', via: 'session', mode: 'session' }
-  const operator: Caller = { kind: 'operator', via: 'operator-token', mode: 'strict' }
+  const host: Caller = { kind: 'operator', via: 'host', mode: 'session' }
   const anonSession: Caller = { kind: 'anonymous', mode: 'session' }
-  const anonStrict: Caller = { kind: 'anonymous', mode: 'strict' }
 
   it('an agent sends as itself only, and a missing from is its own', () => {
     expect(checkSender(alice, 'alice', idOf)).toEqual({ from: 'alice' })
@@ -245,10 +211,9 @@ describe('caller identity: decisions', () => {
     expect(checkSender(alice, 'bob', idOf)).toMatchObject({ refused: { status: 403, data: { error: 'sender_mismatch' } } })
   })
 
-  it('the operator sends as anyone; anonymous as before in session mode, refused in strict', () => {
-    expect(checkSender(operator, 'bob', idOf)).toEqual({ from: 'bob' })
+  it('the server itself and an anonymous caller send as before', () => {
+    expect(checkSender(host, 'bob', idOf)).toEqual({ from: 'bob' })
     expect(checkSender(anonSession, 'bob', idOf)).toEqual({ from: 'bob' })
-    expect(checkSender(anonStrict, 'bob', idOf)).toMatchObject({ refused: { status: 401, data: { error: 'caller_required' } } })
     expect(checkSender(undefined, 'bob', idOf)).toEqual({ from: 'bob' })
   })
 
@@ -256,25 +221,23 @@ describe('caller identity: decisions', () => {
     expect(checkMailbox(alice, 'alice', idOf)).toBeNull()
     expect(checkMailbox(alice, 'id-bob', idOf)).toMatchObject({ status: 403, data: { error: 'not_your_mailbox' } })
     expect(checkMailbox(alice, null, idOf)).toMatchObject({ status: 403 })
-    expect(checkMailbox(operator, 'bob', idOf)).toBeNull()
+    expect(checkMailbox(host, 'bob', idOf)).toBeNull()
     expect(checkMailbox(anonSession, 'bob', idOf)).toBeNull()
-    expect(checkMailbox(anonStrict, 'bob', idOf)).toMatchObject({ status: 401 })
     expect(checkMailbox({ ...alice, mode: 'off' }, 'bob', idOf)).toBeNull()
   })
 
   it('surfaces of every mailbox are not for agents; a person mailbox is never an agent one', () => {
     expect(checkNotAgent(alice)).toMatchObject({ status: 403 })
-    expect(checkNotAgent(operator)).toBeNull()
-    expect(checkNotAgent(anonStrict)).toMatchObject({ status: 401 })
+    expect(checkNotAgent(host)).toBeNull()
+    expect(checkNotAgent(anonSession)).toBeNull()
     expect(checkPersonMailbox(alice)).toMatchObject({ status: 403 })
-    expect(checkPersonMailbox(anonStrict)).toBeNull()
-    expect(requireIdentified(anonSession)).toBeNull()
+    expect(checkPersonMailbox(anonSession)).toBeNull()
   })
 
   it('records how the sender was established', () => {
     expect(senderViaOf(alice)).toBe('session')
     expect(senderViaOf(anonSession)).toBe('claimed')
-    expect(senderViaOf(operator)).toBe('operator-token')
+    expect(senderViaOf(host)).toBe('host')
     expect(senderViaOf(undefined)).toBeUndefined()
   })
 })

@@ -87,7 +87,7 @@ import { pushApproval, pushMessage } from '@/lib/push-expo'
 import { checkPersonSend, personNonces, rawKeyToHex } from '@/lib/person-signing'
 import { findContactByAddress, isHttpUrl, isOneLine } from '@/services/contacts-service'
 import { isApprovalRequired } from '@/services/amp-registrations-service'
-import { type Caller, refusal, requireIdentified } from '@/lib/caller-identity'
+import { type Caller, refusal } from '@/lib/caller-identity'
 
 // ---------------------------------------------------------------------------
 // Module-level state (shared across requests, lives in the service)
@@ -978,13 +978,11 @@ export async function routeMessage(
 
 /**
  * X-Forwarded-From says "another host of the mesh speaks for this sender". An agent's session is not a host,
- * so it may not say that; and in strict mode an unidentified process on this machine may not either (a
- * peer calls from its own address).
+ * so it may not say that.
  */
 function meshClaimRefused(caller: Caller | undefined, forwardedFrom: string | null) {
   if (!caller || !forwardedFrom || caller.mode === 'off') return null
   if (caller.kind === 'agent') return refusal(403, 'sender_mismatch', `${caller.name || caller.agentId} is an agent, not a host: it may not send with X-Forwarded-From`)
-  if (caller.kind === 'anonymous' && caller.mode === 'strict' && caller.local) return requireIdentified(caller)
   return null
 }
 

@@ -1,7 +1,7 @@
 /**
  * The message services decide with the caller server.mjs found (lib/caller-identity.ts):
- * an agent sends as itself and uses its own mailbox; the operator does anything; an anonymous
- * caller keeps today's trust in session mode and is refused in strict mode.
+ * an agent sends as itself and uses its own mailbox; the server itself and an anonymous caller
+ * keep today's trust (there is no strict mode and no operator token: F132, F058).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { Caller } from '@/lib/caller-identity'
@@ -66,10 +66,8 @@ import { getPendingWakesReport } from '@/services/pending-wakes-service'
 import { listPersonMessages } from '@/services/person-messages-service'
 
 const alice: Caller = { kind: 'agent', agentId: 'id-alice', name: 'alice', via: 'session', mode: 'session', local: true }
-const aliceStrict: Caller = { ...alice, mode: 'strict' }
-const operator: Caller = { kind: 'operator', via: 'operator-token', mode: 'strict' }
+const host: Caller = { kind: 'operator', via: 'host', mode: 'session', local: true }
 const anonSession: Caller = { kind: 'anonymous', mode: 'session', local: true }
-const anonStrict: Caller = { kind: 'anonymous', mode: 'strict', local: true }
 const msg = (from?: string) => ({ ...(from ? { from } : {}), to: 'bob', subject: 's', content: { type: 'notification' as const, message: 'hi' } })
 const err = (r: { status: number; data?: any }) => ({ status: r.status, error: r.data?.error })
 
@@ -78,7 +76,7 @@ beforeEach(() => { vi.clearAllMocks() })
 describe('POST /api/messages: the sender cannot be forged', () => {
   it('an agent sending as another agent is refused', async () => {
     expect(err(await sendMessage(msg('bob') as never, alice))).toEqual({ status: 403, error: 'sender_mismatch' })
-    expect(err(await sendMessage(msg('id-bob') as never, aliceStrict))).toEqual({ status: 403, error: 'sender_mismatch' })
+    expect(err(await sendMessage(msg('id-bob') as never, alice))).toEqual({ status: 403, error: 'sender_mismatch' })
     expect(m.sendFromUI).not.toHaveBeenCalled()
   })
 
@@ -102,10 +100,9 @@ describe('POST /api/messages: the sender cannot be forged', () => {
     expect(o).not.toHaveProperty('fromVerified')
   })
 
-  it('strict mode refuses an anonymous sender; the operator sends as anyone', async () => {
-    expect(err(await sendMessage(msg('bob') as never, anonStrict))).toEqual({ status: 401, error: 'caller_required' })
-    expect((await sendMessage(msg('bob') as never, operator)).status).toBe(201)
-    expect(m.sendFromUI.mock.calls[0][0]).toMatchObject({ from: 'bob', senderVia: 'operator-token' })
+  it('the server itself sends as anyone, recorded as host', async () => {
+    expect((await sendMessage(msg('bob') as never, host)).status).toBe(201)
+    expect(m.sendFromUI.mock.calls[0][0]).toMatchObject({ from: 'bob', senderVia: 'host' })
   })
 
   it('off: nothing changes', async () => {
@@ -136,16 +133,15 @@ describe("GET/PATCH/DELETE /api/messages: an inbox needs its owner", () => {
   })
 
   it('the lookups that reveal no mail stay open; the list of every mailbox does not', async () => {
-    expect((await getMessages({ agent: 'bob', action: 'resolve' }, anonStrict)).status).toBe(200)
+    expect((await getMessages({ agent: 'bob', action: 'resolve' }, alice)).status).toBe(200)
     expect((await getMessages({ agent: 'bo', action: 'search' }, alice)).status).toBe(200)
     expect(err(await getMessages({ action: 'agents' }, alice))).toEqual({ status: 403, error: 'not_your_mailbox' })
   })
 
-  it('default install: an anonymous caller reads any inbox as before; strict refuses it; the operator reads all', async () => {
+  it('default install: an anonymous caller and the server itself read any inbox as before', async () => {
     expect((await getMessages({ agent: 'bob' }, anonSession)).status).toBe(200)
-    expect(err(await getMessages({ agent: 'bob' }, anonStrict))).toEqual({ status: 401, error: 'caller_required' })
-    expect((await getMessages({ agent: 'bob' }, operator)).status).toBe(200)
-    expect((await removeMessage('bob', 'x', operator)).status).toBe(200)
+    expect((await getMessages({ agent: 'bob' }, host)).status).toBe(200)
+    expect((await removeMessage('bob', 'x', host)).status).toBe(200)
   })
 })
 
@@ -165,8 +161,8 @@ describe('GET /api/messages/meeting', () => {
     const read = m.listInboxMessages.mock.calls.map(c => c[0])
     expect(read).toEqual(['id-alice'])
   })
-  it('strict refuses an anonymous reader', async () => {
-    expect(err(await getMeetingMessages({ meetingId: 'mt', participants: 'bob', since: null }, anonStrict))).toEqual({ status: 401, error: 'caller_required' })
+  it('an anonymous reader (the dashboard) reads the meeting as before', async () => {
+    expect((await getMeetingMessages({ meetingId: 'mt', participants: 'bob', since: null }, anonSession)).status).toBe(200)
   })
 })
 
@@ -185,13 +181,12 @@ describe("/api/agents/[id]/messages*: every verb on another agent's mailbox", ()
     expect(m.sendFromUI).not.toHaveBeenCalled()
   })
 
-  it('works on its own mailbox, and for the operator and the default anonymous caller', async () => {
+  it('works on its own mailbox, and for the server itself and the default anonymous caller', async () => {
     expect((await agentMsg.listMessages('id-alice', {}, alice)).status).toBe(200)
     expect((await agentMsg.sendMessage('id-alice', msg() as never, alice)).status).toBe(201)
     expect(m.sendFromUI.mock.calls[0][0]).toMatchObject({ from: 'id-alice', fromVerified: true, senderVia: 'session' })
-    expect((await agentMsg.deleteMessageById('id-bob', 'x', operator)).status).toBe(200)
+    expect((await agentMsg.deleteMessageById('id-bob', 'x', host)).status).toBe(200)
     expect((await agentMsg.listMessages('id-bob', {}, anonSession)).status).toBe(200)
-    expect(err(await agentMsg.listMessages('id-bob', {}, anonStrict))).toEqual({ status: 401, error: 'caller_required' })
   })
 })
 
@@ -199,8 +194,8 @@ describe('other message surfaces', () => {
   it('a meeting broadcast is sent as maestro, so not by an agent', async () => {
     const r = await broadcastToMeeting({ meetingId: 'mt', message: 'hi', participantIds: ['id-bob'], caller: alice })
     expect(err(r)).toEqual({ status: 403, error: 'sender_mismatch' })
-    const s = await broadcastToMeeting({ meetingId: 'mt', message: 'hi', participantIds: ['id-bob'], caller: anonStrict })
-    expect(err(s)).toEqual({ status: 401, error: 'caller_required' })
+    const s = await broadcastToMeeting({ meetingId: 'mt', message: 'hi', participantIds: ['id-bob'], caller: anonSession })
+    expect(err(s).error).not.toBe('sender_mismatch')
   })
 
   it("the pending-wakes report (every agent's pending senders and subjects) is not for an agent", async () => {

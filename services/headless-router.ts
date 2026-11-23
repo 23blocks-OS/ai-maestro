@@ -339,7 +339,7 @@ import { runDiagnostics, runDiagnosticFix } from '@/services/diagnostics-service
 import { toolReadinessRequest } from '@/services/tool-readiness-service'
 import { elevenLabsVoices, speakForAgent } from '@/services/agent-speech-service'
 import { voiceprintStatus, updateConsentText, recordVoiceSample, removeVoiceprint, renameVoiceprint } from '@/services/voiceprints-service'
-import { addAgentDevice, captureAgentDevice, forgetAgentDevice, latestAgentDeviceSnapshot, getAgentDeviceIdentity, invokeAgentDevice, jumpAgentDevice, listAgentDevices, listHostDevices, refreshAgentDevice } from '@/services/agent-devices-service'
+import { addAgentDevice, addAgentNetwork, listAgentNetworks, removeAgentNetwork, captureAgentDevice, forgetAgentDevice, latestAgentDeviceSnapshot, getAgentDeviceIdentity, invokeAgentDevice, jumpAgentDevice, listAgentDevices, listHostDevices, refreshAgentDevice } from '@/services/agent-devices-service'
 import { programInstallRequest } from '@/services/program-install-service'
 import { unknownAgentResult } from '@/services/agent-guard'
 import { etagJson } from '@/lib/etag'
@@ -601,6 +601,15 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/devices\/identity$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, await getAgentDeviceIdentity(params.id))
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/devices\/networks$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await listAgentNetworks(params.id))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/devices\/networks$/, paramNames: ['id'], handler: async (req, res, params) => {
+    sendServiceResult(res, await addAgentNetwork(params.id, await readJsonBody(req).catch(() => ({}))))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/devices\/networks$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    sendServiceResult(res, await removeAgentNetwork(params.id, qp(query, 'ssid')))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/devices$/, paramNames: ['id'], handler: async (req, res, params) => {
     const refresh = new URL(req.url || '', 'http://localhost').searchParams.get('refresh') === '1'

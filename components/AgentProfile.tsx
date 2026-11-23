@@ -565,6 +565,23 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         </label>
                       </>
                     )}
+                    {agent.voice?.engine && (
+                      <label className="block text-xs text-gray-400" data-testid="hearing-language">
+                        Language it hears (on calls, in meetings, at its devices)
+                        <select
+                          value={agent.voice.hearingLanguage ?? 'en'}
+                          onChange={(e) => updateField('voice', { ...agent.voice!, hearingLanguage: e.target.value })}
+                          className="block w-full mt-1 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-100"
+                        >
+                          <option value="en">English</option>
+                          <option value="es">Spanish</option>
+                          <option value="pt">Portuguese</option>
+                          <option value="fr">French</option>
+                          <option value="de">German</option>
+                          <option value="it">Italian</option>
+                        </select>
+                      </label>
+                    )}
                     {agent.voice?.engine === 'local' && (
                       <label className="block text-xs text-gray-400">
                         Voice name

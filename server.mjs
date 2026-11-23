@@ -2135,8 +2135,8 @@ async function startServer(handleRequest) {
       sessionState.chatClients.add(ws)
 
       // Protocol-level heartbeat tracking
-      ws._isAlive = true
-      ws.on('pong', () => { ws._isAlive = true })
+      ws._isAlive = true; ws._missed = 0
+      ws.on('pong', () => { ws._isAlive = true; ws._missed = 0 })
 
       ws.on('message', async (data) => {
         try {
@@ -2697,6 +2697,42 @@ async function startServer(handleRequest) {
             return
           }
 
+          // One voice per agent on every medium: a phone call's words go to the agent's speaking side, like a meeting,
+          // a kiosk or a board. Its answers come back on this socket as call:say (text and a WAV per clip). An agent
+          // without a speaking side gets them in its pane, as chat:send does.
+          if (parsed.type === 'call:said') {
+            const text = typeof parsed.text === 'string' ? parsed.text.trim().slice(0, 4000) : ''
+            if (!text) return
+            const phone = typeof parsed.deviceId === 'string' && /^[A-Za-z0-9_-]{8,64}$/.test(parsed.deviceId) ? parsed.deviceId : 'phone'
+            const key = `call:${phone}`
+            const viaPane = async () => {
+              const result = await sendChatMessage(sessionName, text)
+              if (ws.readyState === 1) ws.send(JSON.stringify(result.ok ? { type: 'chat:sent', message: text } : { type: 'chat:sendFailed', message: text, error: result.error }))
+              for (const delay of [500, 1500, 3000, 5000, 8000]) setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), delay)
+            }
+            let taken = false
+            try {
+              const [{ getAgent, getAgentBySession }, { listDevices }] = await Promise.all([import('./lib/agent-registry.ts'), import('./services/person-devices-service.ts')])
+              const agent = (parsed.agentId && getAgent(parsed.agentId)) || getAgentBySession(sessionName)
+              // Who the phone belongs to, as paired on this host: the same "verified" the operator gives a device
+              const person = listDevices().data?.devices?.find((d) => d.deviceId === phone)?.personName
+              const sides = globalThis._speakingSides
+              if (agent?.experiments?.speakingSide && sides) {
+                ;(globalThis._callSockets ??= new Map()).set(key, ws)
+                if (!ws._callKey) ws.on('close', () => { if (globalThis._callSockets?.get(ws._callKey) === ws) globalThis._callSockets.delete(ws._callKey) })
+                ws._callKey = key
+                // One reply per turn: its sentences are numbered, and call:done closes it
+                ws._callReply = { id: globalThis.crypto.randomUUID(), seq: 0 }
+                taken = await sides.handleReady(agent, { deviceKey: key, deviceName: 'phone call', text, source: 'voice', person, fallback: viaPane })
+              }
+            } catch (err) {
+              console.error(`[Call] Could not give the call to the speaking side: ${err.message}`)
+            }
+            if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'call:heard', via: taken ? 'speaking-side' : 'pane' }))
+            if (!taken) await viaPane()
+            return
+          }
+
           if (parsed.type === 'chat:send') {
             if (parsed.message) {
               const result = await sendChatMessage(sessionName, parsed.message)
@@ -2764,11 +2800,12 @@ async function startServer(handleRequest) {
 
   // ── Chat WebSocket heartbeat sweeper ────────────────────────────
   // Every 30s, send a protocol-level ping to all chat clients.
-  // If a client missed the previous ping (didn't pong), it's dead — terminate it.
+  // A client that missed two pings in a row (about 60 s) is dead — terminate it. One miss was too strict for a phone
+  // on a call: it dropped a voice call's chat socket three times in three minutes (2026-11-23), and text was lost.
   setInterval(() => {
     terminalSessions.forEach((sessionState, sessionName) => {
       sessionState.chatClients?.forEach(ws => {
-        if (ws._isAlive === false) {
+        if (ws._isAlive === false && (ws._missed = (ws._missed || 0) + 1) >= 2) {
           console.log(`[Chat] Terminating zombie chat client for ${sessionName}`)
           ws.terminate()
           sessionState.chatClients.delete(ws)
@@ -2800,6 +2837,11 @@ async function startServer(handleRequest) {
       const homeAddress = process.env.AIMAESTRO_DEVICE_HOME_ADDRESS?.trim() || null
       const homeOk = !homeAddress || (isHomeAddress(homeAddress) && getLocalIPs().some((i) => i.ip === homeAddress))
       if (!homeOk) console.error(`[Devices] AIMAESTRO_DEVICE_HOME_ADDRESS=${homeAddress} is not a private IPv4 address of this host; home network devices stay off`)
+      // S006, opt-in: a loopback port the operator's tunnel connects to, and the public https:// name boards use
+      const relayPort = Number(process.env.AIMAESTRO_DEVICE_RELAY_PORT) || null
+      const relayUrl = process.env.AIMAESTRO_DEVICE_RELAY_URL?.trim() || null
+      const relayOk = !relayPort || (Number.isInteger(relayPort) && relayPort >= 1024 && relayPort <= 65535 && relayPort !== 23112 && (!relayUrl || /^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(relayUrl)))
+      if (!relayOk) console.error(`[Devices] AIMAESTRO_DEVICE_RELAY_PORT/URL are not valid (a port from 1024, not 23112; an https://NAME with no path); the relay stays off`)
       globalThis._deviceHost = createDeviceHost({
         agentExists: (id) => { const a = getAgent(id); return !!a && !a.deletedAt },
         labelOf: (id) => { const a = getAgent(id); return a?.label || a?.name },
@@ -2809,6 +2851,8 @@ async function startServer(handleRequest) {
         // The one status feed: a device shows what every other view shows
         activity: async () => (await (await fetch(`http://127.0.0.1:${port}/api/sessions/activity?local=true`, { signal: AbortSignal.timeout(4000) })).json()).activity || {},
         homeAddress: homeOk ? homeAddress : null,
+        relayPort: relayOk ? relayPort : null,
+        relayUrl: relayOk ? relayUrl : null,
         hubAddress: getLocalIPs().find((i) => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(i.ip))?.ip ?? null,
         onEvent: async (event) => {
           console.log(`[Devices] ${event.type} ${event.deviceKey} for ${event.agent}`)
@@ -2818,6 +2862,22 @@ async function startServer(handleRequest) {
             const { getAgent } = await import('./lib/agent-registry.ts')
             const agent = id && getAgent(id)
             if (agent?.experiments?.speakingSide && agent.credential) void globalThis._speakingSides?.prepare?.(agent)
+            // S005: a board that connects tells its Bluetooth setup code, for the owner's phone away from home
+            if (event.type === 'device.online' && agent) {
+              import('./services/agent-devices-service.ts')
+                .then(({ learnBoardSetup }) => learnBoardSetup(id, event.deviceKey))
+                .catch((err) => console.error(`[Devices] Could not read the setup code of ${event.deviceKey}: ${err?.message}`))
+            }
+            // F129: a board that connects gets the agent's Wi-Fi networks. The answers carry names and error codes, never a password
+            if (event.type === 'device.online' && agent?.deviceNetworks?.length) {
+              import('./services/agent-devices-service.ts')
+                .then(({ syncAgentNetworks }) => syncAgentNetworks(id, event.deviceKey))
+                .then((r) => {
+                  const failed = (r.data?.synced || []).filter((n) => !n.ok)
+                  if (r.status !== 200 || failed.length) console.error(`[Devices] Network sync to ${event.deviceKey}: ${r.status !== 200 ? r.data?.error : failed.map((n) => n.error).join(', ')}`)
+                })
+                .catch((err) => console.error(`[Devices] Network sync to ${event.deviceKey} failed: ${err?.message}`))
+            }
           }
           const { deliverDeviceEvent } = await import('./lib/device-events.ts')
           await deliverDeviceEvent(event, (address) => globalThis._deviceHost.agentIdOf(address))
@@ -2834,7 +2894,32 @@ async function startServer(handleRequest) {
         const value = (r) => { if (r.status !== 200 || r.data?.ok === false) throw new Error(r.data?.error || r.data?.message || 'refused'); return r.data.value }
         globalThis._speakingSides = createSpeakingSides({
           query, buildEnv, loadCredential: (id, c) => loadAgentCredential(id, c), credentialReady,
+          // A phone call's reply is over: after its last clip
+          turnDone: (agentId, key) => {
+            if (!key?.startsWith('call:')) return
+            const ws = globalThis._callSockets?.get(key)
+            if (ws?.readyState === 1 && ws._callReply) ws.send(JSON.stringify({ type: 'call:done', replyId: ws._callReply.id }))
+          },
+          // The next sentence's speech starts now, in the agent's own voice, while the one before it plays
+          prefetch: (agentId, text) => Promise.all([import('./lib/speech.mjs'), import('./lib/agent-registry.ts')])
+            .then(([{ prefetchSpeech }, { getAgent }]) => prefetchSpeech(text, getAgent(agentId)?.voice)).catch(() => {}),
           say: async (agentId, key, text) => {
+            // A phone call: the same voice as every other medium, sent as clips the phone plays in order
+            if (key.startsWith('call:')) {
+              const ws = globalThis._callSockets?.get(key)
+              if (!ws || ws.readyState !== 1) return { played: false }
+              const reply = ws._callReply ?? (ws._callReply = { id: globalThis.crypto.randomUUID(), seq: 0 })
+              const seq = ++reply.seq
+              // The words first, for the caption and the phone's echo check; then the audio, one frame per clip
+              ws.send(JSON.stringify({ type: 'call:text', replyId: reply.id, seq, text }))
+              const [{ speakWith }, { getAgent }] = await Promise.all([import('./lib/speech.mjs'), import('./lib/agent-registry.ts')])
+              let part = 0
+              for await (const file of speakWith(text, getAgent(agentId)?.voice)) {
+                if (ws.readyState !== 1) return { played: false }
+                ws.send(JSON.stringify({ type: 'call:clip', replyId: reply.id, seq, part: part++, text, wav: fs.readFileSync(file).toString('base64') }))
+              }
+              return { played: true }
+            }
             const { invokeAgentDevice } = await import('./services/agent-devices-service.ts')
             return (await invokeAgentDevice(agentId, key, { capability: 'speaker.say', args: { text } })).data?.value
           },

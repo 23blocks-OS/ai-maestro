@@ -1,12 +1,12 @@
 # Copied unchanged from agentmessaging/agent-device-protocol (MIT, see LICENSE here). Do not edit: fix it there, then copy again.
-commit 0c055dc8e8737518314a841826a3636bfe8770a4
-fbd5ea5d29156dd06ebfd40ff5f435d10c21e1491694bfc012a88d0f7e2f1cd3  lib/device-sdk/capabilities.mjs
+commit e8c5759e886d1b2647ff9dc2d36b14f27165be7e
+dce7447ac5bf0998f6402b50d571d4b436a3f650b1479d28afd9880f4cc2a3fc  lib/device-sdk/capabilities.mjs
 d5aed1e3723202f012350027a4a67ca1967ad069055e75fa75e61fe16438f701  lib/device-sdk/changes.mjs
 51f5688e2c167c03a2adbb70478d7e4e7755abd9db3d4efd56edae311085a276  lib/device-sdk/controller-state.mjs
 9b4996393dc92aa7a34c03afc7a6bae06c28484a5cc14d44f30a6eb3ca977990  lib/device-sdk/controller.mjs
 2bfaee3531eb25176b6cc083b1abd05065b4dd69e845fad4e68b0f0b6ecaa374  lib/device-sdk/index.mjs
 1a5d60a2922af0603523476f588758435156acd906977bef60007fe2b8cad0bc  lib/device-sdk/media.mjs
-4f17b157fdf41602fbfa9167b73b2d6c98f229a197766a5ac79efe04822b7a28  lib/device-sdk/reverse.mjs
+5f3c13e326ec095acbdf2030b327ccd699a09ade58ef04becb5924343595ddd7  lib/device-sdk/reverse.mjs
 4559c4e85eb7948bc6644146e2846c0e9ab4c9aa0dde44b1c4a21901adf5fa77  lib/device-sdk/secure.mjs
 dbcac53cf1a2e7f8c5e24678c9d83ac48ee35486570eb1acab6589a4dce40ac1  lib/device-sdk/state.mjs
 3015abaeb1a028b469755783d7e37c8fd7cc7fa324167ffeba79621bb57e7883  lib/device-sdk/controller.d.mts
@@ -14,7 +14,7 @@ dbcac53cf1a2e7f8c5e24678c9d83ac48ee35486570eb1acab6589a4dce40ac1  lib/device-sdk
 f6e2f03ab890bcb0e3614554553fa551077b42ee4cbdb7db56d6e6ea62b4bf7c  lib/device-sdk/media.d.mts
 f10a3678da3145a0e6d55c129d8ece0eee10ff602758af3225d9f858b625cf68  lib/device-sdk/reverse.d.mts
 2cbdc7c561d94e596cce0028e479d2f8f923de5b9b43fd33a345a07887fddd31  tests/fixtures/device-protocol/clients/linux/hardware.mjs
-40f6d41ec620930e5af27052af4416c73c15dc197bf2f22ba55e4082ee5c7d4b  tests/fixtures/device-protocol/clients/linux/output.mjs
+730ae8e824469bc0614e797efc811996c49a5cb718ff458d483cbf245570d213  tests/fixtures/device-protocol/clients/linux/output.mjs
 d9472b5f27b5953e08e78b8b7bf624acaaf63a93f8905da165568087b01a48b1  tests/fixtures/device-protocol/clients/linux/server.mjs
 c37e69b372413620564f164ddfa62dd7f483551f4d1143bc4ad233171d9c14e7  tests/fixtures/device-protocol/tests/conformance/controller-contract.mjs
 95d4727f8375970bbfc2b24d34971d1b20a6bcc36c8bef5a0b53e72d3518ea4a  tests/fixtures/device-protocol/clients/linux/platform.mjs

@@ -390,6 +390,37 @@ describe('a device that connects in, such as a phone', () => {
     ws.terminate()
     expect((await fetch(`http://[::1]:23112/v1/devices/${device.key}`)).status).toBe(404)
   })
+
+  it('takes boards from a tunnel on the relay port: encrypted only, never the HTTP API (S006)', async () => {
+    const host = createDeviceHost({ agentsDir: dir, hubAddress: '127.0.0.1', relayPort: 23119, relayUrl: 'https://devices.example.com' } as any)
+    hosts.push(host)
+    g._deviceHost = host
+    const { data } = await svc.getAgentDeviceIdentity('a') as any
+    expect(data.relay).toBe('https://devices.example.com')
+    const device = identity()
+    deviceKeys.set(device.key, device)
+    await svc.addAgentDevice('a', { key: device.key, endpoint: 'reverse', name: 'board' })
+    await vi.waitFor(async () => expect((await fetch('http://127.0.0.1:23119/')).status).toBe(404))
+    const { default: WebSocket } = await import('ws')
+    // A plain connection through the tunnel arrives from loopback: refused before the upgrade
+    const plain = new WebSocket(`ws://127.0.0.1:23119/v1/connect/${device.key}`)
+    const [, response] = await once(plain, 'unexpected-response')
+    expect(response.statusCode).toBe(403)
+    expect(response.headers['x-adp-refusal']).toBe('secure_only')
+    // The encrypted one: the key exchange starts
+    const ws = new WebSocket(`ws://127.0.0.1:23119/v1/secure/${device.key}`)
+    const [hello] = await once(ws, 'message')
+    expect(JSON.parse(hello.toString()).body).toBeTruthy()
+    ws.terminate()
+    expect((await fetch(`http://127.0.0.1:23119/v1/devices/${device.key}`)).status).toBe(404)
+  })
+
+  it('has no relay unless the operator names a port', async () => {
+    const host = createDeviceHost({ agentsDir: dir, hubAddress: '127.0.0.1' } as any)
+    hosts.push(host)
+    g._deviceHost = host
+    expect(((await svc.getAgentDeviceIdentity('a')) as any).data.relay).toBeNull()
+  })
 })
 
 describe('a person speaking at a device', () => {
@@ -549,6 +580,28 @@ describe("the agent's own voice (F092)", () => {
     await vi.waitFor(() => expect(played).toEqual([one, two]))
   })
 
+  it('sends the next sentence before the one playing ends, and the device keeps the order', async () => {
+    // 16-bit mono at 16 kHz with real lengths, so the host can send ahead (ADP: calls play in order)
+    const clip = (seconds: number) => { const pcm = Buffer.alloc(Math.round(16000 * seconds) * 2); const h = Buffer.alloc(44); h.write('RIFF', 0, 'latin1'); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVEfmt ', 8, 'latin1'); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(16000, 24); h.writeUInt32LE(32000, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36, 'latin1'); h.writeUInt32LE(pcm.length, 40); return Buffer.concat([h, pcm]) }
+    const sent: number[] = []
+    const ended: number[] = []
+    // The bridge's player is fixed when it starts, so it is swapped before the device starts
+    const realPlay = hardware.play
+    hardware.play = async (bytes: Buffer) => { played.push(bytes); await new Promise(r => setTimeout(r, 1200)); ended.push(Date.now()); return { played: true } }
+    const device = await setup([file('1.wav', clip(1.2)), file('2.wav', clip(1.1))], { 'speaker.play': true }, { engine: 'local' })
+    const realInvoke = Controller.prototype.invoke
+    const invoke = vi.spyOn(Controller.prototype, 'invoke').mockImplementation(function (this: any, ...args: any[]) { if (args[2] === 'speaker.play') sent.push(Date.now()); return realInvoke.apply(this, args as any) } as any)
+    try {
+      await svc.invokeAgentDevice('a', device.key, { capability: 'speaker.say', args: { text: 'Hello. Bye.' } })
+      await vi.waitFor(() => expect(ended.length).toBe(2), { timeout: 5000 })
+    } finally {
+      hardware.play = realPlay
+      invoke.mockRestore()
+    }
+    expect(played.map(b => b.length)).toEqual([44 + 38400, 44 + 35200])
+    expect(sent[1]).toBeLessThan(ended[0])
+   }, 10000)
+
   it('returns after the first sentence, while the rest plays', async () => {
     const one = wav(); const two = wav(); two[63] = 9
     const device = await setup([file('1.wav', one), file('2.wav', two)], { 'speaker.play': true }, { engine: 'local' })
@@ -683,7 +736,7 @@ describe('agents that change (review of step 1)', () => {
     const device = await pair('a')
     const key = ((await svc.getAgentDeviceIdentity('a')).data as any).key
     agents.get('a').metadata.amp.address = 'a2@town.local'
-    expect(((await svc.getAgentDeviceIdentity('a')).data as any)).toEqual({ hub: null, home: null, address: 'a2@town.local', key })
+    expect(((await svc.getAgentDeviceIdentity('a')).data as any)).toEqual({ hub: null, home: null, relay: null, address: 'a2@town.local', key })
     expect(((await svc.listAgentDevices('a')).data as any).devices.map((d: any) => d.key)).toEqual([device.key])
     expect(svc.listHostDevices().status).toBe(200)
   })

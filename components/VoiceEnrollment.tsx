@@ -11,7 +11,7 @@ import { isSelfHost } from '@/lib/host-kind'
 import type { Host } from '@/types/host'
 import type { MeshPerson } from '@/hooks/usePeople'
 
-export interface Kiosk { agentId: string; agentName: string; key: string; name: string; online: boolean }
+export interface Kiosk { agentId: string; agentName: string; key: string; name: string; online: boolean; board: boolean }
 export interface VoiceHost {
   hostId: string; hostName: string; base: string; ready: boolean; consentText: string; sentences: string[]
   voiceprints: { personId: string; name: string; consentAt: string; enrolledAt: string }[]
@@ -37,8 +37,9 @@ export function useVoiceHosts(hosts: Host[]) {
       const base = baseOf(h)
       try {
         const [v, d] = await Promise.all([json(`${base}/api/voiceprints`), json(`${base}/api/devices`).catch(() => ({ agents: [] }))])
-        const kiosks: Kiosk[] = (d.agents || []).flatMap((a: { agentId: string; name?: string; devices: { key: string; name?: string; state?: unknown }[] }) =>
-          a.devices.map(dev => ({ agentId: a.agentId, agentName: a.name || a.agentId, key: dev.key, name: dev.name || dev.key.slice(0, 12), online: dev.state !== 'offline' })))
+        const kiosks: Kiosk[] = (d.agents || []).flatMap((a: { agentId: string; name?: string; devices: { key: string; name?: string; state?: unknown; streams?: string[] }[] }) =>
+          // A board has no live microphone: the person starts each recording with its wake phrase
+          a.devices.map(dev => ({ agentId: a.agentId, agentName: a.name || a.agentId, key: dev.key, name: dev.name || dev.key.slice(0, 12), online: dev.state !== 'offline', board: !(dev.streams || []).includes('microphone') })))
         return { hostId: h.id, hostName: h.name || h.id, base, ...v, kiosks }
       } catch {
         return null
@@ -153,7 +154,9 @@ export function VoiceEnrollPanel({ person, voiceHosts, onClose }: { person: Mesh
       )}
       {step && !step.done && (
         <>
-          <div className="text-gray-400">Sentence {Math.min(step.at + 1, sentences.length)} of {sentences.length}. {step.busy ? 'Recording for 5 seconds: read it aloud at the kiosk now.' : 'Press Record, then read it aloud at the kiosk.'}</div>
+          <div className="text-gray-400">Sentence {Math.min(step.at + 1, sentences.length)} of {sentences.length}. {picked?.k.board
+            ? (step.busy ? 'Waiting: say the wake phrase (for example "Hey Bruce"), then read the sentence.' : 'Press Record, then say the wake phrase and read the sentence.')
+            : (step.busy ? 'Recording for 5 seconds: read it aloud at the kiosk now.' : 'Press Record, then read it aloud at the kiosk.')}</div>
           <div className="text-base text-gray-100">&ldquo;{sentences[step.at]}&rdquo;</div>
           {step.error && <div className="text-red-300">{step.error}</div>}
           <div className="flex gap-2">

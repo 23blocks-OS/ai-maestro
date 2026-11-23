@@ -347,3 +347,18 @@ Both are legitimate. Only the **proof** was duplicated, and that is now
 
 The rule this leaves behind: **share the logic, not the shape.** Every bug on
 15 September was a fork of logic; none of them was a fork of markup.
+
+
+## Phone calls and the speaking side (0.106.272; messages as of 0.106.274)
+
+An agent's voice is one agent property on every medium (phone call, meeting, kiosk, board): the same speaking side, voice engine, loudness, speech made ahead and hearing language. A phone call joins it on the chat socket of the agent's session:
+
+- Phone to host: `{ "type": "call:said", "text": "<what the person said>", "deviceId": "<the phone's paired device id>", "agentId": "<optional>" }`.
+- Host to phone, at once: `{ "type": "call:heard", "via": "speaking-side" | "pane" }`. With `pane` the agent has no speaking side: the host has already typed the words into its pane (as `chat:send` does) and the reply arrives as usual chat. The phone does nothing more.
+- Then, for each sentence of the reply, in order:
+  - `{ "type": "call:text", "replyId", "seq", "text" }` first, for the caption and the phone's echo check;
+  - `{ "type": "call:clip", "replyId", "seq", "part", "text", "wav": "<base64 WAV>" }` for each clip (`part` 0, 1, … when a long sentence is split).
+- `{ "type": "call:done", "replyId" }` after the last clip of the reply.
+- A new `call:said` starts a new reply (a new `replyId`). When the person starts talking, stop playing and send it.
+- The person: the phone's paired person on this host (`/api/people-devices`), passed to the speaking side as a verified person, like a device the operator marked. Nothing else about the caller is trusted.
+- Hearing language: `agent.voice.hearingLanguage` (BCP 47, such as `en`, `es`, `pt-BR`; English when unset). Every medium hears in it; the phone should use it for its recogniser and any fallback voice.

@@ -729,6 +729,111 @@ function carriedByPrompt(messages, prompt) {
     return (messages || []).filter(m => m && m.id && prompt.includes(`[#${messageRefOf(m.id)}]`));
 }
 
+// ── Opening the message a notice announces ──────────────────────────────────
+//
+// A pane push types only a notice: `[#ref] [MESSAGE] <subject> — from <x> —
+// <the body's first 400 characters>` (lib/notification-service.ts). To act on
+// the message the agent must find its id (the ref is only the last eight
+// letters and digits) and open it: one more model call and two commands before
+// it can even start on the answer, on every message.
+//
+// So the hook opens it here, before the model sees the prompt, and adds the
+// whole message as context. It opens it the way the agent would: with
+// amp-inbox and amp-read, in this session's own environment, as the agent
+// itself would; never with --id. amp-read marks it read and records it as the
+// message last read, so `amp-reply <id>` answers it at once. Only when the prompt carries exactly
+// one notice whose ref matches exactly one unread message in this agent's own
+// inbox; anything else is left as before.
+//
+// Claude Code moves hook context over 10,000 characters into a file and shows
+// the model only a preview, so a longer message is not opened: the context then
+// names its full id, and `amp-read <id>` opens it in one command.
+//
+// AIM_OPEN_ANNOUNCED_MESSAGE=0 turns it off (the notice alone, as before).
+const OPEN_MESSAGE_MAX_CHARS = 9000;
+const OPEN_MESSAGE_BUDGET_MS = 3000;   // under INJECT_DEADLINE_MS, so it always answers first
+
+function openAnnouncedEnabled(env = process.env) {
+    return env.AIM_OPEN_ANNOUNCED_MESSAGE !== '0';
+}
+
+// The refs of every notice the prompt carries, in order.
+function noticeRefs(prompt) {
+    if (typeof prompt !== 'string') return [];
+    return [...prompt.matchAll(/\[#([0-9A-Za-z]+)\] \[MESSAGE\] /g)].map(m => m[1]);
+}
+
+// Pure: the one unread message of `inbox` (amp-inbox --json) the prompt
+// announces, or null. Exactly one notice, exactly one match: never a guess.
+function pickAnnouncedMessage(inbox, prompt) {
+    const refs = noticeRefs(prompt);
+    if (refs.length !== 1) return null;
+    const matches = (Array.isArray(inbox) ? inbox : [])
+        .filter(m => m && m.envelope && typeof m.envelope.id === 'string' && messageRefOf(m.envelope.id) === refs[0]);
+    if (matches.length !== 1) return null;
+    const m = matches[0];
+    const body = m.payload && typeof m.payload.message === 'string' ? m.payload.message : '';
+    return { id: ampMessageId(m.envelope.id), ref: refs[0], bodyChars: body.length };
+}
+
+function buildOpenedNotice(picked, text) {
+    return [
+        `AI Maestro opened the message [#${picked.ref}] for you: ${picked.id}. It is marked read; \`amp-reply ${picked.id}\` answers it. This is the whole message, as amp-read shows it:`,
+        '',
+        String(text).replace(/\s+$/, ''),
+    ].join('\n');
+}
+
+function buildUnopenedNotice(picked, why) {
+    return `The message [#${picked.ref}] is ${picked.id} (${why}). Open it with: amp-read ${picked.id}`;
+}
+
+// The I/O around the decision. `run(cmd, args, timeoutMs)` resolves stdout or
+// rejects; injectable for tests. Resolves null, a string (the id and the command
+// only) or { text, short } (the opened message, and its short form).
+async function openAnnouncedMessage(prompt, { run, maxChars = OPEN_MESSAGE_MAX_CHARS, budgetMs = OPEN_MESSAGE_BUDGET_MS, now = Date.now } = {}) {
+    if (noticeRefs(prompt).length !== 1) return null;
+    const exec = run || defaultRun;
+    const start = now();
+    let inbox;
+    try { inbox = JSON.parse(await exec('amp-inbox', ['--json'], Math.min(1500, budgetMs))); }
+    catch (err) { debugLog({ event: 'open_message_inbox_failed', error: err.message }); return null; }
+    const picked = pickAnnouncedMessage(inbox, prompt);
+    if (!picked) return null;
+    if (picked.bodyChars > maxChars) return buildUnopenedNotice(picked, 'too long to show here');
+    const left = budgetMs - (now() - start);
+    if (left < 500) return buildUnopenedNotice(picked, 'not opened yet');
+    let text;
+    try { text = await exec('amp-read', [picked.id], left); }
+    catch (err) {
+        debugLog({ event: 'open_message_read_failed', id: picked.id, error: err.message });
+        return buildUnopenedNotice(picked, 'not opened yet');
+    }
+    const notice = buildOpenedNotice(picked, text);
+    if (notice.length > maxChars) return buildUnopenedNotice(picked, 'too long to show here');
+    debugLog({ event: 'open_message_opened', id: picked.id, chars: notice.length });
+    // the short form travels along: joinContext uses it when the other context leaves no room
+    return { text: notice, short: buildUnopenedNotice(picked, 'too long to show here') };
+}
+
+// The hook's context parts, joined. The opened message goes first; when everything together would pass Claude
+// Code's 10,000 characters (and be moved to a file), it gives way to its short form (the id and the command).
+const CONTEXT_MAX_CHARS = 9800;
+function joinContext(parts) {
+    const kept = parts.filter(Boolean);
+    const joined = kept.map(p => (typeof p === 'object' ? p.text : p)).join('\n\n');
+    if (joined.length <= CONTEXT_MAX_CHARS) return joined;
+    return kept.map(p => (typeof p === 'object' ? p.short : p)).join('\n\n');
+}
+
+function defaultRun(cmd, args, timeoutMs) {
+    const { execFile } = require('child_process');
+    return new Promise((resolve, reject) => {
+        execFile(cmd, args, { encoding: 'utf8', timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 },
+            (err, stdout) => (err ? reject(err) : resolve(stdout)));
+    });
+}
+
 // Pure decision — no I/O, unit-testable. `announced` maps message id to the ms
 // timestamp it was last announced at. Returns notice:null when there is nothing
 // worth saying, which is the common case and the whole point.
@@ -1450,14 +1555,18 @@ async function handleEvent(input) {
             // the user just asked, so the agent sees past decisions before it
             // starts reading files.
             // Grok discards an allowing UserPromptSubmit hook's output: skip.
-            const [upsInbox, upsMeeting, upsMemory] = agent === 'grok' || isDeviceTurn(input.prompt) ? [null, null, null] : await Promise.all([
+            // The message a notice in the prompt announces is opened alongside (Claude Code only:
+            // amp-reply's "last read" check is what lets the agent answer it without opening it again).
+            const openIt = agent === 'claude' && openAnnouncedEnabled() && !isDeviceTurn(input.prompt);
+            const [upsInbox, upsMeeting, upsMemory, upsOpened] = agent === 'grok' || isDeviceTurn(input.prompt) ? [null, null, null, null] : await Promise.all([
                 withDeadline(checkUnreadMessages(cwd, input.prompt), INJECT_DEADLINE_MS, null),
                 withDeadline(drainMeetingInjectQueue(cwd), INJECT_DEADLINE_MS, null),
-                input.prompt ? withDeadline(recallMemories(cwd, sessionId, input.prompt), INJECT_DEADLINE_MS, null) : null
+                input.prompt ? withDeadline(recallMemories(cwd, sessionId, input.prompt), INJECT_DEADLINE_MS, null) : null,
+                openIt ? withDeadline(openAnnouncedMessage(input.prompt), INJECT_DEADLINE_MS, null) : null
             ]);
-            const upsContext = [upsMeeting, upsInbox, upsMemory].filter(Boolean).join('\n\n');
+            const upsContext = joinContext([upsOpened, upsMeeting, upsInbox, upsMemory]);
             if (upsContext) {
-                debugLog({ event: 'injecting_context', cwd, agent, trigger: 'user_prompt_submit', hasInbox: !!upsInbox, hasMeeting: !!upsMeeting, hasMemory: !!upsMemory });
+                debugLog({ event: 'injecting_context', cwd, agent, trigger: 'user_prompt_submit', hasInbox: !!upsInbox, hasMeeting: !!upsMeeting, hasMemory: !!upsMemory, hasOpened: !!upsOpened });
                 hookResponse = buildContextResponse(agent, rawEvent, upsContext);
             }
             break;
@@ -1516,6 +1625,12 @@ module.exports = {
     detectAgent,
     isStopHookActive,
     buildContextResponse,
+    noticeRefs,
+    pickAnnouncedMessage,
+    openAnnouncedMessage,
+    openAnnouncedEnabled,
+    joinContext,
+    OPEN_MESSAGE_MAX_CHARS,
     reduceState,
     handleEvent,
 };

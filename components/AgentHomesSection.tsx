@@ -105,6 +105,64 @@ function AddHome({ base, onAdded }: { base: string; onAdded: () => void }) {
   )
 }
 
+/** F129: the Wi-Fi networks of the agent's boards. Names only come back; the password field is write-only */
+function Networks({ base }: { base: string }) {
+  const url = `${base}/networks`
+  const [networks, setNetworks] = useState<{ ssid: string; open: boolean }[]>([])
+  const [form, setForm] = useState({ ssid: '', password: '' })
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    call(url).then((d) => setNetworks(d.networks)).catch((err) => setNote((err as Error).message))
+  }, [url])
+
+  const run = async (request: () => Promise<{ networks: typeof networks; pushed: { ok: boolean }[] }>) => {
+    setBusy(true)
+    setNote('')
+    try {
+      const data = await request()
+      setNetworks(data.networks)
+      const ok = data.pushed.filter((p) => p.ok).length
+      setNote(data.pushed.length ? `Sent to ${ok} of ${data.pushed.length} online devices. The others get it when they connect.` : 'Saved. Devices get it when they connect.')
+      return true
+    } catch (err) {
+      setNote((err as Error).message)
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const add = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (await run(() => post(url, form))) setForm({ ssid: '', password: '' })
+  }
+
+  const input = 'bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100'
+  const button = 'text-xs px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-200 disabled:opacity-40'
+  return (
+    <div className="mt-4 border border-gray-700 rounded-lg p-3" data-testid="agent-networks">
+      <p className="text-sm text-gray-100">Wi-Fi networks</p>
+      <p className="text-xs text-gray-500">For boards that travel. The first one in range is joined first.</p>
+      <ul className="mt-2 space-y-1">
+        {networks.map((n) => (
+          <li key={n.ssid} className="flex items-center justify-between gap-2 text-xs text-gray-200">
+            <span className="truncate">{n.ssid}{n.open && <span className="ml-2 text-gray-500">open</span>}</span>
+            <button type="button" disabled={busy} className={button} onClick={() => void run(() => call(`${url}?ssid=${encodeURIComponent(n.ssid)}`, { method: 'DELETE' }))}>Remove</button>
+          </li>
+        ))}
+      </ul>
+      <form onSubmit={add} className="mt-2 flex flex-wrap gap-2">
+        <input required aria-label="Network name" placeholder="Network name" maxLength={32} value={form.ssid} onChange={(e) => setForm({ ...form, ssid: e.target.value })} className={input} />
+        <input type="password" autoComplete="new-password" aria-label="Password" placeholder="Password (empty if open)" maxLength={63} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className={input} />
+        <button type="submit" disabled={busy || networks.length >= 8} className={button}>Add</button>
+      </form>
+      {note && <p role="status" className="mt-2 text-xs text-gray-400 break-words">{note}</p>}
+    </div>
+  )
+}
+
 export default function AgentHomesSection({ agentId, hostUrl = '' }: { agentId: string; hostUrl?: string }) {
   const base = `${hostUrl}/api/agents/${encodeURIComponent(agentId)}/devices`
   const [homes, setHomes] = useState<AgentHome[] | null>(null)
@@ -222,6 +280,7 @@ export default function AgentHomesSection({ agentId, hostUrl = '' }: { agentId: 
           </li>
         ))}
       </ul>
+      {!!homes?.length && <Networks base={base} />}
       <AddHome base={base} onAdded={() => void load()} />
     </div>
   )

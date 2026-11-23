@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [0.106.274] - 2026-11-23 - Calls in the agent's voice, and the language it hears
 
 ### Added
+- The Claude Code hook opens the message a pane notice announces and gives the agent the whole message, so it starts on the answer at once: one model call less per message. Only when the prompt carries exactly one notice that matches exactly one unread message in the agent's own inbox; `AIM_OPEN_ANNOUNCED_MESSAGE=0` turns it off. Contributed by Alejandro Vargas (@alejo-vargas), #863. Plugin 1.19.27.
+
+### Added
 - The language an agent hears is an agent setting (`voice.hearingLanguage`: en, es, pt-BR...; English when unset), set under the voice in its profile. Its devices, kiosks and boards hear in it (ElevenLabs and local hearing alike), and the phone app reads it for calls.
 
 ### Changed

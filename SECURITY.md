@@ -30,6 +30,14 @@ A web page open in your browser could otherwise send requests to the server or o
 
 Requests without an `Origin` (the CLI, scripts, agents, other hosts) are not affected.
 
+## Rules agents cannot move or switch off
+
+- **The rules file's place is a setting.** `AIMAESTRO_POLICY_FILE=/absolute/path` replaces `~/.aimaestro/policy.json`. The server only reads it and keeps no copy beside it. Give the file and its folder to another OS user (or root), readable by the server, and the agents' user cannot edit, replace or delete it. The Doctor warns while that user can still write it. See `docs/rules.html`, "Keeping agents away from the rules".
+- **Fail closed, as an option.** `AIMAESTRO_POLICY_FAIL_CLOSED=1`: a missing, unreadable or broken rules file refuses what agents send and every governance action until it is fixed (the Doctor fails), instead of keeping the last good version. People and AI Maestro itself may still send.
+- **The last good version.** Without fail-closed, a broken or deleted file keeps the version this server process loaded. The copy saved next to the default file (`policy.json.last-good`) is used only after a restart, and never for a configured file, because it sits where agents can write.
+
+What it does not do: the quarantine store and the held messages (`~/.aimaestro/policy/`) belong to the server, so with agents and server as one OS user an agent with a shell can still edit them directly (B021). Use containers, or run the server as its own user, to close that.
+
 ## Known design limits
 
 Each of these is known and is not a new finding:
@@ -49,7 +57,7 @@ Everything stays on your hosts unless you connect an outside AMP provider.
 | Agent registry | `~/.aimaestro/agents/registry.json` |
 | Agent memory, documents, canvases | `~/.aimaestro/agents/<id>/` |
 | Messages and agent keys | `~/.agent-messaging/agents/` |
-| Policy rules, decision log, quarantine | `~/.aimaestro/policy.json`, `~/.aimaestro/policy/` |
+| Policy rules, decision log, quarantine | `~/.aimaestro/policy.json` (or `AIMAESTRO_POLICY_FILE`), `~/.aimaestro/policy/` |
 | Secrets | the OS keychain (macOS Keychain, libsecret), else an encrypted file in `~/.aimaestro/vault/` |
 | Claude Code transcripts | `~/.claude/projects/` |
 

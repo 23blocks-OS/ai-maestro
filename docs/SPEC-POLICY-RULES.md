@@ -280,7 +280,7 @@ This follows `opa test` and Cedar's validation: policies are code, and code has 
 - The host layer stays on its host. The agent layer moves with the agent.
 - Two hosts can disagree for a short time after a change. With deny-wins, the cost is small: a host with the old organization layer can still deny, but it cannot open what the new layer closed, because the recipient's host checks too.
 
-**A broken file.** Phase 1 applied no rules when the file did not load. Since 0.106.229 (open question 3): the host keeps the last version that loaded and applies it until the file is fixed. That version is also saved next to the file (`policy.json.last-good`, mode 600), so it survives a restart. Only with no good version in memory or on disk, no rules apply. **A deleted file** works the same way (since 0.106.244): the last good version still applies, because any agent on the host can delete a file. To remove every rule, save the file with an empty rules list (`{"version": 1, "rules": []}`). Deleting the saved copy as well leaves no rules. The Doctor's `policy` check reports the error either way (warn with the last good version, fail with none).
+**A broken file.** Phase 1 applied no rules when the file did not load. Since 0.106.229 (open question 3): the host keeps the last version that loaded and applies it until the file is fixed. That version is also saved next to the file (`policy.json.last-good`, mode 600), so it survives a restart. Only with no good version in memory or on disk, no rules apply. **A deleted file** works the same way (since 0.106.244): the last good version still applies, because any agent on the host can delete a file. To remove every rule, save the file with an empty rules list (`{"version": 1, "rules": []}`). Deleting the saved copy as well leaves no rules. The Doctor's `policy` check reports the error either way (warn with the last good version, fail with none). Section 19 changes this: the version this process loaded comes before the saved copy, a configured file (`AIMAESTRO_POLICY_FILE`) gets no saved copy, and `AIMAESTRO_POLICY_FAIL_CLOSED` refuses agents instead.
 
 ## 11. Governance: the same engine for approvals
 
@@ -570,3 +570,31 @@ With no login, the caller of the dashboard and the API is an unidentified person
 - `agent.config` (needs F067's protected-file writer), `secret.use`, `sql.write` (F033 and F037 into the store, 17.6), `policy.edit` (no editor API yet).
 - The agent layer from F067 profiles, closed teams as rules, `role:` and `org:` subjects, answers "for a time" and "always" as policy edits.
 
+## 19. Rules an agent cannot move or switch off
+
+Code: `getPolicy` in `services/policy-service.ts`, `policySettings` and `loadPolicy` in `lib/policy.ts`, `failClosedDecision` in `lib/policy-check.ts`, `checkPolicyRules` in `services/doctor-checks.ts`. Tests: `tests/policy-integrity.test.ts`.
+
+### 19.1 Where the rules file is
+
+`AIMAESTRO_POLICY_FILE` (an absolute path) replaces `~/.aimaestro/policy.json` everywhere: the send paths, `GET /api/policy` (`file`, `configured: true`), the "why" answer and the Doctor. The server only reads it; it writes neither the file nor a copy beside it. A relative value is a broken setting: no file is read, the error is reported, and fail-closed applies when it is on. The recipe (file and folder owned by another user or root, readable by the server) is in `docs/rules.html`. The Doctor warns (`policy:writable:<path>`) while the server's user can write the file or its folder, since every agent on the host is that user.
+
+### 19.2 The last good version
+
+- Default file: when the file breaks or is deleted, the version this process loaded applies; the saved copy `policy.json.last-good` only when the process never loaded one (after a restart). Before, a deleted file applied only the saved copy, so writing an allow-all into `policy.json.last-good` and deleting `policy.json` switched the rules off at once. The saved copy is still writable by agents, so after a restart it is as trustworthy as the file it copies.
+- Configured file: no saved copy. Only the version this process loaded applies; after a restart a broken or missing configured file has no last good version.
+- A replaced file that loads is the new last good version: an agent that can write the file can switch the rules off by replacing it with an allow-all, and deleting it afterwards keeps that allow-all. Only a configured file out of the agents' reach prevents this.
+
+### 19.3 Fail closed
+
+`AIMAESTRO_POLICY_FAIL_CLOSED=1` (also `true`, `yes`, `on`). When the file is missing, unreadable or broken, or the setting is broken, no last good version is applied and `checkPolicy` decides without rules:
+
+- AI Maestro itself (`system`): allowed, as always (the Doctor's repairs, provider notices).
+- A person (the dashboard, a person's device): `message` and `call` are allowed, so the host can still be steered while the file is fixed.
+- Everything else is refused (403 `forbidden`) with the reason: everything an agent sends or calls, and every governance action (18.2), which the API makes as a person (18.3).
+
+`GET /api/policy` says `failClosed: true, refusing: true`, the decision log gets a `deny` line with `note: "fail-closed: …"`, and the Doctor fails with `policy:fail-closed` ("AGENTS ARE REFUSED"). A host with the setting and no file at all refuses agents from the start; an empty rules list allows everything. With the setting off, the behaviour is 19.3.
+
+### 19.4 Limits
+
+- The quarantine store and held payloads (`~/.aimaestro/policy/`) are the server's files; with agents and server as one OS user, an agent with a shell can edit them (B021).
+- What changes: a server that loaded rules keeps them after the file is deleted, until it restarts (before, a deleted file with no saved copy meant no rules at once). With fail-closed on and no rules file, agents are refused from the start; save `{"version":2,"rules":[]}` to allow everything.

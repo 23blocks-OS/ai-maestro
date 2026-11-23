@@ -291,13 +291,15 @@ Hint: the sender's host usually runs stale AMP scripts or the sender rotated its
 
 ### 4.13 `policy` (host), added in 0.106.229 (F042, F118 step 1)
 
-Reads this host's rules file (`~/.aimaestro/policy.json`, `docs/SPEC-POLICY-RULES.md` section 16) the way the send paths do.
+Reads this host's rules file (`~/.aimaestro/policy.json`, or `AIMAESTRO_POLICY_FILE`; `docs/SPEC-POLICY-RULES.md` sections 16 and 19) the way the send paths do.
 
 | Finding | Status |
 |---|---|
 | No file | pass ("everyone may reach everyone") |
 | The file does not load, and no good version is in memory or saved (`policy.json.last-good`): no rules apply | fail |
 | The file does not load, and the last version that loaded is still in force | warn |
+| The file cannot be used and `AIMAESTRO_POLICY_FAIL_CLOSED` is on: agents are refused (`policy:fail-closed`) | fail |
+| `AIMAESTRO_POLICY_FILE` is set and the server's user can write the file or its folder (`policy:writable:<path>`) | warn, one item per path |
 | A lint warning (dead allow, redundant, shadowed) | warn, one item per rule |
 | A test in the file fails | warn, one item per test |
 

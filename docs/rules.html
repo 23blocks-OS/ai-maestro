@@ -217,7 +217,7 @@
 
             <section>
                 <h2 class="font-display text-3xl font-bold text-white mb-4">Where the rules live</h2>
-                <p class="mb-3">Each host has one rules file, <code>~/.aimaestro/policy.json</code>. Each host checks its own rules: the sender's host before it sends, and the recipient's host before it delivers. A refusal from the other host comes back to the sender as it is.</p>
+                <p class="mb-3">Each host has one rules file, <code>~/.aimaestro/policy.json</code>, or the file <code>AIMAESTRO_POLICY_FILE</code> names (see <a href="#protect" class="text-cyan-400">Keeping agents away from the rules</a>). Each host checks its own rules: the sender's host before it sends, and the recipient's host before it delivers. A refusal from the other host comes back to the sender as it is.</p>
                 <p class="mb-3">With no file, nothing changes: every person may reach every agent, and every agent may message every agent.</p>
                 <p>The rules apply on every path a message takes: AMP messages (<code>/api/v1/route</code>, including messages from people and from other providers), <code>amp-send</code> on the same machine (it goes through the route), the dashboard and its API, the chat, the companion, device input and calls.</p>
             </section>
@@ -351,18 +351,31 @@
             <section>
                 <h2 class="font-display text-3xl font-bold text-white mb-4">A missing, broken or deleted file</h2>
                 <ul class="list-disc pl-6 space-y-2">
-                    <li>Each time the file loads, a copy is saved next to it, <code>policy.json.last-good</code>.</li>
-                    <li>A file that does not load (bad JSON, an unknown field value) keeps the last version that loaded in force until it is fixed.</li>
-                    <li>A deleted file also keeps that saved version in force. To remove every rule, save the file with an empty list: <code>{ "version": 2, "rules": [] }</code>.</li>
+                    <li>Each time the file loads, a copy is saved next to it, <code>policy.json.last-good</code> (not for a file set with <code>AIMAESTRO_POLICY_FILE</code>).</li>
+                    <li>A file that does not load (bad JSON, an unknown field value) keeps the last version that loaded in force until it is fixed: the one the server loaded since it started, else, after a restart, the saved copy.</li>
+                    <li>A deleted file also keeps that version in force. To remove every rule, save the file with an empty list: <code>{ "version": 2, "rules": [] }</code>.</li>
                     <li>A host that never had a rules file has no rules.</li>
+                    <li>With <code>AIMAESTRO_POLICY_FAIL_CLOSED=1</code>, a missing, unreadable or broken file keeps no last version: agents may not send, call or be changed (create, delete, move, raise the mode, new credentials) until the file is fixed, and the Doctor fails. People (the dashboard, a person's devices) and AI Maestro itself may still send, so you can still reach the agents while you fix it. A host with this setting and no rules file refuses agents from the start: save <code>{ "version": 2, "rules": [] }</code> to allow everything.</li>
                 </ul>
+            </section>
+
+            <section id="protect">
+                <h2 class="font-display text-3xl font-bold text-white mb-4">Keeping agents away from the rules</h2>
+                <p class="mb-3">The default file is in <code>~/.aimaestro/</code>, a folder the server writes, and agents run as the same operating-system user as the server. So an agent can edit, replace or delete <code>policy.json</code> and its saved copy. To put the rules out of their reach:</p>
+                <ol class="list-decimal pl-6 space-y-2">
+                    <li>Put the file where the agents' user cannot write or rename it, owned by another user (or root) and readable by the server. For example, as root: <code>mkdir -p /etc/aimaestro &amp;&amp; cp ~/.aimaestro/policy.json /etc/aimaestro/policy.json &amp;&amp; chown -R root: /etc/aimaestro &amp;&amp; chmod 755 /etc/aimaestro &amp;&amp; chmod 644 /etc/aimaestro/policy.json</code>.</li>
+                    <li>Start the server with <code>AIMAESTRO_POLICY_FILE=/etc/aimaestro/policy.json</code> (an absolute path). The server only reads it: it never writes it or a copy next to it, and the file in <code>~/.aimaestro/</code> is ignored. If the file breaks or disappears, only the version the server loaded since it started is kept; after a restart nothing is.</li>
+                    <li>Add <code>AIMAESTRO_POLICY_FAIL_CLOSED=1</code> if a missing or broken file should stop the agents rather than apply no rules.</li>
+                    <li>The Doctor's <code>policy</code> check warns while the server's user can still write the file or its folder.</li>
+                </ol>
+                <p class="mt-3">To change the rules, edit the file as its owner (for example with <code>sudo</code>); the server picks the change up on the next check.</p>
             </section>
 
             <section>
                 <h2 class="font-display text-3xl font-bold text-white mb-4">Limits</h2>
                 <ul class="list-disc pl-6 space-y-2">
                     <li>AI Maestro has no login: the network is the trust boundary. A click in the dashboard is recorded as "an unverified person". Use <code>"proof": "signed"</code> when an approval must come from a known person.</li>
-                    <li>Agents on one host run as the same operating-system user. The rules stop mistakes and misled agents that use the normal tools. They cannot stop a program that edits files directly. To keep groups of agents apart, give each group its own host or container.</li>
+                    <li>Agents on one host run as the same operating-system user. The rules stop mistakes and misled agents that use the normal tools. With the default file, they cannot stop a program that edits files directly; <code>AIMAESTRO_POLICY_FILE</code> moves the rules out of reach, but the quarantine store (<code>~/.aimaestro/policy/</code>) is the server's and stays writable by that user. To keep groups of agents apart, give each group its own host or container.</li>
                 </ul>
                 <p class="mt-4">The full specification is <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/SPEC-POLICY-RULES.md" class="text-cyan-400">docs/SPEC-POLICY-RULES.md</a>. What changed in each version is in the <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CHANGELOG.md" class="text-cyan-400">changelog</a>.</p>
             </section>

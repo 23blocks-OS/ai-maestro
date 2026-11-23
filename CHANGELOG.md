@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.275] - 2026-11-23 - Rules that agents cannot switch off
+
+### Security
+- The rules file's place is a setting: `AIMAESTRO_POLICY_FILE=/absolute/path` replaces `~/.aimaestro/policy.json` everywhere it is read and reported. The server never writes that path or a copy beside it; put it where the agents' OS user cannot write or rename it (the recipe is on the rules page). The Doctor warns while that user can still write it. Off by default.
+- `AIMAESTRO_POLICY_FAIL_CLOSED=1`: a missing, unreadable or broken rules file refuses what agents send and every governance action until it is fixed, and the Doctor fails, instead of keeping the last good version. People and AI Maestro itself may still send. Off by default.
+- Fixed: a deleted rules file applied only the saved `policy.json.last-good`, which any agent can write, so writing an allow-all there and deleting the file switched the rules off at once. The version the server loaded since it started now comes first; the saved copy is used only after a restart, and never for a configured file. What changes: a server that once loaded rules keeps them after the file is deleted, until it restarts (before, a deleted file with no saved copy meant no rules at once). To remove every rule, save `{ "version": 2, "rules": [] }`.
+- Reported and fixed by Alejandro Vargas (alejo-vargas), GHSA-mmf3-jr8g-c546 (F132 step 2).
+
 ## [0.106.274] - 2026-11-23 - Calls in the agent's voice, and the language it hears
 
 ### Added

@@ -982,7 +982,7 @@ export async function routeMessage(
  */
 function meshClaimRefused(caller: Caller | undefined, forwardedFrom: string | null) {
   if (!caller || !forwardedFrom || caller.mode === 'off') return null
-  if (caller.kind === 'agent') return refusal(403, 'sender_mismatch', `${caller.name || caller.agentId} is an agent, not a host: it may not send with X-Forwarded-From`)
+  if (caller.kind === 'agent') return refusal(403, 'sender_mismatch', `${caller.name || caller.agentId} is an agent, not a host: it may not send with X-Forwarded-From`, caller.name || caller.agentId)
   return null
 }
 

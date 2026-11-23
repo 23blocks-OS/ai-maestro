@@ -77,7 +77,7 @@ export async function broadcastToMeeting(
 ): Promise<ServiceResult<BroadcastResult>> {
   const { meetingId, teamName, message, participantIds, caller } = params
   if (caller && caller.mode !== 'off') {
-    if (caller.kind === 'agent') return refusal(403, 'sender_mismatch', `${caller.name || caller.agentId} may send only as itself; a meeting broadcast is sent as maestro`) as ServiceResult<BroadcastResult>
+    if (caller.kind === 'agent') return refusal(403, 'sender_mismatch', `${caller.name || caller.agentId} may send only as itself; a meeting broadcast is sent as maestro`, caller.name || caller.agentId) as ServiceResult<BroadcastResult>
   }
   if (!meetingId || typeof meetingId !== 'string') return missingField('meetingId') as ServiceResult<BroadcastResult>
   if (!message || typeof message !== 'string' || !message.trim()) return missingField('message') as ServiceResult<BroadcastResult>

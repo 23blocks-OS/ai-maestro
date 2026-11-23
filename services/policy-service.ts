@@ -185,7 +185,7 @@ function askerOf(caller: Caller | undefined, forwardedFrom?: string | null): { a
   if (!caller || caller.mode === 'off') return { asker: { as: 'open' } }
   if (caller.kind === 'operator') return { asker: { as: 'operator' } }
   if (caller.kind === 'agent') {
-    if (forwardedFrom) return { refused: refusal(403, 'sender_mismatch', `${caller.name || caller.agentId} is an agent, not a host: it may not send with X-Forwarded-From`) }
+    if (forwardedFrom) return { refused: refusal(403, 'sender_mismatch', `${caller.name || caller.agentId} is an agent, not a host: it may not send with X-Forwarded-From`, caller.name || caller.agentId) }
     return { asker: { as: 'agent', agentId: caller.agentId!, name: caller.name, via: caller.via === 'key' ? 'key' : 'session' } }
   }
   if (forwardedFrom) {
@@ -210,7 +210,7 @@ function involves(r: Pick<QuarantineView, 'from' | 'to' | 'approvers' | 'host'>,
 }
 
 const notInvolved = (a: { agentId: string; name?: string }, id: string): CallerRefusal =>
-  refusal(403, 'not_your_mailbox', `${a.name || a.agentId} did not send, does not receive and does not approve quarantine entry ${id}`)
+  refusal(403, 'not_your_mailbox', `${a.name || a.agentId} did not send, does not receive and does not approve quarantine entry ${id}`, a.name || a.agentId)
 
 /**
  * GET /api/v1/quarantine?status=&limit= — this host's entries and, unless localOnly, every peer's (asked with

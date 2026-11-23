@@ -1,4 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
+import { recordAmpRefusal } from '@/lib/amp-refusals'
+
+vi.mock('@/lib/amp-refusals', () => ({ recordAmpRefusal: vi.fn() }))
 import {
   CALLER_HEADER,
   agentNameOfSession,
@@ -207,6 +210,10 @@ describe('caller identity: decisions', () => {
 
   it('an agent sends as itself only, and a missing from is its own', () => {
     expect(checkSender(alice, 'alice', idOf)).toEqual({ from: 'alice' })
+    vi.mocked(recordAmpRefusal).mockClear()
+    checkSender(alice, 'bob', idOf)
+    // a refusal is recorded for the Doctor, with who was refused
+    expect(recordAmpRefusal).toHaveBeenCalledWith(expect.objectContaining({ status: 403, reason: 'sender_mismatch', from: 'alice' }))
     expect(checkSender(alice, 'id-alice', idOf)).toEqual({ from: 'id-alice' })
     expect(checkSender(alice, undefined, idOf)).toEqual({ from: 'id-alice' })
     expect(checkSender(alice, 'bob', idOf)).toMatchObject({ refused: { status: 403, data: { error: 'sender_mismatch' } } })

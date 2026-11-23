@@ -48,7 +48,7 @@ import {
 } from '@/lib/meeting-registry'
 import type { SidebarMode } from '@/types/team'
 import { type ServiceResult, missingField, notFound, invalidRequest, operationFailed } from '@/services/service-errors'
-import { type Caller, checkMailbox, checkNotAgent, checkSender, refusal, senderViaOf } from '@/lib/caller-identity'
+import { type Caller, checkMailbox, checkNotAgent, checkSender, refusal, sameAgent, senderViaOf } from '@/lib/caller-identity'
 
 /** A mailbox or sender name -> the local agent's id, for the caller checks */
 const agentIdOf = (identifier: string) => resolveAgentIdentifier(identifier)?.agentId ?? null
@@ -358,7 +358,7 @@ export async function forwardMessage(params: ForwardMessageParams, caller?: Call
   if (sender.refused) return sender.refused
   const fromSession = sender.from as string
   if (caller?.kind === 'agent' && originalMessage) {
-    return refusal(403, 'not_your_mailbox', 'An agent forwards a message from its own mailbox: send its messageId, not the message')
+    return refusal(403, 'not_your_mailbox', 'An agent forwards a message from its own mailbox: send its messageId, not the message', caller.name || caller.agentId)
   }
 
   // Validate required fields
@@ -429,7 +429,7 @@ export async function getMeetingMessages(
   const asAgent = caller?.kind === 'agent' && caller.mode !== 'off'
   if (asAgent) {
     // An agent reads the meeting from its own mailbox only: what was sent to it and what it sent
-    if (!participantIds.some(p => !checkMailbox(caller, p, agentIdOf))) {
+    if (!participantIds.some(p => sameAgent(caller!, p, agentIdOf))) {
       return checkMailbox(caller, null, agentIdOf) as Result
     }
     participantIds = [caller!.agentId!]

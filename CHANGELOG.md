@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.278] - 2026-11-23 - Refused agents are seen, not only told
+
+### Fixed
+- A refusal of an agent acting as another (`sender_mismatch`, `not_your_mailbox`, `caller_mismatch`) was only returned to the agent, so an agent whose hook or script was refused failed without anyone noticing. Each one is now recorded in `~/.aimaestro/logs/amp-refusals.jsonl` with the agent's name, and the Doctor's refusals check shows it.
+- Reading a meeting as an agent no longer builds a refusal for every other participant just to find its own.
+
 ## [0.106.277] - 2026-11-23 - The server finds agent sessions again under pm2
 
 ### Fixed

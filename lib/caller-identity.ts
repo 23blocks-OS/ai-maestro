@@ -38,6 +38,7 @@ import type { Socket } from 'net'
 import { tmux } from '@/lib/tmux-safe.mjs'
 import { getAgent, getAgentByName } from '@/lib/agent-registry'
 import { validateApiKey } from '@/lib/amp-auth'
+import { recordAmpRefusal } from '@/lib/amp-refusals'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -229,7 +230,9 @@ export function agentNameOfSession(session: string): string {
   return session.replace(/__call$/, '').replace(/_\d+$/, '')
 }
 
-export function refusal(status: 403, error: CallerErrorCode, message: string): CallerRefusal {
+/** Recorded in the refusals log (the Doctor's amp-refusals check), so a refused agent is seen, not only told */
+export function refusal(status: 403, error: CallerErrorCode, message: string, from?: string): CallerRefusal {
+  recordAmpRefusal({ endpoint: 'route', status, reason: error, message, from })
   return { status, data: { error, message } }
 }
 
@@ -328,7 +331,7 @@ export function createCallerResolver(opts: ResolverOptions = {}) {
       if (session === 'host') return { caller: { kind: 'operator', via: 'host', mode: m, local } }
 
       if (session && keyAgent && session.id !== keyAgent.id) {
-        return { refused: refusal(403, 'caller_mismatch', `This request comes from the session of ${session.name || session.id} but carries the API key of ${keyAgent.name || keyAgent.id}`) }
+        return { refused: refusal(403, 'caller_mismatch', `This request comes from the session of ${session.name || session.id} but carries the API key of ${keyAgent.name || keyAgent.id}`, session.name || session.id) }
       }
       if (session) return { caller: { kind: 'agent', agentId: session.id, name: session.name, via: 'session', mode: m, local } }
       if (keyAgent) {
@@ -350,7 +353,7 @@ export function createCallerResolver(opts: ResolverOptions = {}) {
 /** identifier (id, name, alias, session name, name@host) -> the local agent's id */
 export type AgentIdOf = (identifier: string) => string | null
 
-function sameAgent(caller: Caller, identifier: string, idOf: AgentIdOf): boolean {
+export function sameAgent(caller: Caller, identifier: string, idOf: AgentIdOf): boolean {
   if (!caller.agentId) return false
   if (identifier === caller.agentId) return true
   if (caller.name && identifier.toLowerCase() === caller.name.toLowerCase()) return true
@@ -365,13 +368,13 @@ export function checkMailbox(caller: Caller | undefined, mailbox: string | null 
   if (!caller || caller.mode === 'off') return null
   if (caller.kind !== 'agent') return null
   if (mailbox && sameAgent(caller, String(mailbox), idOf)) return null
-  return refusal(403, 'not_your_mailbox', `${caller.name || caller.agentId} may read and change only its own mailbox`)
+  return refusal(403, 'not_your_mailbox', `${caller.name || caller.agentId} may read and change only its own mailbox`, caller.name || caller.agentId)
 }
 
 /** Agent-only surfaces of other mailboxes (all agents' counts, a person's mailbox, the pending-wakes report) */
 export function checkNotAgent(caller: Caller | undefined): CallerRefusal | null {
   if (!caller || caller.mode === 'off') return null
-  if (caller.kind === 'agent') return refusal(403, 'not_your_mailbox', `${caller.name || caller.agentId} may read only its own mailbox`)
+  if (caller.kind === 'agent') return refusal(403, 'not_your_mailbox', `${caller.name || caller.agentId} may read only its own mailbox`, caller.name || caller.agentId)
   return null
 }
 
@@ -381,7 +384,7 @@ export function checkNotAgent(caller: Caller | undefined): CallerRefusal | null 
  */
 export function checkPersonMailbox(caller: Caller | undefined): CallerRefusal | null {
   if (!caller || caller.mode === 'off' || caller.kind !== 'agent') return null
-  return refusal(403, 'not_your_mailbox', `${caller.name || caller.agentId} is an agent; a person's mailbox is not its own`)
+  return refusal(403, 'not_your_mailbox', `${caller.name || caller.agentId} is an agent; a person's mailbox is not its own`, caller.name || caller.agentId)
 }
 
 /**
@@ -398,7 +401,7 @@ export function checkSender(
   if (caller.kind !== 'agent') return { from }
   if (!from) return { from: caller.agentId }
   if (sameAgent(caller, String(from), idOf)) return { from }
-  return { refused: refusal(403, 'sender_mismatch', `${caller.name || caller.agentId} may send only as itself, not as ${from}`) }
+  return { refused: refusal(403, 'sender_mismatch', `${caller.name || caller.agentId} may send only as itself, not as ${from}`, caller.name || caller.agentId) }
 }
 
 /** What a stored message records about its sender */

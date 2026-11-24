@@ -5,6 +5,7 @@
  *   GET    /api/voiceprints                      { ready, consentText, sentences, voiceprints }
  *   PUT    /api/voiceprints                      { consentText }: '' restores the default
  *   POST   /api/voiceprints/[personId]/samples   { name, agentId, deviceKey, index, consent }: records sentence `index`
+ *   DELETE /api/voiceprints/[personId]/samples   cancels the enrollment, and a board's wait for its next clip
  *   PATCH  /api/voiceprints/[personId]          { name }: the person was renamed
  *   DELETE /api/voiceprints/[personId]
  *
@@ -16,7 +17,7 @@ import {
   consentText, setConsentText, listVoiceprints, loadVoiceprint, saveVoiceprint, deleteVoiceprint, combine,
 } from '@/lib/voiceprints.mjs'
 import { embedVoice, voiceprintReady } from '@/lib/speech-local.mjs'
-import { recordAgentDeviceVoice } from '@/services/agent-devices-service'
+import { cancelAgentDeviceVoice, recordAgentDeviceVoice } from '@/services/agent-devices-service'
 import { isPersonId } from '@/lib/people-registry'
 import { type ServiceResult, invalidField, missingField, notFound, serviceError } from '@/services/service-errors'
 
@@ -92,6 +93,15 @@ export async function recordVoiceSample(personId: string, body: Record<string, u
     device: { agentId, deviceKey },
   })
   return { data: { count: SENTENCES.length, needed: SENTENCES.length, enrolled: true }, status: 200 }
+}
+
+/** The operator cancelled: forget the enrollment, and free the board so its next clip is talk again */
+export async function cancelVoiceSample(personId: string): Promise<ServiceResult<{ cancelled: boolean }>> {
+  if (!isPersonId(personId)) return invalidField('personId', 'personId must be a person id from GET /api/people')
+  const enrollment = pending().get(personId)
+  if (!enrollment) return { data: { cancelled: false }, status: 200 }
+  pending().delete(personId)
+  return cancelAgentDeviceVoice(enrollment.agentId, enrollment.deviceKey)
 }
 
 /** The person was renamed where their record lives: the kiosk names them the new way from now on */

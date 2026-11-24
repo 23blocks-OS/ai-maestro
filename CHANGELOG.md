@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.279] - 2026-11-23 - Voice enrollment on a board: more time, and Cancel works
+
+### Fixed
+- Enrolling a voice on a board (the Bruce toy) waited 45 s for the wake phrase. The small wake model can take a few tries, and the time ran out before the toy heard it; the sentence then went to the agent as talk. The board now waits 90 s, and the page counts down ("Waiting… 72s") instead of showing "Recording…".
+- Cancel was disabled while waiting. It now works at any time: it stops the request and calls the new `DELETE /api/voiceprints/{personId}/samples`, which forgets the enrollment and frees the board, so its next clip is talk for its agent again instead of a sample.
+
 ## [0.106.278] - 2026-11-23 - Refused agents are seen, not only told
 
 ### Fixed

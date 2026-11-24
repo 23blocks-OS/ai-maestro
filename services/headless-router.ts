@@ -338,7 +338,7 @@ import {
 import { runDiagnostics, runDiagnosticFix } from '@/services/diagnostics-service'
 import { toolReadinessRequest } from '@/services/tool-readiness-service'
 import { elevenLabsVoices, speakForAgent } from '@/services/agent-speech-service'
-import { voiceprintStatus, updateConsentText, recordVoiceSample, removeVoiceprint, renameVoiceprint } from '@/services/voiceprints-service'
+import { voiceprintStatus, updateConsentText, recordVoiceSample, cancelVoiceSample, removeVoiceprint, renameVoiceprint } from '@/services/voiceprints-service'
 import { addAgentDevice, addAgentNetwork, listAgentNetworks, removeAgentNetwork, captureAgentDevice, forgetAgentDevice, latestAgentDeviceSnapshot, getAgentDeviceIdentity, invokeAgentDevice, jumpAgentDevice, listAgentDevices, listHostDevices, refreshAgentDevice } from '@/services/agent-devices-service'
 import { programInstallRequest } from '@/services/program-install-service'
 import { unknownAgentResult } from '@/services/agent-guard'
@@ -595,6 +595,9 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/voiceprints\/([^/]+)\/samples$/, paramNames: ['personId'], handler: async (req, res, params) => {
     sendServiceResult(res, await recordVoiceSample(params.personId, await readJsonBody(req).catch(() => ({}))))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/voiceprints\/([^/]+)\/samples$/, paramNames: ['personId'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await cancelVoiceSample(params.personId))
   }},
   { method: 'PATCH', pattern: /^\/api\/voiceprints\/([^/]+)$/, paramNames: ['personId'], handler: async (req, res, params) => {
     sendServiceResult(res, renameVoiceprint(params.personId, await readJsonBody(req).catch(() => ({}))))

@@ -6,7 +6,7 @@
  * person then reads four sentences at the kiosk.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { isSelfHost } from '@/lib/host-kind'
 import type { Host } from '@/types/host'
 import type { MeshPerson } from '@/hooks/usePeople'
@@ -95,17 +95,38 @@ export function VoiceEnrollPanel({ person, voiceHosts, onClose }: { person: Mesh
   const [agreed, setAgreed] = useState(false)
   const [step, setStep] = useState<Step | null>(null)
   const picked = choices[choice]
+  const request = useRef<AbortController | null>(null)
+  const [left, setLeft] = useState(0)
+  const waiting = Boolean(step?.busy && picked?.k.board)
+
+  // A board waits up to 90 s for the wake phrase (CLIP_WAIT_MS in lib/device-host.mjs): show what is left
+  useEffect(() => {
+    if (!waiting) return
+    setLeft(90)
+    const t = setInterval(() => setLeft(s => Math.max(0, s - 1)), 1000)
+    return () => clearInterval(t)
+  }, [waiting])
+
+  // Cancel works while waiting too: stop the request, and free the device so its next clip is talk again
+  const cancel = () => {
+    request.current?.abort()
+    if (step && picked) json(`${picked.h.base}/api/voiceprints/${person.id}/samples`, { method: 'DELETE' }).catch(() => {})
+    onClose()
+  }
 
   const record = async (index: number) => {
     if (!picked) return
     setStep({ at: index, busy: true, error: null, done: false })
+    request.current = new AbortController()
     try {
       const r = await json(`${picked.h.base}/api/voiceprints/${person.id}/samples`, {
         method: 'POST',
         body: JSON.stringify({ name: person.displayName, agentId: picked.k.agentId, deviceKey: picked.k.key, index, consent: index === 0 ? agreed : undefined }),
+        signal: request.current.signal,
       })
       setStep(r.enrolled ? { at: index, busy: false, error: null, done: true } : { at: r.count, busy: false, error: null, done: false })
     } catch (e) {
+      if (request.current?.signal.aborted) return
       const message = (e as Error).message
       // Out of step or not one person: only a fresh start helps
       const restart = /Start again/.test(message)
@@ -161,9 +182,9 @@ export function VoiceEnrollPanel({ person, voiceHosts, onClose }: { person: Mesh
           {step.error && <div className="text-red-300">{step.error}</div>}
           <div className="flex gap-2">
             <button onClick={() => record(step.at)} disabled={step.busy || (step.at === 0 && !agreed)} className="px-3 py-1 rounded bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50">
-              {step.busy ? 'Recording…' : 'Record'}
+              {step.busy ? (picked?.k.board ? `Waiting… ${left}s` : 'Recording…') : 'Record'}
             </button>
-            <button onClick={onClose} disabled={step.busy} className="px-3 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-50">Cancel</button>
+            <button onClick={cancel} className="px-3 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700">Cancel</button>
           </div>
         </>
       )}

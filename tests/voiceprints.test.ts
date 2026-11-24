@@ -15,13 +15,14 @@ vi.mock('os', async (orig) => {
 })
 vi.mock('@/services/agent-devices-service', () => ({
   recordAgentDeviceVoice: vi.fn(async (...args: any[]) => { device.calls.push(args); return device.result }),
+  cancelAgentDeviceVoice: vi.fn(async (...args: any[]) => { device.calls.push(['cancel', ...args]); return { data: { cancelled: true }, status: 200 } }),
 }))
 vi.mock('@/lib/speech-local.mjs', () => ({
   voiceprintReady: () => model.ready,
   embedVoice: vi.fn(async () => ({ embedding: model.vectors.shift(), speech: model.speech })),
 }))
 
-import { recordVoiceSample, removeVoiceprint, renameVoiceprint, voiceprintStatus, updateConsentText } from '@/services/voiceprints-service'
+import { cancelVoiceSample, recordVoiceSample, removeVoiceprint, renameVoiceprint, voiceprintStatus, updateConsentText } from '@/services/voiceprints-service'
 import { combine, loadVoiceprint, saveVoiceprint, bestMatch, identifySpeaker, DEFAULT_CONSENT, MODEL } from '@/lib/voiceprints.mjs'
 
 const unit = (v: number[]) => { const n = Math.hypot(...v); return v.map(x => x / n) }
@@ -48,6 +49,16 @@ const enroll = async () => {
 }
 
 describe('voice enrollment', () => {
+  it('cancel forgets the enrollment and frees the device it waits on', async () => {
+    await recordVoiceSample('person-a', body(0, { consent: true }))
+    expect((await cancelVoiceSample('person-a')).data).toEqual({ cancelled: true })
+    expect(device.calls.at(-1)).toEqual(['cancel', 'agent-1', 'kiosk-1'])
+    // the next sentence has no enrollment to join: start again
+    expect((await recordVoiceSample('person-a', body(1))).status).toBe(409)
+    // nothing pending: nothing to free
+    expect((await cancelVoiceSample('person-a')).data).toEqual({ cancelled: false })
+  })
+
   it('records nothing before consent', async () => {
     const r = await recordVoiceSample('person-a', body(0))
     expect(r.status).toBe(400)

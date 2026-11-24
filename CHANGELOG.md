@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.283] - 2026-11-24 - Enrollment asks which microphone
+
+### Fixed
+- **Add a microphone** picked the first device the person was not enrolled on. With more than one (another agent's MacBook and the Bruce toy), the takes went to a device the person was not speaking into, so the sentences reached the agent as talk and the second sentence never came. Now, when more than one device is new for the person, the page asks which microphone they will speak into, and Continue waits for the choice. With only one, it is chosen as before.
+
 ## [0.106.282] - 2026-11-23 - An agent knows a voice through each microphone
 
 ### Fixed

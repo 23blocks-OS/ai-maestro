@@ -127,12 +127,13 @@ export function VoiceEnrollPanel({ person, voiceHosts, onClose }: { person: Mesh
     ...(ready.length ? [{ kind: 'computer' as const, hosts: ready }] : []),
     ...ready.flatMap(h => h.kiosks.filter(k => k.online).map(k => ({ kind: 'device' as const, h, k }))),
   ]
-  // Adding a microphone: start on a device this person is not known from yet
-  const [pick, setPick] = useState(() => {
+  // Adding a microphone: start on the one device this person is not known from yet. With several, the person
+  // chooses: a guess sent the takes to another agent's device while they spoke to the one in their hand
+  const [{ pick, chosen }, setChoice] = useState(() => {
     const known = new Set(ready.flatMap(h => h.voiceprints.find(v => v.personId === person.id)?.microphones ?? []))
-    if (!known.size) return 0
-    const i = sources.findIndex(s => s.kind === 'device' && !known.has(`device:${s.k.key}`))
-    return i < 0 ? 0 : i
+    if (!known.size) return { pick: 0, chosen: true }
+    const fresh = sources.flatMap((s, i) => s.kind === 'device' && !known.has(`device:${s.k.key}`) ? [i] : [])
+    return fresh.length === 1 ? { pick: fresh[0], chosen: true } : { pick: 0, chosen: fresh.length === 0 }
   })
   const source = sources[pick]
   const [agreed, setAgreed] = useState(false)
@@ -249,7 +250,8 @@ export function VoiceEnrollPanel({ person, voiceHosts, onClose }: { person: Mesh
         <div className="space-y-3 text-xs">
           <label className="block space-y-1">
             <span className="text-gray-400">Record with</span>
-            <select value={pick} onChange={e => setPick(Number(e.target.value))} className="block w-full max-w-sm bg-gray-800 text-gray-100 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-violet-500">
+            <select value={chosen ? pick : -1} onChange={e => setChoice({ pick: Number(e.target.value), chosen: true })} className="block w-full max-w-sm bg-gray-800 text-gray-100 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-violet-500">
+              {!chosen && <option value={-1} disabled>Choose the microphone you will speak into</option>}
               {sources.map((s, i) => <option key={i} value={i}>{label(s)}</option>)}
             </select>
           </label>
@@ -264,7 +266,7 @@ export function VoiceEnrollPanel({ person, voiceHosts, onClose }: { person: Mesh
             <span>{person.displayName} agreed to {consentTexts.length > 1 ? 'these' : 'this'}</span>
           </label>
           <div className="flex gap-2">
-            <button onClick={() => { got.current = {}; setPhase({ at: 'sentence', index: 0, status: 'idle' }) }} disabled={!agreed} className="px-3 py-1.5 rounded-md bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40">Continue</button>
+            <button onClick={() => { got.current = {}; setPhase({ at: 'sentence', index: 0, status: 'idle' }) }} disabled={!agreed || !chosen} className="px-3 py-1.5 rounded-md bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40">Continue</button>
             <button onClick={cancel} className="px-3 py-1.5 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700">Cancel</button>
           </div>
           <p className="text-[11px] text-gray-500">Only the voiceprint is kept, on {where}; the recordings are not. The consent text is set in Settings, Voice.</p>

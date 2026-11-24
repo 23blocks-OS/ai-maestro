@@ -13,7 +13,9 @@ export const dynamic = 'force-dynamic'
 
 import { getPendingWakesReport } from '@/services/pending-wakes-service'
 import { toResponse } from '@/app/api/_helpers'
+import type { NextRequest } from 'next/server'
+import { callerFromHeaders } from '@/lib/caller-identity'
 
-export async function GET() {
-  return toResponse(await getPendingWakesReport())
+export async function GET(request: NextRequest) {
+  return toResponse(await getPendingWakesReport(callerFromHeaders(request.headers)))
 }

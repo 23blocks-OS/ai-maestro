@@ -3,6 +3,82 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.284] - 2026-11-24 - A registered name cannot be taken over
+
+### Security
+- `POST /api/v1/register` for a name that already exists gave a new API key to anyone who sent its public key, and a public key is public: the API serves it and every message carries its fingerprint. Now, following AMP spec 03 "Registering an Existing Name", a new API key goes only to the agent itself: its own session, its own API key, or a `proof` of possession of its registered key (`401 proof_required`, then a signed timestamp; `401 invalid_proof` for a bad, old or reused one). A different key stays `409 name_taken`. An agent in the registry that never registered over AMP can be registered only from its own session. There is no key reset over the API; this server's own in-process registrations are as before. (GHSA-mmf3-jr8g-c546, F132 step 5. Reported, and the first version written, by Alejandro Vargas.)
+- The AMP scripts (claude-plugin 0.5.8, plugin 1.19.28) answer `proof_required` with the proof themselves, so agents outside their tmux session keep registering.
+
+### Fixed
+- The Claude hook opens the message a pane notice announces (by Alejandro Vargas, in plugin 1.19.27 and the public repo since 0.106.274; now in this repo's canonical hook too).
+
+## [0.106.283] - 2026-11-24 - Enrollment asks which microphone
+
+### Fixed
+- **Add a microphone** picked the first device the person was not enrolled on. With more than one (another agent's laptop and a voice board), the takes went to a device the person was not speaking into, so the sentences reached the agent as talk and the second sentence never came. Now, when more than one device is new for the person, the page asks which microphone they will speak into, and Continue waits for the choice. With only one, it is chosen as before.
+
+## [0.106.282] - 2026-11-23 - An agent knows a voice through each microphone
+
+### Fixed
+- An agent could not tell a person's voice through its voice board after the person enrolled on a laptop. Two causes, measured on real toy clips: the toy's quiet microphone made most words read as silence (0 to 1.1 s of speech in 3 to 6 s clips, and a match needs 2 s), so no match was tried; and a voice enrolled on a laptop scored 0.2 to 0.45 on the toy's microphone, under the 0.5 match line.
+- Speech is now measured against the clip's own loud part (frames within 20 dB of it, never under -54 dBFS), and the voiceprint is made from the speech frames only. The same clips now read as 1.5 to 4.7 s of speech.
+
+### Added
+- A voiceprint keeps one print per microphone (`dashboard`, or `device:<key>`): recording on another microphone adds a print, recording again on one replaces its print. A person scores as their closest microphone; "two people too close to tell apart" still compares people. Files from before read as one print. The match line stays at 0.5.
+- People: each host line says which microphones it knows the person from, and **Add a microphone** starts on a device the person is not enrolled on yet.
+
+## [0.106.281] - 2026-11-23 - One footer
+
+### Changed
+- The dashboard's footer (version, made in Boulder, credits) is now `components/Footer.tsx`, and the People page uses it instead of a bare version line.
+
+## [0.106.280] - 2026-11-23 - People, redesigned; enroll a voice on this computer
+
+### Added
+- Voice enrollment records on the computer you are at, in the browser, by default: Record, read the sentence, Done, four times. No wake phrase and no device needed. The same four takes go to every host that keeps voiceprints, so one enrollment teaches every agent the voice; a host that fails one sentence is asked again alone. A device of an agent stays an option. `POST /api/voiceprints/{personId}/samples` takes `audio` (a base64 WAV, 16 kHz mono 16-bit, at most 20 s) in place of `agentId` and `deviceKey`; only the voiceprint is kept, as before.
+
+### Changed
+- The People page uses the app header, with the current page marked, and is laid out as a searchable list beside the selected person: voice, contact, organization (reports to, direct reports, organizations) and phones, each in its own section. Editing and adding happen in that panel; phones waiting for approval stay at the top of the list. On a narrow screen the list and the person take turns.
+- The app header marks the page you are on, its title leads back to the dashboard, and its buttons scroll instead of overflowing on a narrow window.
+
+## [0.106.279] - 2026-11-23 - Voice enrollment on a board: more time, and Cancel works
+
+### Fixed
+- Enrolling a voice on a board (a toy with a wake phrase) waited 45 s for the wake phrase. The small wake model can take a few tries, and the time ran out before the toy heard it; the sentence then went to the agent as talk. The board now waits 90 s, and the page counts down ("Waiting… 72s") instead of showing "Recording…".
+- Cancel was disabled while waiting. It now works at any time: it stops the request and calls the new `DELETE /api/voiceprints/{personId}/samples`, which forgets the enrollment and frees the board, so its next clip is talk for its agent again instead of a sample.
+
+## [0.106.278] - 2026-11-23 - Refused agents are seen, not only told
+
+### Fixed
+- A refusal of an agent acting as another (`sender_mismatch`, `not_your_mailbox`, `caller_mismatch`) was only returned to the agent, so an agent whose hook or script was refused failed without anyone noticing. Each one is now recorded in `~/.aimaestro/logs/amp-refusals.jsonl` with the agent's name, and the Doctor's refusals check shows it.
+- Reading a meeting as an agent no longer builds a refusal for every other participant just to find its own.
+
+## [0.106.277] - 2026-11-23 - The server finds agent sessions again under pm2
+
+### Fixed
+- The server could not tell which agent was calling (0.106.276): pm2 starts it with no locale, and without a UTF-8 locale tmux prints a tab in a `-F` format as `_`, so the pane list read empty and every caller was anonymous. The pane list now uses `:` as the separator; tmux never allows `:` in a session name.
+- The same tab made agent discovery fall back, without an error, to one tmux call per session (the slow path fixed on 2026-09-23). It is one call again.
+
+## [0.106.276] - 2026-11-23 - An agent acts only as itself
+
+### Security
+- An agent can no longer send as another agent or read another agent's mail. The server works out who is calling the message routes (`lib/caller-identity.ts`) instead of trusting `from` and `agent` in the request: an agent by its session (the request comes from a process inside its tmux pane, found through the socket, the process tree and the registry, never from environment variables) or by its AMP API key. An identified agent sends only as itself (403 `sender_mismatch`) and reads, marks, archives, deletes and forwards only its own mail (403 `not_your_mailbox`), on `/api/messages*`, `/api/agents/<id>/messages*`, the meeting inject queue and broadcast, person mailboxes, `/api/v1/route` and `/api/v1/messages/*`, in both routers. An API key of one agent used from another agent's session is refused (`caller_mismatch`), and an agent may not send with `X-Forwarded-From`. Its alias, label and host come from the registry. The stored message records how the sender was established (`local.sender_via`: `session`, `key`, `host` or `claimed`). `GET /api/caller` answers who the server thinks is calling.
+- Requests from outside any agent session (the dashboard, scripts, the email bridge, other hosts) keep today's access: there is no login and no token. `AIMAESTRO_CALLER_AUTH=off` turns the check off.
+- An agent can no longer approve its own held message. `POST /api/v1/quarantine/{id}/approve` and `/reject` use the caller the server found instead of `by` from the body: an agent decides only an entry whose rule names it as an approver, never one it sent, and is recorded as itself. An agent lists and reads only the quarantine entries it sent, receives or approves. The dashboard decides as before, and a decision passed on by a peer host (`X-Forwarded-From` naming a host in `hosts.json`) works as before.
+- What changes: an agent (or its hooks and scripts) that read another agent's mailbox, sent as another agent, used another agent's key or `--id` from its own session, or approved an entry it was not an approver of, now gets 403.
+- Reported and fixed by Alejandro Vargas (alejo-vargas), GHSA-mmf3-jr8g-c546 (F132 steps 2 and 3).
+- Turned on in stages (this Mac first). `AIMAESTRO_CALLER_AUTH=off` turns it off on a host without a redeploy.
+
+## [0.106.275] - 2026-11-23 - Rules that agents cannot switch off
+
+### Docs
+- Backlog F132 (the decisions for advisory GHSA-mmf3-jr8g-c546 and their step log) is on main now; 0.106.273 named it, but it had not been included.
+
+### Security
+- The rules file's place is a setting: `AIMAESTRO_POLICY_FILE=/absolute/path` replaces `~/.aimaestro/policy.json` everywhere it is read and reported. The server never writes that path or a copy beside it; put it where the agents' OS user cannot write or rename it (the recipe is on the rules page). The Doctor warns while that user can still write it. Off by default.
+- `AIMAESTRO_POLICY_FAIL_CLOSED=1`: a missing, unreadable or broken rules file refuses what agents send and every governance action until it is fixed, and the Doctor fails, instead of keeping the last good version. People and AI Maestro itself may still send. Off by default.
+- Fixed: a deleted rules file applied only the saved `policy.json.last-good`, which any agent can write, so writing an allow-all there and deleting the file switched the rules off at once. The version the server loaded since it started now comes first; the saved copy is used only after a restart, and never for a configured file. What changes: a server that once loaded rules keeps them after the file is deleted, until it restarts (before, a deleted file with no saved copy meant no rules at once). To remove every rule, save `{ "version": 2, "rules": [] }`.
+
 ## [0.106.274] - 2026-11-23 - Calls in the agent's voice, and the language it hears
 
 ### Added

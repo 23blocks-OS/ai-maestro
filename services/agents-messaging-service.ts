@@ -58,6 +58,10 @@ import { getPublicUrl } from '@/lib/host-sync'
 import type { AddAMPAddressRequest, AddEmailAddressRequest, EmailConflictError, EmailIndexResponse, FederatedEmailIndexResponse } from '@/types/agent'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed } from '@/services/service-errors'
 import { connectedPeerItems } from '@/services/shared-state'
+import { type Caller, checkMailbox, checkSender, senderViaOf } from '@/lib/caller-identity'
+
+/** These routes name the mailbox by agent id */
+const agentIdOf = (id: string) => getAgent(id)?.id ?? null
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -206,8 +210,11 @@ export async function listMessages(
     priority?: any
     from?: string
     to?: string
-  }
+  },
+  caller?: Caller
 ): Promise<ServiceResult<any>> {
+  const refused = checkMailbox(caller, agentId, agentIdOf)
+  if (refused) return refused
   try {
     const { box = 'inbox', status, priority, from, to } = params
 
@@ -231,8 +238,11 @@ export async function listMessages(
 
 export async function sendMessage(
   agentId: string,
-  body: { to: string; subject: string; content: Message['content']; priority?: Message['priority']; inReplyTo?: string }
+  body: { to: string; subject: string; content: Message['content']; priority?: Message['priority']; inReplyTo?: string },
+  caller?: Caller
 ): Promise<ServiceResult<any>> {
+  const sender = checkSender(caller, agentId, agentIdOf)
+  if (sender.refused) return sender.refused
   try {
     const { to, subject, content, priority, inReplyTo } = body
 
@@ -247,6 +257,8 @@ export async function sendMessage(
       content,
       priority,
       inReplyTo,
+      ...(caller?.kind === 'agent' && caller.mode !== 'off' ? { fromVerified: true } : {}),
+      ...(senderViaOf(caller) ? { senderVia: senderViaOf(caller) } : {}),
     })
 
     return {
@@ -274,8 +286,11 @@ export async function sendMessage(
 export async function getMessage(
   agentId: string,
   messageId: string,
-  box: 'inbox' | 'sent' = 'inbox'
+  box: 'inbox' | 'sent' = 'inbox',
+  caller?: Caller
 ): Promise<ServiceResult<any>> {
+  const refused = checkMailbox(caller, agentId, agentIdOf)
+  if (refused) return refused
   try {
     const msg = await getAgentMessage(agentId, messageId, box)
 
@@ -293,8 +308,11 @@ export async function getMessage(
 export async function updateMessage(
   agentId: string,
   messageId: string,
-  body: { action: string }
+  body: { action: string },
+  caller?: Caller
 ): Promise<ServiceResult<any>> {
+  const refused = checkMailbox(caller, agentId, agentIdOf)
+  if (refused) return refused
   try {
     const { action } = body
 
@@ -321,8 +339,11 @@ export async function updateMessage(
 
 export async function deleteMessageById(
   agentId: string,
-  messageId: string
+  messageId: string,
+  caller?: Caller
 ): Promise<ServiceResult<any>> {
+  const refused = checkMailbox(caller, agentId, agentIdOf)
+  if (refused) return refused
   try {
     const success = await deleteAgentMessage(agentId, messageId)
 
@@ -340,8 +361,12 @@ export async function deleteMessageById(
 export async function forwardMessage(
   agentId: string,
   messageId: string,
-  body: { to: string; note?: string }
+  body: { to: string; note?: string },
+  caller?: Caller
 ): Promise<ServiceResult<any>> {
+  // Forwarding reads the forwarder's mailbox and sends as it
+  const sender = checkSender(caller, agentId, agentIdOf)
+  if (sender.refused) return sender.refused
   try {
     const { to, note } = body
 

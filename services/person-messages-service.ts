@@ -13,6 +13,7 @@ import { saveMessage, listMessages, getMessage, setMessageStatus, type Box, type
 import { routeMessage } from '@/services/amp-service'
 import { type ServiceResult, notFound, invalidField, missingField } from '@/services/service-errors'
 import type { AMPRouteRequest } from '@/lib/types/amp'
+import { type Caller, checkPersonMailbox } from '@/lib/caller-identity'
 
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const
 
@@ -21,7 +22,9 @@ function activePerson(personId: string) {
   return p && p.active !== false ? p : null
 }
 
-export async function sendAsPerson(personId: string, body: Record<string, unknown>): Promise<ServiceResult<{ message: PersonMessage }>> {
+export async function sendAsPerson(personId: string, body: Record<string, unknown>, caller?: Caller): Promise<ServiceResult<{ message: PersonMessage }>> {
+  const refused = checkPersonMailbox(caller)
+  if (refused) return refused as ServiceResult<{ message: PersonMessage }>
   if (!activePerson(personId)) return notFound('Person', personId)
   const from = personAddress(personId)
   if (body.from !== undefined && body.from !== from) return invalidField('from', `This person's address is ${from}; sign that as from`)
@@ -68,7 +71,9 @@ export async function sendAsPerson(personId: string, body: Record<string, unknow
   return { data: { message }, status: 200 }
 }
 
-export function listPersonMessages(personId: string, q: { box?: string | null; since?: string | null; with?: string | null; limit?: string | null }): ServiceResult<{ messages: PersonMessage[] }> {
+export function listPersonMessages(personId: string, q: { box?: string | null; since?: string | null; with?: string | null; limit?: string | null }, caller?: Caller): ServiceResult<{ messages: PersonMessage[] }> {
+  const refused = checkPersonMailbox(caller)
+  if (refused) return refused as ServiceResult<{ messages: PersonMessage[] }>
   if (!activePerson(personId)) return notFound('Person', personId)
   if (q.box && q.box !== 'inbox' && q.box !== 'sent') return invalidField('box', 'box must be inbox or sent')
   const limit = q.limit ? Number(q.limit) : undefined
@@ -77,13 +82,17 @@ export function listPersonMessages(personId: string, q: { box?: string | null; s
   return { data: { messages }, status: 200 }
 }
 
-export function getPersonMessage(personId: string, id: string): ServiceResult<{ message: PersonMessage }> {
+export function getPersonMessage(personId: string, id: string, caller?: Caller): ServiceResult<{ message: PersonMessage }> {
+  const refused = checkPersonMailbox(caller)
+  if (refused) return refused as ServiceResult<{ message: PersonMessage }>
   if (!activePerson(personId)) return notFound('Person', personId)
   const message = getMessage(personId, id)
   return message ? { data: { message }, status: 200 } : notFound('Message', id)
 }
 
-export function updatePersonMessage(personId: string, id: string, body: Record<string, unknown>): ServiceResult<{ message: PersonMessage }> {
+export function updatePersonMessage(personId: string, id: string, body: Record<string, unknown>, caller?: Caller): ServiceResult<{ message: PersonMessage }> {
+  const refused = checkPersonMailbox(caller)
+  if (refused) return refused as ServiceResult<{ message: PersonMessage }>
   if (!activePerson(personId)) return notFound('Person', personId)
   const status = body.status as PersonMessageStatus
   if (!['unread', 'read', 'archived'].includes(status)) return invalidField('status', 'status must be unread, read or archived')

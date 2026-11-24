@@ -159,8 +159,39 @@ export function parseDuration(v: unknown): number | null {
 export const supportedApprover = (a: string) => APPROVER.test(a) || /^person:(\*|[A-Za-z0-9][A-Za-z0-9 _.@-]{0,127})$/.test(a) || /^agent:[A-Za-z0-9][A-Za-z0-9 _.@-]{0,127}$/.test(a)
 const RULE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/
 
-export function policyFile(home = os.homedir()): string {
-  return path.join(home, '.aimaestro', 'policy.json')
+/**
+ * Where this host's rules file is, and what happens when it cannot be used.
+ *
+ * AIMAESTRO_POLICY_FILE (an absolute path) replaces ~/.aimaestro/policy.json everywhere the file is read, linted,
+ * watched and reported. The server only reads it: it never writes that path, nor a copy next to it. Put it where the
+ * agents' OS user cannot write or rename it (owned by another user or root, in a folder they cannot write), readable
+ * by the server. A value that is not an absolute path is a broken setting: no file is read and the Doctor fails.
+ *
+ * AIMAESTRO_POLICY_FAIL_CLOSED=1: a missing, unreadable or broken file refuses what agents send and every governance
+ * action (only people and AI Maestro itself may still send), instead of applying the last good version or no rules.
+ */
+export interface PolicySettings {
+  file: string
+  /** The file is AIMAESTRO_POLICY_FILE, not the default */
+  configured: boolean
+  failClosed: boolean
+  /** The setting itself is wrong (a relative path) */
+  error?: string
+}
+
+const ON = /^(1|true|yes|on)$/i
+
+export function policySettings(env: Record<string, string | undefined> = process.env, home = os.homedir()): PolicySettings {
+  const failClosed = ON.test(String(env.AIMAESTRO_POLICY_FAIL_CLOSED || '').trim())
+  const set = String(env.AIMAESTRO_POLICY_FILE || '').trim()
+  if (!set) return { file: path.join(home, '.aimaestro', 'policy.json'), configured: false, failClosed }
+  if (!path.isAbsolute(set)) return { file: set, configured: true, failClosed, error: `AIMAESTRO_POLICY_FILE must be an absolute path, not "${set}"` }
+  return { file: path.normalize(set), configured: true, failClosed }
+}
+
+/** The rules file: AIMAESTRO_POLICY_FILE when it is set, else ~/.aimaestro/policy.json */
+export function policyFile(home = os.homedir(), env: Record<string, string | undefined> = process.env): string {
+  return policySettings(env, home).file
 }
 
 /** Version 1: throws with a plain message on the first problem, so a bad file is reported, not half applied. */
@@ -469,13 +500,23 @@ export interface LoadedPolicy {
   /** sha256 of the file text in force, so a log line says which rules applied */
   hash?: string
   error?: string
+  /** The file is AIMAESTRO_POLICY_FILE */
+  configured?: boolean
+  /** The file cannot be used and AIMAESTRO_POLICY_FAIL_CLOSED is on: checkPolicy refuses (lib/policy-check) */
+  failClosed?: boolean
+  /** The rules in force are not the file's: the version this process loaded, or the copy saved next to the file */
+  lastGood?: 'memory' | 'saved'
 }
 
-let cache: { file: string; mtimeMs: number; loaded: LoadedPolicy } | null = null
+let cache: { key: string; mtimeMs: number; loaded: LoadedPolicy } | null = null
 const lastGood = new Map<string, LoadedPolicy & { at: string }>()
 let missingWarned = ''
 
-/** Where the last version that loaded is kept, so a broken file after a restart does not switch the rules off */
+/**
+ * Where the last version that loaded is kept, so a broken file after a restart does not switch the rules off. Only for
+ * the default file: a configured file (AIMAESTRO_POLICY_FILE) gets no copy on disk, because the copy would sit in a
+ * folder the server writes, which the agents' user can write too, and so be a way round the protected file.
+ */
 export const lastGoodFile = (file: string) => `${file}.last-good`
 
 /** The saved last good version, if it still validates */
@@ -489,46 +530,84 @@ function savedGood(file: string): (LoadedPolicy & { at: string }) | undefined {
 }
 
 /**
- * The rules this host enforces. A missing file is no rules, unless a version loaded before (in this process or
- * saved as policy.json.last-good): then that version still applies, as for a broken file. A file that does not parse or validate keeps the
- * last version that loaded: from this process, else the copy saved next to the file (policy.json.last-good);
- * with neither, no rules apply. Either way the error is returned (for GET /api/policy and the Doctor) and
- * logged once per change of the file.
+ * The version to keep applying when the file cannot be used. The version this process loaded comes first; the copy on
+ * disk is trusted only when this process never loaded one (after a restart), and never for a configured file.
  */
-export function loadPolicy(file = policyFile()): LoadedPolicy {
+function fallback(file: string, configured: boolean): (LoadedPolicy & { at: string; from: 'memory' | 'saved' }) | undefined {
+  const mem = lastGood.get(file)
+  if (mem) return { ...mem, from: 'memory' }
+  const saved = configured ? undefined : savedGood(file)
+  return saved ? { ...saved, from: 'saved' } : undefined
+}
+
+const FAIL_CLOSED_NOTE = 'AIMAESTRO_POLICY_FAIL_CLOSED is on, so agents may not send, call or be changed (create, delete, move, mode, credentials) until it is fixed; people and AI Maestro itself may still send.'
+
+/**
+ * The rules this host enforces, from policySettings() unless a file is given.
+ *
+ * A missing file is no rules, unless a version loaded before: then that version still applies, as for a broken file.
+ * A file that does not parse or validate keeps the last version that loaded: from this process, else (default file
+ * only) the copy saved next to the file (policy.json.last-good); with neither, no rules apply. Either way the error is
+ * returned (for GET /api/policy and the Doctor) and logged once per change of the file.
+ *
+ * With fail-closed on, a missing, unreadable or broken file (or a broken setting) applies no last good version:
+ * `failClosed` is set and checkPolicy refuses what agents send.
+ */
+export function loadPolicy(fileArg?: string, settings: PolicySettings = policySettings()): LoadedPolicy {
+  const file = fileArg ?? settings.file
+  const configured = settings.configured && (fileArg === undefined || fileArg === settings.file)
+  const failClosed = settings.failClosed
+  const tag = { ...(configured ? { configured: true } : {}) }
+  if (fileArg === undefined && settings.error) {
+    const error = `${settings.error}. No rules file is read until it is fixed.${failClosed ? ` ${FAIL_CLOSED_NOTE}` : ' No rules apply.'}`
+    if (missingWarned !== error) { console.warn(`[Policy] ${error}`); missingWarned = error }
+    return { file, rules: [], error, ...tag, ...(failClosed ? { failClosed: true } : {}) }
+  }
   let mtimeMs = 0
   try { mtimeMs = fs.statSync(file).mtimeMs } catch {
     // Deleting the file does not switch the rules off: an empty rules list does (an agent can delete a file).
-    // Only the saved copy counts here, so the result is the same before and after a restart.
-    lastGood.delete(file)
-    const good = savedGood(file)
-    if (!good) return { file, rules: [] }
-    const error = `${file} is missing. The version that loaded at ${good.at} still applies. To remove every rule, save the file with an empty rules list.`
-    if (missingWarned !== file) { console.warn(`[Policy] ${error}`); missingWarned = file }
-    return { file, rules: good.rules, policy: good.policy, hash: good.hash, error }
+    let result: LoadedPolicy
+    if (failClosed) {
+      result = { file, rules: [], error: `${file} is missing. ${FAIL_CLOSED_NOTE} To allow everything, save the file with an empty rules list.`, ...tag, failClosed: true }
+    } else {
+      const good = fallback(file, configured)
+      if (!good) return { file, rules: [], ...tag }
+      result = {
+        file, rules: good.rules, policy: good.policy, hash: good.hash, ...tag, lastGood: good.from,
+        error: `${file} is missing. The version that loaded at ${good.at} still applies. To remove every rule, save the file with an empty rules list.`,
+      }
+    }
+    if (missingWarned !== file) { console.warn(`[Policy] ${result.error}`); missingWarned = file }
+    return result
   }
   if (missingWarned === file) missingWarned = ''
-  if (cache && cache.file === file && cache.mtimeMs === mtimeMs) return cache.loaded
+  const key = `${file}|${configured}|${failClosed}`
+  if (cache && cache.key === key && cache.mtimeMs === mtimeMs) return cache.loaded
   let loaded: LoadedPolicy
   try {
     const text = fs.readFileSync(file, 'utf8')
     const policy = validatePolicy(JSON.parse(text))
-    loaded = { file, rules: policy.rules, policy, hash: `sha256:${crypto.createHash('sha256').update(text).digest('hex').slice(0, 16)}` }
+    loaded = { file, rules: policy.rules, policy, hash: `sha256:${crypto.createHash('sha256').update(text).digest('hex').slice(0, 16)}`, ...tag }
     lastGood.set(file, { ...loaded, at: new Date().toISOString() })
-    try {
-      let saved = ''
-      try { saved = fs.readFileSync(lastGoodFile(file), 'utf8') } catch { /* none yet */ }
-      if (saved !== text) writeFileAtomicSync(lastGoodFile(file), text, { mode: 0o600 })
-    } catch (e) { console.warn(`[Policy] could not save ${lastGoodFile(file)}: ${(e as Error).message}`) }
+    // The server never writes next to a configured file
+    if (!configured) {
+      try {
+        let saved = ''
+        try { saved = fs.readFileSync(lastGoodFile(file), 'utf8') } catch { /* none yet */ }
+        if (saved !== text) writeFileAtomicSync(lastGoodFile(file), text, { mode: 0o600 })
+      } catch (e) { console.warn(`[Policy] could not save ${lastGoodFile(file)}: ${(e as Error).message}`) }
+    }
   } catch (error) {
-    const good = lastGood.get(file) || savedGood(file)
     const msg = `${file}: ${(error as Error).message}.`
-    loaded = good
-      ? { file, rules: good.rules, policy: good.policy, hash: good.hash, error: `${msg} The version that loaded at ${good.at} still applies until it is fixed.` }
-      : { file, rules: [], error: `${msg} No rules apply until it is fixed.` }
+    const good = failClosed ? undefined : fallback(file, configured)
+    loaded = failClosed
+      ? { file, rules: [], error: `${msg} ${FAIL_CLOSED_NOTE}`, ...tag, failClosed: true }
+      : good
+        ? { file, rules: good.rules, policy: good.policy, hash: good.hash, ...tag, lastGood: good.from, error: `${msg} The version that loaded at ${good.at} still applies until it is fixed.` }
+        : { file, rules: [], error: `${msg} No rules apply until it is fixed.`, ...tag }
     console.warn(`[Policy] ${loaded.error}`)
   }
-  cache = { file, mtimeMs, loaded }
+  cache = { key, mtimeMs, loaded }
   return loaded
 }
 

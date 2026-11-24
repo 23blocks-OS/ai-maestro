@@ -138,6 +138,10 @@ An agent's body in a toy that travels with its person: no screen, no button, any
 - **F130** — [The device endpoint on the internet through a Cloudflare tunnel](./backlog/F130-device-endpoint-on-the-internet.md) — `Todo`
 - **F131** — [Device speech that is loud and clean on small speakers](./backlog/F131-device-speech-loud-and-clean.md) — `Done` (0.106.265, 0.106.267)
 
+### Security
+
+- **F132** — [An agent acts only as itself (GHSA-mmf3-jr8g-c546)](./backlog/F132-agents-act-only-as-themselves.md) — `In Progress`
+
 ## Bugs
 
 - **B001** — [Two browsers on one agent fight over the terminal size](./backlog/B001-multi-client-terminal-sizing.md) — `Todo`

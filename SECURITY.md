@@ -30,6 +30,35 @@ A web page open in your browser could otherwise send requests to the server or o
 
 Requests without an `Origin` (the CLI, scripts, agents, other hosts) are not affected.
 
+## Who is calling the message routes
+
+The server works out who is calling the message routes (`lib/caller-identity.ts`) and does not take the sender or the mailbox owner from the request:
+
+- An agent is identified by its **session** (the request comes from a process inside its tmux pane, read from the kernel, not from environment variables) or by its **AMP API key**. It can send only as itself and read and change only its own mailbox (`sender_mismatch`, `not_your_mailbox`). An API key of one agent used from the session of another is refused (`caller_mismatch`).
+- Requests that are neither (the dashboard, scripts, other hosts) keep today's access. There is no login and no token: the network is the trust boundary. `AIMAESTRO_CALLER_AUTH=off` turns the check off.
+- `GET /api/caller` shows who the server thinks you are.
+
+What it does not do: agents on one host share one OS user (B021), so an agent with a shell can still read message files and keys directly, or run a process outside its pane, which is then anonymous. This stops an agent from using the API as another agent by mistake or by a forged field; it is not isolation between agents. The rest of the API (terminals, agent settings) stays open as described above.
+
+## Rules agents cannot approve, move or switch off
+
+- **Approvals need the right caller.** `POST /api/v1/quarantine/{id}/approve` and `/reject` use the caller the server found (above), not `by` from the body. An agent decides only an entry whose rule names it as an approver and never one it sent, and it is recorded as itself. The dashboard decides as before. An agent lists and reads (`GET /api/v1/quarantine*`) only the entries it sent, receives or approves. A decision passed on by a peer host (`X-Forwarded-From` naming a host in `hosts.json`) is taken as before.
+- **The rules file's place is a setting.** `AIMAESTRO_POLICY_FILE=/absolute/path` replaces `~/.aimaestro/policy.json`. The server only reads it and keeps no copy beside it. Give the file and its folder to another OS user (or root), readable by the server, and the agents' user cannot edit, replace or delete it. The Doctor warns while that user can still write it. See `docs/rules.html`, "Keeping agents away from the rules".
+- **Fail closed, as an option.** `AIMAESTRO_POLICY_FAIL_CLOSED=1`: a missing, unreadable or broken rules file refuses what agents send and every governance action until it is fixed (the Doctor fails), instead of keeping the last good version. People and AI Maestro itself may still send.
+- **The last good version.** Without fail-closed, a broken or deleted file keeps the version this server process loaded. The copy saved next to the default file (`policy.json.last-good`) is used only after a restart, and never for a configured file, because it sits where agents can write.
+
+What it does not do: the quarantine store and the held messages (`~/.aimaestro/policy/`) belong to the server, so with agents and server as one OS user an agent with a shell can still edit them directly (B021). Use containers, or run the server as its own user, to close that.
+
+## Registering a name that exists
+
+`POST /api/v1/register` hands out an API key. For a new name it works as before. For a name that already exists on the host, the public key alone is not enough (it is public: the API serves it and every message carries its fingerprint). AMP spec 03, "Registering an Existing Name":
+
+- **Same key, already registered:** the request must come from that agent itself: its own session, its API key, or a `proof` of possession of the registered key (a signed timestamp, see docs/EXTERNAL-AGENTS.md). Otherwise 401 `proof_required`. A proof works once and for 5 minutes.
+- **Another key:** 409 `name_taken`, as before. There is no key reset over the API (no administrator credential); delete the agent and register it again.
+- **An agent in the registry that never registered over AMP:** only its own session can register it.
+
+This applies in every `AIMAESTRO_CALLER_AUTH` mode: the dashboard never registers keys. In `off` mode no caller is worked out, so only a proof re-issues a key there. It prevents a name being taken by mistake or from another machine; it is not a wall between agents on one OS user (B021): someone who can delete an agent through the API can register its name again afterwards.
+
 ## Known design limits
 
 Each of these is known and is not a new finding:
@@ -49,7 +78,7 @@ Everything stays on your hosts unless you connect an outside AMP provider.
 | Agent registry | `~/.aimaestro/agents/registry.json` |
 | Agent memory, documents, canvases | `~/.aimaestro/agents/<id>/` |
 | Messages and agent keys | `~/.agent-messaging/agents/` |
-| Policy rules, decision log, quarantine | `~/.aimaestro/policy.json`, `~/.aimaestro/policy/` |
+| Policy rules, decision log, quarantine | `~/.aimaestro/policy.json` (or `AIMAESTRO_POLICY_FILE`), `~/.aimaestro/policy/` |
 | Secrets | the OS keychain (macOS Keychain, libsecret), else an encrypted file in `~/.aimaestro/vault/` |
 | Claude Code transcripts | `~/.claude/projects/` |
 

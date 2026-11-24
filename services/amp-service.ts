@@ -87,6 +87,8 @@ import { pushApproval, pushMessage } from '@/lib/push-expo'
 import { checkPersonSend, personNonces, rawKeyToHex } from '@/lib/person-signing'
 import { findContactByAddress, isHttpUrl, isOneLine } from '@/services/contacts-service'
 import { isApprovalRequired } from '@/services/amp-registrations-service'
+import { type Caller, refusal } from '@/lib/caller-identity'
+import { checkRegisterProof } from '@/lib/amp-register-proof'
 
 // ---------------------------------------------------------------------------
 // Module-level state (shared across requests, lives in the service)
@@ -617,9 +619,77 @@ export function getProviderInfo(): ServiceResult<AMPInfoResponse> {
 // POST /api/v1/register
 // ---------------------------------------------------------------------------
 
+type ExistingClaim =
+  | { refused: { status: number; data: { error: string; message: string; details?: Record<string, unknown>; field?: string } }; by: string; reset?: undefined }
+  | { refused?: undefined; reset: boolean; by: string }
+
+/**
+ * May this request register a name that already exists on this host (AMP spec 03, "Registering an Existing
+ * Name")? The public key alone is not enough: it is public. Accepted from:
+ *   - this server itself (an in-process call, or `via: host`), as before; it may also reset the key;
+ *   - the agent itself: its own session, its own API key, or a proof signed by its registered key.
+ * A registry agent with no AMP registration yet has no key to prove: only its own session adopts it.
+ * There is no administrator credential over HTTP, so `reset: true` is refused there (spec: a provider
+ * without one does not offer a reset).
+ */
+function existingNameClaim(
+  body: AMPRegistrationRequest,
+  caller: Caller | undefined,
+  existing: { id: string; metadata?: Record<string, any> },
+  key: { provider: string; name: string; tenant: string; fingerprint: string; publicKeyHex: string },
+): ExistingClaim {
+  const amp = existing.metadata?.amp as { registeredVia?: string; fingerprint?: string } | undefined
+  const hasAMP = !!amp?.registeredVia
+  const sameKey = hasAMP && !!amp?.fingerprint && amp.fingerprint === key.fingerprint
+  const by = caller?.kind || 'host'
+  const nameTaken = (hint: string): ExistingClaim => ({
+    by,
+    refused: {
+      status: 409,
+      data: { error: 'name_taken', message: `Agent name '${key.name}' is already registered${hint}`, details: { suggestions: generateNameSuggestions(key.name) } },
+    },
+  })
+
+  // This server's own call (a Docker agent's bootstrap, the subconscious): as before
+  if (!caller || (caller.kind === 'operator' && caller.via === 'host')) {
+    if (body.reset === true) return { reset: true, by: 'host' }
+    return hasAMP && !sameKey ? nameTaken('') : { reset: false, by: 'host' }
+  }
+
+  if (body.reset === true) {
+    return { by, refused: { status: 403, data: { error: 'forbidden', field: 'reset', message: `This provider offers no key reset over the API. To give '${key.name}' a new key, delete the agent and register it again` } } }
+  }
+  if (hasAMP && !sameKey) return nameTaken(' with another key')
+
+  const self = caller.kind === 'agent' && caller.agentId === existing.id
+  if (!hasAMP) {
+    // Adoption: no key to prove, so only the agent's own session
+    if (self && caller.via === 'session') return { reset: false, by: 'its own session' }
+    return nameTaken(': it is an agent on this host, and only its own session can register it')
+  }
+  if (self) return { reset: false, by: `its own ${caller.via === 'key' ? 'API key' : 'session'}` }
+
+  // The same key, from anyone else: a proof of possession of that key
+  const subject = { provider: key.provider, tenant: key.tenant, name: key.name, fingerprint: key.fingerprint }
+  if (body.proof === undefined || body.proof === null) {
+    return {
+      by,
+      refused: {
+        status: 401,
+        data: { error: 'proof_required', message: `Agent name '${key.name}' is registered; prove possession of its key`, details: subject },
+      },
+    }
+  }
+  const check = checkRegisterProof({ proof: body.proof, subject, publicKeyHex: key.publicKeyHex })
+  if (!check.ok) return { by, refused: { status: 401, data: { error: 'invalid_proof', field: 'proof', message: check.message } } }
+  return { reset: false, by: 'proof of its key' }
+}
+
 export async function registerAgent(
   body: AMPRegistrationRequest,
-  authHeader: string | null
+  authHeader: string | null,
+  /** Who server.mjs found calling (lib/caller-identity.ts); absent for this host's own in-process calls */
+  caller?: Caller
 ): Promise<ServiceResult<AMPRegistrationResponse>> {
   try {
     // Check for User Key authentication (D5)
@@ -784,26 +854,23 @@ export async function registerAgent(
     const existingAgent = getAgentByName(normalizedName, selfHostIdValue)
     let agent: ReturnType<typeof createAgent>
 
+    // A reset by this server itself: the old API keys are revoked and the presented key replaces the old one
+    let reset: { oldFingerprint: string | undefined; address: string | undefined } | null = null
+
     if (existingAgent) {
-      const hasAMP = existingAgent.metadata?.amp?.registeredVia
-      if (hasAMP) {
-        const existingFingerprint = existingAgent.metadata?.amp?.fingerprint
-        if (existingFingerprint && existingFingerprint === fingerprint) {
-          agent = existingAgent
-          console.log(`[AMP Register] Re-registering agent '${normalizedName}' (same key fingerprint, re-issuing API key)`)
-        } else {
-          return {
-            data: {
-              error: 'name_taken',
-              message: `Agent name '${normalizedName}' is already registered`,
-              details: { suggestions: generateNameSuggestions(normalizedName) }
-            },
-            status: 409
-          }
-        }
+      const claim = existingNameClaim(body, caller, existingAgent, { provider: getAMPProviderDomain(tenant), name: normalizedName, tenant, fingerprint, publicKeyHex })
+      if (claim.refused) {
+        console.warn(`[AMP Register] Refused '${normalizedName}': ${claim.refused.data.error} (${claim.by})`)
+        return claim.refused as ServiceResult<AMPRegistrationResponse>
+      }
+      agent = existingAgent
+      if (claim.reset) {
+        reset = { oldFingerprint: existingAgent.metadata?.amp?.fingerprint, address: existingAgent.metadata?.amp?.address }
+        console.log(`[AMP Register] Host reset of '${normalizedName}' (${agent.id.substring(0, 8)}...): key ${reset.oldFingerprint || 'none'} -> ${fingerprint}`)
+      } else if (existingAgent.metadata?.amp?.registeredVia) {
+        console.log(`[AMP Register] Re-registering agent '${normalizedName}' (same key fingerprint, re-issuing API key, by ${claim.by})`)
       } else {
-        agent = existingAgent
-        console.log(`[AMP Register] Adopting existing agent '${normalizedName}' (${agent.id.substring(0, 8)}...)`)
+        console.log(`[AMP Register] Adopting existing agent '${normalizedName}' (${agent.id.substring(0, 8)}..., by ${claim.by})`)
       }
     } else {
       // An AMP identity needs no folder; one another agent owns is left out rather than refusing the registration.
@@ -875,6 +942,11 @@ export async function registerAgent(
     // Get provider domain based on organization
     const providerDomain = getAMPProviderDomain(tenant)
 
+    if (reset) {
+      const revoked = revokeAllKeysForAgent(agent.id)
+      console.log(`[AMP Register] Host reset of '${normalizedName}': ${revoked} old API key(s) revoked`)
+    }
+
     // Generate API key. A pending member gets it now, so that approval needs no second step on its side.
     const pending = agent.registrationStatus === 'pending'
     const apiKey = createApiKey(agent.id, tenant, `${normalizedName}@${providerDomain}`, pending ? 'pending' : 'active')
@@ -913,6 +985,13 @@ export async function registerAgent(
       registeredAt,
       apiKeyHash: hashApiKey(apiKey)
     })
+
+    // A reset that changed the key: the ledger follows the new key, and the old one is revoked (as rotate-keys does)
+    if (reset && reset.oldFingerprint && reset.oldFingerprint !== fingerprint) {
+      const at = new Date().toISOString()
+      try { rotateKnownKey(fullAddress, fingerprint, at) } catch { /* best-effort */ }
+      try { revokeFingerprint(reset.oldFingerprint, reset.address || fullAddress, 'admin_action', fingerprint, at) } catch { /* best-effort */ }
+    }
 
     // Build response
     const hostEndpoint = selfHost?.url || `http://localhost:23000`
@@ -959,15 +1038,30 @@ export async function routeMessage(
   forwardedFrom: string | null,
   envelopeIdHeader: string | null,
   signatureHeader: string | null,
-  contentLength: string | null
+  contentLength: string | null,
+  /** Who server.mjs found calling (lib/caller-identity.ts); absent for this host's own in-process calls */
+  caller?: Caller
 ): Promise<ServiceResult<AMPRouteResponse>> {
-  const result = await routeMessageUnrecorded(body, authHeader, forwardedFrom, envelopeIdHeader, signatureHeader, contentLength)
+  const refused = meshClaimRefused(caller, forwardedFrom)
+  const result = refused
+    ? refused as ServiceResult<AMPRouteResponse>
+    : await routeMessageUnrecorded(body, authHeader, forwardedFrom, envelopeIdHeader, signatureHeader, contentLength)
   if (result.status === 401 || result.status === 403) {
     const d = result.data as { error?: string; message?: string; details?: { fingerprint?: string; from?: string } } | undefined
     // A local agent's request carries no body.from; the refusal names the sender it checked
     recordAmpRefusal({ endpoint: 'route', status: result.status, reason: d?.error || 'unknown', message: d?.message, from: body?.from || d?.details?.from, to: body?.to, via: forwardedFrom || undefined, fingerprint: d?.details?.fingerprint })
   }
   return result
+}
+
+/**
+ * X-Forwarded-From says "another host of the mesh speaks for this sender". An agent's session is not a host,
+ * so it may not say that.
+ */
+function meshClaimRefused(caller: Caller | undefined, forwardedFrom: string | null) {
+  if (!caller || !forwardedFrom || caller.mode === 'off') return null
+  if (caller.kind === 'agent') return refusal(403, 'sender_mismatch', `${caller.name || caller.agentId} is an agent, not a host: it may not send with X-Forwarded-From`, caller.name || caller.agentId)
+  return null
 }
 
 async function routeMessageUnrecorded(

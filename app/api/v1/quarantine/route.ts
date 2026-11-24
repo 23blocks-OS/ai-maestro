@@ -5,10 +5,12 @@
 import { NextRequest } from 'next/server'
 import { listPolicyQuarantine } from '@/services/policy-service'
 import { toResponse } from '@/app/api/_helpers'
+import { callerFromHeaders } from '@/lib/caller-identity'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams
-  return toResponse(await listPolicyQuarantine({ status: q.get('status'), limit: q.get('limit'), localOnly: q.get('localOnly') === '1' }))
+  return toResponse(await listPolicyQuarantine({ status: q.get('status'), limit: q.get('limit'), localOnly: q.get('localOnly') === '1' }, undefined,
+    callerFromHeaders(request.headers), request.headers.get('x-forwarded-from')))
 }

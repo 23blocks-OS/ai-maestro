@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { getMeetingMessages } from '@/services/messages-service'
 import { toResponse } from '@/app/api/_helpers'
+import { callerFromHeaders } from '@/lib/caller-identity'
 
 /**
  * GET /api/messages/meeting?meetingId=<id>&participants=<id1,id2,...>&since=<timestamp>
@@ -12,6 +13,6 @@ export async function GET(request: NextRequest) {
     participants: searchParams.get('participants'),
     since: searchParams.get('since'),
     local: searchParams.get('local'),
-  })
+  }, callerFromHeaders(request.headers))
   return toResponse(result)
 }

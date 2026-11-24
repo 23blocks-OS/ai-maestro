@@ -12,7 +12,7 @@ const { tmux, TMUX_TIMEOUT_MS } = await import('@/lib/tmux-safe.mjs')
 const { TmuxRuntime, LIST_CACHE_MS } = await import('@/lib/agent-runtime')
 
 type Cb = (e: unknown, out?: { stdout: string; stderr: string }) => void
-const ROWS = 'alpha\t1\t1700000000\t/repo/a\nbeta\t2\t1700000001\t/repo/b\n'
+const ROWS = 'alpha:1:1700000000:/repo/a\nbeta:2:1700000001:/repo/b\n'
 let tmuxCalls: string[][] = []
 let reply: (args: string[], cb: Cb) => void
 

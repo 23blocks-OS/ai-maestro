@@ -9,6 +9,7 @@
 import { NextRequest } from 'next/server'
 import { listPersonMessages, sendAsPerson } from '@/services/person-messages-service'
 import { toResponse } from '@/app/api/_helpers'
+import { callerFromHeaders } from '@/lib/caller-identity'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,11 +18,11 @@ type Ctx = { params: Promise<{ id: string }> }
 export async function GET(request: NextRequest, { params }: Ctx) {
   const { id } = await params
   const q = request.nextUrl.searchParams
-  return toResponse(listPersonMessages(id, { box: q.get('box'), since: q.get('since'), with: q.get('with'), limit: q.get('limit') }))
+  return toResponse(listPersonMessages(id, { box: q.get('box'), since: q.get('since'), with: q.get('with'), limit: q.get('limit') }, callerFromHeaders(request.headers)))
 }
 
 export async function POST(request: NextRequest, { params }: Ctx) {
   const { id } = await params
   const parsed = await request.json().catch(() => ({}))
-  return toResponse(await sendAsPerson(id, parsed && typeof parsed === 'object' ? parsed : {}))
+  return toResponse(await sendAsPerson(id, parsed && typeof parsed === 'object' ? parsed : {}, callerFromHeaders(request.headers)))
 }

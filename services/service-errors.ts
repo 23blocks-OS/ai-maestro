@@ -60,6 +60,13 @@ export type ServiceErrorCode =
   | 'key_revoked'
   | 'timestamp_expired'
   | 'timestamp_future'
+  // Caller identity (lib/caller-identity.ts)
+  | 'sender_mismatch'
+  | 'not_your_mailbox'
+  | 'caller_mismatch'
+  // Registration of a name that exists (lib/amp-register-proof.ts)
+  | 'proof_required'
+  | 'invalid_proof'
   // Generic codes (12)
   | 'already_exists'
   | 'gone'

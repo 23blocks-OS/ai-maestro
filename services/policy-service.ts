@@ -11,18 +11,29 @@
  * GET  /api/v1/quarantine/{id}[?host=]              — one entry, with the held AMP message when there is one
  * POST /api/v1/quarantine/{id}/approve | /reject     — { by?, host? } (host: the host that keeps it)
  * A message to `_provider` answering an approval request (AMP 07 "Approval by message") — answerProviderMessage
+ *
+ * Who may decide and read (lib/caller-identity; server.mjs resolves the caller for /api/v1/quarantine*):
+ *   operator   the server itself: decides any entry, recorded as "the operator"; reads everything
+ *   agent      decides only an entry it is an approver of and did not send, recorded as itself whatever `by` says;
+ *              lists and reads only entries it sent, is the recipient of, or approves
+ *   anonymous  as before (the dashboard, `by` as typed, unverified)
+ *   a peer     an anonymous request with X-Forwarded-From naming a host in hosts.json: as before (its host checked
+ *              its own caller). Never from an agent
  */
+import fs from 'fs'
+import path from 'path'
 import { getHostById, getPeerHosts, getSelfHostId, isSelf } from '@/lib/hosts-config'
 import {
-  loadPolicy, lintPolicy, partyLabel, policyLogFile, runPolicyTests, POLICY_ACTIONS,
+  loadPolicy, lintPolicy, partyLabel, policyLogFile, policySettings, runPolicyTests, POLICY_ACTIONS,
   type Policy, type PolicyAction, type PolicyDecision, type PolicyEffect, type PolicyLint, type PolicyRuleV2, type PolicyTestResult,
 } from '@/lib/policy'
 import { checkPolicy, resolveParty, teamsOf } from '@/lib/policy-check'
 import {
-  decideQuarantine, findApprovalRequest, listQuarantine, peekHeld, recordDelivery, sweepQuarantine, QUARANTINE_ID, QUARANTINE_STATES,
-  type DecideResult, type HeldPath, type QuarantineEntry, type QuarantineStatus, type SignedAnswer,
+  approvesAsAgent, decideQuarantine, findApprovalRequest, listQuarantine, peekHeld, recordDelivery, sweepQuarantine, QUARANTINE_ID, QUARANTINE_STATES,
+  type DecideResult, type HeldPath, type KnownDecider, type QuarantineEntry, type QuarantineStatus, type SignedAnswer,
 } from '@/lib/policy-approvals'
 import { type ServiceResult, missingField, invalidField, notFound, operationFailed } from '@/services/service-errors'
+import { refusal, type Caller, type CallerRefusal } from '@/lib/caller-identity'
 
 const PEER_TIMEOUT_MS = 5_000
 
@@ -39,14 +50,36 @@ export interface PolicyReport {
   tests: PolicyTestResult[]
   decisionLog: string
   error?: string
+  /** The file is AIMAESTRO_POLICY_FILE */
+  configured: boolean
+  /** AIMAESTRO_POLICY_FAIL_CLOSED is on */
+  failClosed: boolean
+  /** The file cannot be used and fail-closed is on: agents' messages, calls and governance actions are refused now */
+  refusing?: boolean
+  /** The rules in force are not the file's: the version this process loaded, or the saved copy */
+  lastGood?: 'memory' | 'saved'
+  /** A configured file, or its folder, that this server's OS user (so every agent on the host) can write */
+  writable?: string[]
+}
+
+/** The configured file and its folder, where the server's own user can change them (fs.access W_OK) */
+function writableBy(file: string): string[] {
+  const out: string[] = []
+  for (const p of [file, path.dirname(file)]) {
+    try { fs.accessSync(p, fs.constants.W_OK); out.push(p) } catch { /* not writable, or missing */ }
+  }
+  return out
 }
 
 export function getPolicy(): ServiceResult<PolicyReport> {
-  const { file, rules, policy, hash, error } = loadPolicy()
+  const settings = policySettings()
+  const { file, rules, policy, hash, error, failClosed: refusing, lastGood } = loadPolicy()
   const host = getSelfHostId()
+  const writable = settings.configured && !settings.error ? writableBy(file) : []
   return {
     data: {
-      host, file, rules,
+      host, file, rules, configured: settings.configured, failClosed: settings.failClosed,
+      ...(refusing ? { refusing: true } : {}), ...(lastGood ? { lastGood } : {}), ...(writable.length ? { writable } : {}),
       ...(policy ? { version: policy.version, default: policy.default, mode: policy.mode, hash } : {}),
       lint: policy ? lintPolicy(policy) : [],
       tests: policy ? runPolicyTests(policy, ref => resolveParty(ref), { host, teamsOf }) : [],
@@ -134,6 +167,51 @@ const view = (r: QuarantineEntry): QuarantineView => {
 
 const peerUrl = (h: { url: string }) => h.url.replace(/\/$/, '')
 
+/** Every call to a peer's quarantine routes says which host is asking (as /api/v1/route does) */
+const peerHeaders = (extra: Record<string, string> = {}) => ({ 'X-Forwarded-From': getSelfHostId(), ...extra })
+
+/** Who is asking the quarantine routes, as far as reading and deciding go */
+type Asker =
+  | { as: 'open' }
+  | { as: 'peer'; host: string }
+  | { as: 'operator' }
+  | { as: 'agent'; agentId: string; name?: string; via: 'session' | 'key' }
+
+/**
+ * The caller of a quarantine route. No caller (an in-process call) or mode off: as before. A request with
+ * X-Forwarded-From is a peer host passing something on: never an agent, and only a host this host knows counts as one.
+ */
+function askerOf(caller: Caller | undefined, forwardedFrom?: string | null): { asker: Asker } | { refused: CallerRefusal } {
+  if (!caller || caller.mode === 'off') return { asker: { as: 'open' } }
+  if (caller.kind === 'operator') return { asker: { as: 'operator' } }
+  if (caller.kind === 'agent') {
+    if (forwardedFrom) return { refused: refusal(403, 'sender_mismatch', `${caller.name || caller.agentId} is an agent, not a host: it may not send with X-Forwarded-From`, caller.name || caller.agentId) }
+    return { asker: { as: 'agent', agentId: caller.agentId!, name: caller.name, via: caller.via === 'key' ? 'key' : 'session' } }
+  }
+  if (forwardedFrom) {
+    const peer = getHostById(forwardedFrom)
+    const known = !!peer && peer.enabled !== false && !isSelf(peer.id)
+    return { asker: known ? { as: 'peer', host: peer!.id } : { as: 'open' } }
+  }
+  return { asker: { as: 'open' } }
+}
+
+/** This host's own id or one of its aliases */
+const isLocalHost = (h: string) => !!h && (isSelf(h) || h.toLowerCase() === getSelfHostId().toLowerCase())
+
+/** An agent may see an entry it sent, is the recipient of, or approves; the held message is the others' business */
+function involves(r: Pick<QuarantineView, 'from' | 'to' | 'approvers' | 'host'>, a: { agentId: string; name?: string }): boolean {
+  const me = [a.agentId, a.name].filter(Boolean).map(x => x!.toLowerCase())
+  const isMe = (label: string) => {
+    const m = /^agent:([^@]+)(?:@(.+))?$/.exec(label || '')
+    return !!m && me.includes(m[1].toLowerCase()) && isLocalHost(m[2] || r.host)
+  }
+  return isMe(r.from) || isMe(r.to) || approvesAsAgent(r, a, isLocalHost)
+}
+
+const notInvolved = (a: { agentId: string; name?: string }, id: string): CallerRefusal =>
+  refusal(403, 'not_your_mailbox', `${a.name || a.agentId} did not send, does not receive and does not approve quarantine entry ${id}`, a.name || a.agentId)
+
 /**
  * GET /api/v1/quarantine?status=&limit= — this host's entries and, unless localOnly, every peer's (asked with
  * localOnly=1, so hosts never ask each other in a loop). status defaults to pending, limit to 20 (1-100), as in AMP 08.
@@ -141,7 +219,11 @@ const peerUrl = (h: { url: string }) => h.url.replace(/\/$/, '')
 export async function listPolicyQuarantine(
   q: { status?: string | null; limit?: string | null; localOnly?: boolean },
   fetchImpl: typeof fetch = fetch,
+  caller?: Caller,
+  forwardedFrom?: string | null,
 ): Promise<ServiceResult<{ items: QuarantineView[]; count: number; total: number; unreachable?: { host: string; error: string }[] }>> {
+  const who = askerOf(caller, forwardedFrom)
+  if ('refused' in who) return who.refused as any
   const status = (q.status || 'pending') as QuarantineStatus
   if (!QUARANTINE_STATES.includes(status)) return invalidField('status', `status must be ${QUARANTINE_STATES.join(', ')}`)
   const limit = q.limit ? Number(q.limit) : 20
@@ -155,7 +237,7 @@ export async function listPolicyQuarantine(
     await Promise.all(getPeerHosts().filter(h => h.enabled !== false && h.url).map(async h => {
       try {
         const qs = new URLSearchParams({ localOnly: '1', status, limit: '100' })
-        const res = await fetchImpl(`${peerUrl(h)}/api/v1/quarantine?${qs}`, { signal: AbortSignal.timeout(PEER_TIMEOUT_MS) })
+        const res = await fetchImpl(`${peerUrl(h)}/api/v1/quarantine?${qs}`, { headers: peerHeaders(), signal: AbortSignal.timeout(PEER_TIMEOUT_MS) })
         // A host without quarantine keeps no entries
         if (res.status === 404) return
         const body = await res.json().catch(() => null) as { items?: QuarantineView[] } | null
@@ -166,6 +248,9 @@ export async function listPolicyQuarantine(
       }
     }))
   }
+  // An agent sees the entries it is part of; the operator, the dashboard and peers see them all
+  const asker = who.asker
+  if (asker.as === 'agent') items = items.filter(r => involves(r, asker))
   items.sort((a, b) => b.quarantined_at.localeCompare(a.quarantined_at))
   const total = items.length
   items = items.slice(0, limit)
@@ -180,20 +265,33 @@ function heldMessage(r: QuarantineEntry): { envelope: unknown; payload: unknown 
 }
 
 /** GET /api/v1/quarantine/{id}[?host=] — one entry; with host, from the host that keeps it */
-export async function getPolicyQuarantine(id: string, host?: string | null, fetchImpl: typeof fetch = fetch): Promise<ServiceResult<QuarantineView & { message?: unknown }>> {
+export async function getPolicyQuarantine(
+  id: string,
+  host?: string | null,
+  fetchImpl: typeof fetch = fetch,
+  caller?: Caller,
+  forwardedFrom?: string | null,
+): Promise<ServiceResult<QuarantineView & { message?: unknown }>> {
   if (!QUARANTINE_ID.test(id || '')) return invalidField('id', 'not a quarantine id (qtn_<timestamp>_<hex>)')
+  const who = askerOf(caller, forwardedFrom)
+  if ('refused' in who) return who.refused as any
+  const asker = who.asker
   if (host && !isSelf(host)) {
     const peer = getHostById(host)
     if (!peer?.url) return notFound('Host', host)
     try {
-      const res = await fetchImpl(`${peerUrl(peer)}/api/v1/quarantine/${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(PEER_TIMEOUT_MS) })
-      return { data: await res.json(), status: res.status }
+      const res = await fetchImpl(`${peerUrl(peer)}/api/v1/quarantine/${encodeURIComponent(id)}`, { headers: peerHeaders(), signal: AbortSignal.timeout(PEER_TIMEOUT_MS) })
+      const data = await res.json()
+      // The peer answers this host; whether this agent may see it is decided here
+      if (asker.as === 'agent' && res.ok && !involves({ ...data, host: data?.host || peer.id }, asker)) return notInvolved(asker, id) as any
+      return { data, status: res.status }
     } catch (e) { return operationFailed(`read the entry on ${host}`, (e as Error).message) }
   }
   await sweepPolicyQuarantine()
   let r: QuarantineEntry | undefined
   try { r = listQuarantine().find(x => x.quarantine_id === id) } catch (e) { return operationFailed('read the quarantine store', (e as Error).message) }
   if (!r) return notFound('Quarantine entry', id)
+  if (asker.as === 'agent' && !involves(r, asker)) return notInvolved(asker, id) as any
   const message = heldMessage(r)
   return { data: { ...view(r), ...(message ? { message } : {}) }, status: 200 }
 }
@@ -276,18 +374,31 @@ export async function decidePolicyQuarantine(
   decision: 'approve' | 'reject',
   body: Record<string, unknown> | null,
   deps: ApprovalDeps = defaultDeps,
+  caller?: Caller,
+  forwardedFrom?: string | null,
 ): Promise<ServiceResult<ApproveResponse | RejectResponse>> {
   if (!QUARANTINE_ID.test(id || '')) return invalidField('id', 'not a quarantine id (qtn_<timestamp>_<hex>)')
   const input = body && typeof body === 'object' ? body : {}
+  const who = askerOf(caller, forwardedFrom)
+  if ('refused' in who) return who.refused as any
+  const asker = who.asker
+  const self = getSelfHostId()
+  const typed = typeof input.by === 'string' ? input.by.trim().slice(0, 100) : ''
   // The entry lives on the host whose rules asked: pass the decision on to it
   const host = typeof input.host === 'string' ? input.host : ''
   if (host && !isSelf(host)) {
+    // A peer never passes a decision on again (no loops, and it is not the caller's host)
+    if (asker.as === 'peer') return invalidField('host', 'a decision passed on by a peer is decided on the host it was sent to')
     const peer = getHostById(host)
     if (!peer?.url) return notFound('Host', host)
     try {
       const { host: _h, ...rest } = input
+      // The peer cannot see this host's caller: it is named here, so the peer's approver and sender checks apply to it
+      const forward = asker.as === 'agent' ? { ...rest, by: `agent:${asker.name || asker.agentId}@${self}` }
+        : asker.as === 'operator' ? { ...rest, by: typed ? `${typed} (operator on ${self})` : `the operator on ${self}` }
+          : rest
       const res = await deps.fetch(`${peerUrl(peer)}/api/v1/quarantine/${encodeURIComponent(id)}/${decision}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rest), signal: AbortSignal.timeout(PEER_TIMEOUT_MS * 3),
+        method: 'POST', headers: peerHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(forward), signal: AbortSignal.timeout(PEER_TIMEOUT_MS * 3),
       })
       return { data: await res.json(), status: res.status }
     } catch (e) {
@@ -295,9 +406,12 @@ export async function decidePolicyQuarantine(
     }
   }
 
+  const known: KnownDecider | undefined = asker.as === 'operator' ? { kind: 'operator', ...(typed ? { name: typed } : {}) }
+    : asker.as === 'agent' ? { kind: 'agent', agentId: asker.agentId, name: asker.name, via: asker.via, host: self }
+      : undefined
   await sweepPolicyQuarantine(deps)
   let result: DecideResult
-  try { result = decideQuarantine(id, decision, { by: input.by }) } catch (e) { return operationFailed(`${decision} the entry`, (e as Error).message) }
+  try { result = decideQuarantine(id, decision, { by: input.by, known, isLocalHost }) } catch (e) { return operationFailed(`${decision} the entry`, (e as Error).message) }
   return finishDecision(result, deps)
 }
 

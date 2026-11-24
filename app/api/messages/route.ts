@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { getMessages, sendMessage, updateMessage, removeMessage } from '@/services/messages-service'
 import { toResponse } from '@/app/api/_helpers'
+import { callerFromHeaders } from '@/lib/caller-identity'
 
 /**
  * GET /api/messages?agent=<agentId|alias|sessionName>&status=<status>&from=<from>&box=<inbox|sent>
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     priority: searchParams.get('priority'),
     from: searchParams.get('from'),
     to: searchParams.get('to'),
-  })
+  }, callerFromHeaders(request.headers))
   return toResponse(result)
 }
 
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const result = await sendMessage(body)
+  const result = await sendMessage(body, callerFromHeaders(request.headers))
   return toResponse(result)
 }
 
@@ -39,6 +40,7 @@ export async function PATCH(request: NextRequest) {
     searchParams.get('agent'),
     searchParams.get('id'),
     searchParams.get('action'),
+    callerFromHeaders(request.headers),
   )
   return toResponse(result)
 }
@@ -51,6 +53,7 @@ export async function DELETE(request: NextRequest) {
   const result = await removeMessage(
     searchParams.get('agent'),
     searchParams.get('id'),
+    callerFromHeaders(request.headers),
   )
   return toResponse(result)
 }

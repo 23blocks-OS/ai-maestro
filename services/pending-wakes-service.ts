@@ -13,8 +13,12 @@ import { hookStatus } from '@/services/shared-state'
 import { isSessionIdle, idleSource, detectStartupBlock } from '@/lib/session-idle'
 import { getRuntime } from '@/lib/agent-runtime'
 import type { ServiceResult } from '@/services/service-errors'
+import { type Caller, checkNotAgent } from '@/lib/caller-identity'
 
-export async function getPendingWakesReport(): Promise<ServiceResult<any>> {
+export async function getPendingWakesReport(caller?: Caller): Promise<ServiceResult<any>> {
+  // The report names the sender and subject of every agent's pending mail: not for an agent
+  const refused = checkNotAgent(caller)
+  if (refused) return refused
   const pending = pendingWakes()
 
   // Which agents we currently have a real busy/idle signal for. `source: 'none'`

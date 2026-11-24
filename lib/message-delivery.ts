@@ -38,6 +38,8 @@ export interface DeliveryInput {
   senderPublicKeyHex?: string
   /** Result of the signature check, recorded in the stored message. */
   verification?: VerificationRecord
+  /** How the server established the sender (lib/caller-identity.ts): stored as local.sender_via */
+  senderVia?: string
   // Notification context
   senderName: string
   senderHost?: string
@@ -72,7 +74,7 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
   const {
     envelope, payload, recipientAgentName, senderPublicKeyHex,
     senderName, senderHost, recipientAgentId,
-    subject, priority, messageType, verification,
+    subject, priority, messageType, verification, senderVia,
   } = input
 
   // A pending registration receives nothing, whichever route the message came in by
@@ -116,7 +118,7 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     injection_flags: [...new Set(flags.map(f => f.category))],
     ...(verification?.state === 'verified' ? { payload_hash: verification.payload_sha256, verified_at: verification.checked_at } : {}),
   }
-  const inboxPath = await writeToAMPInbox(envelope, payload, recipientAgentName, senderPublicKeyHex, recipientAgentId, verification, security)
+  const inboxPath = await writeToAMPInbox(envelope, payload, recipientAgentName, senderPublicKeyHex, recipientAgentId, verification, security, senderVia ? { senderVia } : undefined)
   if (!inboxPath) {
     return { delivered: false, notified: false, error: 'Failed to write to AMP inbox' }
   }

@@ -6,6 +6,7 @@ import {
   forwardMessage,
 } from '@/services/agents-messaging-service'
 import { toResponse } from '@/app/api/_helpers'
+import { callerFromHeaders } from '@/lib/caller-identity'
 
 /**
  * GET /api/agents/[id]/messages/[messageId]
@@ -19,7 +20,7 @@ export async function GET(
   const { searchParams } = new URL(request.url)
   const box = (searchParams.get('box') || 'inbox') as 'inbox' | 'sent'
 
-  const result = await getMessage(id, messageId, box)
+  const result = await getMessage(id, messageId, box, callerFromHeaders(request.headers))
   return toResponse(result)
 }
 
@@ -34,7 +35,7 @@ export async function PATCH(
   const { id, messageId } = await params
   const body = await request.json()
 
-  const result = await updateMessage(id, messageId, body)
+  const result = await updateMessage(id, messageId, body, callerFromHeaders(request.headers))
   return toResponse(result)
 }
 
@@ -43,12 +44,12 @@ export async function PATCH(
  * Delete a message
  */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string; messageId: string }> }
 ) {
   const { id, messageId } = await params
 
-  const result = await deleteMessageById(id, messageId)
+  const result = await deleteMessageById(id, messageId, callerFromHeaders(request.headers))
   return toResponse(result)
 }
 
@@ -63,6 +64,6 @@ export async function POST(
   const { id, messageId } = await params
   const body = await request.json()
 
-  const result = await forwardMessage(id, messageId, body)
+  const result = await forwardMessage(id, messageId, body, callerFromHeaders(request.headers))
   return toResponse(result)
 }

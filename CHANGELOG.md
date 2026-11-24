@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.284] - 2026-11-24 - A registered name cannot be taken over
+
+### Security
+- `POST /api/v1/register` for a name that already exists gave a new API key to anyone who sent its public key, and a public key is public: the API serves it and every message carries its fingerprint. Now, following AMP spec 03 "Registering an Existing Name", a new API key goes only to the agent itself: its own session, its own API key, or a `proof` of possession of its registered key (`401 proof_required`, then a signed timestamp; `401 invalid_proof` for a bad, old or reused one). A different key stays `409 name_taken`. An agent in the registry that never registered over AMP can be registered only from its own session. There is no key reset over the API; this server's own in-process registrations are as before. (GHSA-mmf3-jr8g-c546, F132 step 5. Reported, and the first version written, by Alejandro Vargas.)
+- The AMP scripts (claude-plugin 0.5.8) answer `proof_required` with the proof themselves, so agents outside their tmux session keep registering.
+
 ## [0.106.283] - 2026-11-24 - Enrollment asks which microphone
 
 ### Fixed

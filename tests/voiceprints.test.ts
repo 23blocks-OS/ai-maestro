@@ -49,6 +49,28 @@ const enroll = async () => {
 }
 
 describe('voice enrollment', () => {
+  const wavOf = (rate = 16000, channels = 1) => {
+    const pcm = Buffer.alloc(rate * 2), h = Buffer.alloc(44)
+    h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVEfmt ', 8); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20)
+    h.writeUInt16LE(channels, 22); h.writeUInt32LE(rate, 24); h.writeUInt32LE(rate * 2 * channels, 28); h.writeUInt16LE(2 * channels, 32)
+    h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(pcm.length, 40)
+    return Buffer.concat([h, pcm]).toString('base64')
+  }
+  const dash = (index: number, extra: Record<string, unknown> = {}) => ({ name: 'Alice', audio: wavOf(), index, ...extra })
+
+  it('enrolls from the dashboard microphone without any device', async () => {
+    for (let i = 0; i < 4; i++) expect((await recordVoiceSample('person-a', dash(i, i === 0 ? { consent: true } : {}))).status).toBe(200)
+    expect(device.calls).toEqual([])
+    expect(loadVoiceprint('person-a')).toMatchObject({ device: { dashboard: true } })
+  })
+
+  it('refuses a dashboard recording that is not 16 kHz mono 16-bit, and a switch of source mid-way', async () => {
+    expect((await recordVoiceSample('person-a', { ...dash(0, { consent: true }), audio: wavOf(48000) })).status).toBe(400)
+    expect((await recordVoiceSample('person-a', { ...dash(0, { consent: true }), audio: 'bm90IGEgd2F2' })).status).toBe(400)
+    await recordVoiceSample('person-a', dash(0, { consent: true }))
+    expect((await recordVoiceSample('person-a', body(1))).status).toBe(409)
+  })
+
   it('cancel forgets the enrollment and frees the device it waits on', async () => {
     await recordVoiceSample('person-a', body(0, { consent: true }))
     expect((await cancelVoiceSample('person-a')).data).toEqual({ cancelled: true })

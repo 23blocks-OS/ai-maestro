@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useExperiment } from '@/hooks/useExperiment'
 import { MonitorSmartphone, Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Tablet, LayoutGrid, FolderGit2, Building2, BellRing, Globe, Contact } from 'lucide-react'
 
@@ -18,11 +19,14 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
   const zoomUrl = '/zoom'
   // World view is a beta: its button shows only where Settings → Experiments turned it on
   const { enabled: worldEnabled } = useExperiment('world-view')
+  // The page you are on is marked, so the same header serves every page
+  const pathname = usePathname()
+  const here = (href: string) => (pathname === href || pathname?.startsWith(href + '/') ? ' ring-2 ring-white/70 ring-offset-1 ring-offset-gray-950' : '')
 
   return (
-    <header className="border-b border-gray-800 bg-gray-950 px-4 py-2">
+    <header className="border-b border-gray-800 bg-gray-950 px-4 py-2 flex-shrink-0">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-shrink-0 mr-3">
           {onToggleSidebar && (
             <button
               onClick={onToggleSidebar}
@@ -33,9 +37,9 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
               <Menu className="w-4 h-4" />
             </button>
           )}
-          <h1 className="text-sm text-white">AI Maestro</h1>
+          <Link href="/" className="text-sm text-white hover:text-gray-200">AI Maestro</Link>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0 overflow-x-auto py-1">
           {onOpenHelp && (
             <button
               onClick={onOpenHelp}
@@ -48,7 +52,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           )}
           <Link
             href="/teams"
-            className="text-sm px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded transition-colors flex items-center gap-1.5"
+            className={`text-sm px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded transition-colors flex items-center gap-1.5${here('/teams')}`}
             title="Manage Teams"
           >
             <FolderKanban className="w-3.5 h-3.5" />
@@ -56,7 +60,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           </Link>
           <a
             href="/projects"
-            className="text-sm px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors flex items-center gap-1.5"
+            className={`text-sm px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors flex items-center gap-1.5${here('/projects')}`}
             title="Projects: work that crosses agents and teams"
           >
             <FolderGit2 className="w-3.5 h-3.5" />
@@ -64,7 +68,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           </a>
           <a
             href="/org"
-            className="text-sm px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded transition-colors flex items-center gap-1.5"
+            className={`text-sm px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded transition-colors flex items-center gap-1.5${here('/org')}`}
             title="Organization: a company's agents, work and relations"
           >
             <Building2 className="w-3.5 h-3.5" />
@@ -72,7 +76,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           </a>
           <a
             href="/agent-homes"
-            className="text-sm px-3 py-1 bg-rose-700 hover:bg-rose-600 text-white rounded transition-colors flex items-center gap-1.5"
+            className={`text-sm px-3 py-1 bg-rose-700 hover:bg-rose-600 text-white rounded transition-colors flex items-center gap-1.5${here('/agent-homes')}`}
             title="The real devices your agents own"
           >
             <MonitorSmartphone className="w-3.5 h-3.5" />
@@ -80,7 +84,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           </a>
           <a
             href="/people"
-            className="text-sm px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded transition-colors flex items-center gap-1.5"
+            className={`text-sm px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded transition-colors flex items-center gap-1.5${here('/people')}`}
             title="People: the humans who work with your agents"
           >
             <Contact className="w-3.5 h-3.5" />
@@ -88,7 +92,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           </a>
           <a
             href="/matrix"
-            className="text-sm px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded transition-colors flex items-center gap-1.5"
+            className={`text-sm px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded transition-colors flex items-center gap-1.5${here('/matrix')}`}
             title="Eisenhower matrix of every agent"
           >
             <LayoutGrid className="w-3.5 h-3.5" />
@@ -96,7 +100,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           </a>
           <a
             href="/attention"
-            className="text-sm px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded transition-colors flex items-center gap-1.5"
+            className={`text-sm px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded transition-colors flex items-center gap-1.5${here('/attention')}`}
             title="Attention: what needs you, across every agent and host"
           >
             <BellRing className="w-3.5 h-3.5" />
@@ -104,7 +108,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           </a>
           <a
             href="/team-meeting"
-            className="text-sm px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors flex items-center gap-1.5"
+            className={`text-sm px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors flex items-center gap-1.5${here('/team-meeting')}`}
             title="Team Meeting"
           >
             <Users className="w-3.5 h-3.5" />
@@ -112,7 +116,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           </a>
           <a
             href="/plugin-builder"
-            className="text-sm px-3 py-1 bg-cyan-600 hover:bg-cyan-700 text-white rounded transition-colors flex items-center gap-1.5"
+            className={`text-sm px-3 py-1 bg-cyan-600 hover:bg-cyan-700 text-white rounded transition-colors flex items-center gap-1.5${here('/plugin-builder')}`}
             title="Plugin Builder"
           >
             <Puzzle className="w-3.5 h-3.5" />
@@ -128,7 +132,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           {worldEnabled && (
             <a
               href="/world"
-              className="text-sm px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded transition-colors flex items-center gap-1.5"
+              className={`text-sm px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded transition-colors flex items-center gap-1.5${here('/world')}`}
               title="World (beta): hosts and orgs as islands, agents as figures"
             >
               <Globe className="w-3.5 h-3.5" />

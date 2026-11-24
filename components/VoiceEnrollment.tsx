@@ -1,13 +1,15 @@
 'use client'
 
 /**
- * Voice enrollment on the People page (#78). Voiceprints live on the host whose kiosk hears people, so this asks
+ * Voice enrollment on the People page (#78). Voiceprints live on the host whose agents hear people, so this asks
  * every host which people it knows by voice and which devices can record. The operator confirms consent here; the
- * person then reads four sentences at the kiosk.
+ * person then reads four sentences, on this computer's microphone (the default) or at a device.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Mic, Square, Trash2, X } from 'lucide-react'
 import { isSelfHost } from '@/lib/host-kind'
+import { startRecording } from '@/lib/wav-encode'
 import type { Host } from '@/types/host'
 import type { MeshPerson } from '@/hooks/usePeople'
 
@@ -52,8 +54,8 @@ export function useVoiceHosts(hosts: Host[]) {
   return { voiceHosts, reloadVoice: load }
 }
 
-/** Where a person is known by voice, with a delete button for each */
-export function VoiceCell({ person, voiceHosts, onEnroll, onChanged }: { person: MeshPerson; voiceHosts: VoiceHost[]; onEnroll: () => void; onChanged: () => void }) {
+/** Where a person is known by voice: one line per host that keeps a voiceprint, each with its delete */
+export function VoiceStatus({ person, voiceHosts, onEnroll, onChanged }: { person: MeshPerson; voiceHosts: VoiceHost[]; onEnroll: () => void; onChanged: () => void }) {
   const held = voiceHosts.filter(h => h.voiceprints.some(v => v.personId === person.id))
   const remove = async (h: VoiceHost) => {
     try { await json(`${h.base}/api/voiceprints/${person.id}`, { method: 'DELETE' }) } catch { /* the reload shows what is left */ }
@@ -67,133 +69,214 @@ export function VoiceCell({ person, voiceHosts, onEnroll, onChanged }: { person:
       .then(onChanged, () => { /* an older host has no PATCH: it keeps the old name */ })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stale, person.id, person.displayName])
+
+  if (!voiceHosts.some(h => h.ready)) {
+    return <p className="text-xs text-gray-500">No host can keep voiceprints yet: run <code className="text-gray-400">scripts/install-voice.sh</code> on the host your agents listen from.</p>
+  }
   return (
-    <>
+    <div className="space-y-2">
       {held.map(h => {
         const v = h.voiceprints.find(x => x.personId === person.id)!
         return (
-          <div key={h.hostId} className="text-[10px] text-gray-400" title={`Consent recorded ${new Date(v.consentAt).toLocaleString()}`}>
-            voiceprint on {h.hostName}
-            <button onClick={() => remove(h)} className="ml-1 text-gray-500 hover:text-red-300" title="Delete this voiceprint">delete</button>
+          <div key={h.hostId} className="flex items-center gap-2 text-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="text-gray-200">Known by voice on {h.hostName}</span>
+            <span className="text-gray-500">since {new Date(v.enrolledAt).toLocaleDateString()}</span>
+            <button onClick={() => remove(h)} className="ml-auto p-1 rounded text-gray-500 hover:text-red-300 hover:bg-gray-800" title="Delete this voiceprint" aria-label={`Delete the voiceprint on ${h.hostName}`}>
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </div>
         )
       })}
-      {person.active && held.length === 0 && voiceHosts.some(h => h.ready) && (
-        <button onClick={onEnroll} className="text-[10px] text-gray-500 hover:text-gray-200">enroll voice</button>
+      {held.length === 0 && <p className="text-xs text-gray-400">Agents cannot tell {person.displayName}&apos;s voice from anyone else&apos;s yet.</p>}
+      {person.active && (
+        <button onClick={onEnroll} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-violet-600 text-white hover:bg-violet-700">
+          <Mic className="w-3.5 h-3.5" /> {held.length ? 'Record again' : 'Enroll voice'}
+        </button>
       )}
-      {held.length === 0 && !voiceHosts.some(h => h.ready) && <span className="text-gray-600">-</span>}
-    </>
+    </div>
   )
 }
 
-type Step = { at: number; busy: boolean; error: string | null; done: boolean }
+const BOARD_WAIT_S = 90 // CLIP_WAIT_MS in lib/device-host.mjs
+const MAX_TAKE_S = 15
 
-/** Consent first, then one sentence at a time: each press records 5 s at the kiosk */
+type Source = { kind: 'computer'; h: VoiceHost } | { kind: 'device'; h: VoiceHost; k: Kiosk }
+type Phase =
+  | { at: 'consent' }
+  | { at: 'sentence'; index: number; status: 'idle' | 'recording' | 'checking' | 'waiting'; error?: string }
+  | { at: 'done' }
+
+/**
+ * Consent first, then one sentence at a time. On this computer: Record, read, Done. At a device: Record, then the
+ * person talks to the device (a board needs its wake phrase first).
+ */
 export function VoiceEnrollPanel({ person, voiceHosts, onClose }: { person: MeshPerson; voiceHosts: VoiceHost[]; onClose: () => void }) {
-  const choices = voiceHosts.filter(h => h.ready).flatMap(h => h.kiosks.map(k => ({ h, k })))
-  const [choice, setChoice] = useState(() => Math.max(0, choices.findIndex(c => c.k.online)))
+  const ready = voiceHosts.filter(h => h.ready)
+  const sources: Source[] = [
+    ...ready.map(h => ({ kind: 'computer' as const, h })),
+    ...ready.flatMap(h => h.kiosks.filter(k => k.online).map(k => ({ kind: 'device' as const, h, k }))),
+  ]
+  const [pick, setPick] = useState(0)
+  const source = sources[pick]
   const [agreed, setAgreed] = useState(false)
-  const [step, setStep] = useState<Step | null>(null)
-  const picked = choices[choice]
+  const [phase, setPhase] = useState<Phase>({ at: 'consent' })
+  const [level, setLevel] = useState(0)
+  const [seconds, setSeconds] = useState(0)
+  const recorder = useRef<Awaited<ReturnType<typeof startRecording>> | null>(null)
   const request = useRef<AbortController | null>(null)
-  const [left, setLeft] = useState(0)
-  const waiting = Boolean(step?.busy && picked?.k.board)
+  const stopping = useRef(false)
 
-  // A board waits up to 90 s for the wake phrase (CLIP_WAIT_MS in lib/device-host.mjs): show what is left
+  const index = phase.at === 'sentence' ? phase.index : 0
+  const status = phase.at === 'sentence' ? phase.status : null
+  const sentences = source?.h.sentences ?? []
+
+  // The meter and the clock while recording; the countdown while a device waits
   useEffect(() => {
-    if (!waiting) return
-    setLeft(90)
-    const t = setInterval(() => setLeft(s => Math.max(0, s - 1)), 1000)
-    return () => clearInterval(t)
-  }, [waiting])
+    if (status !== 'recording' && status !== 'waiting') return
+    const started = Date.now()
+    let frame = 0
+    const tick = () => {
+      const s = Math.floor((Date.now() - started) / 1000)
+      setSeconds(s)
+      if (status === 'recording') {
+        setLevel(recorder.current?.level() ?? 0)
+        if (s >= MAX_TAKE_S) { finish(); return }
+      }
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status])
 
-  // Cancel works while waiting too: stop the request, and free the device so its next clip is talk again
-  const cancel = () => {
-    request.current?.abort()
-    if (step && picked) json(`${picked.h.base}/api/voiceprints/${person.id}/samples`, { method: 'DELETE' }).catch(() => {})
-    onClose()
-  }
+  // Leaving the page mid-take must let go of the microphone
+  useEffect(() => () => { recorder.current?.cancel() }, [])
 
-  const record = async (index: number) => {
-    if (!picked) return
-    setStep({ at: index, busy: true, error: null, done: false })
+  const send = async (i: number, payload: Record<string, unknown>) => {
     request.current = new AbortController()
     try {
-      const r = await json(`${picked.h.base}/api/voiceprints/${person.id}/samples`, {
+      const r = await json(`${source.h.base}/api/voiceprints/${person.id}/samples`, {
         method: 'POST',
-        body: JSON.stringify({ name: person.displayName, agentId: picked.k.agentId, deviceKey: picked.k.key, index, consent: index === 0 ? agreed : undefined }),
+        body: JSON.stringify({ name: person.displayName, index: i, consent: i === 0 ? agreed : undefined, ...payload }),
         signal: request.current.signal,
       })
-      setStep(r.enrolled ? { at: index, busy: false, error: null, done: true } : { at: r.count, busy: false, error: null, done: false })
+      setPhase(r.enrolled ? { at: 'done' } : { at: 'sentence', index: r.count, status: 'idle' })
     } catch (e) {
       if (request.current?.signal.aborted) return
       const message = (e as Error).message
-      // Out of step or not one person: only a fresh start helps
-      const restart = /Start again/.test(message)
-      setStep({ at: restart ? 0 : index, busy: false, error: message, done: false })
+      // Out of step, or not one person: only a fresh start helps
+      setPhase({ at: 'sentence', index: /Start again/.test(message) ? 0 : i, status: 'idle', error: message })
     }
   }
 
-  const box = 'px-4 py-3 border-b border-gray-800 bg-gray-900/60 text-xs space-y-2'
-  if (!choices.length) {
-    return (
-      <div className={box}>
-        <div className="text-gray-300">No host with voiceprints has a device to record on. Pair a kiosk with an agent on that host first.</div>
-        <button onClick={onClose} className="px-3 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700">Close</button>
-      </div>
-    )
+  const record = async () => {
+    if (!source) return
+    if (source.kind === 'device') {
+      setPhase({ at: 'sentence', index, status: 'waiting' })
+      return send(index, { agentId: source.k.agentId, deviceKey: source.k.key })
+    }
+    try {
+      recorder.current = await startRecording()
+      stopping.current = false
+      setPhase({ at: 'sentence', index, status: 'recording' })
+    } catch (e) {
+      const denied = (e as Error).name === 'NotAllowedError'
+      setPhase({ at: 'sentence', index, status: 'idle', error: denied ? 'The browser was not allowed to use the microphone. Allow it in the address bar, then press Record again.' : (e as Error).message })
+    }
   }
-  const sentences = picked?.h.sentences ?? []
+
+  const finish = async () => {
+    if (!recorder.current || stopping.current) return
+    stopping.current = true
+    const audio = await recorder.current.stop()
+    recorder.current = null
+    setPhase({ at: 'sentence', index, status: 'checking' })
+    await send(index, { audio })
+  }
+
+  const cancel = () => {
+    recorder.current?.cancel()
+    recorder.current = null
+    request.current?.abort()
+    if (phase.at === 'sentence' && source) json(`${source.h.base}/api/voiceprints/${person.id}/samples`, { method: 'DELETE' }).catch(() => {})
+    onClose()
+  }
+
+  const label = (s: Source) => s.kind === 'computer'
+    ? `This computer's microphone${ready.length > 1 ? `, kept on ${s.h.hostName}` : ''}`
+    : `${s.k.name} (${s.k.agentName}'s device)`
+
   return (
-    <div className={box} data-testid="voice-enroll">
+    <section className="rounded-lg border border-violet-500/30 bg-violet-500/5 p-4 space-y-4" data-testid="voice-enroll" aria-label={`Voice enrollment for ${person.displayName}`}>
       <div className="flex items-center gap-2">
-        <span className="text-gray-100 font-medium">Voice enrollment for {person.displayName}</span>
-        <span className="text-gray-500">identifies who is talking to the kiosk; it never unlocks or approves anything</span>
+        <Mic className="w-4 h-4 text-violet-300" />
+        <h3 className="text-sm font-medium text-gray-100">Teach your agents {person.displayName}&apos;s voice</h3>
+        <button onClick={cancel} className="ml-auto p-1 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800" aria-label="Cancel enrollment"><X className="w-4 h-4" /></button>
       </div>
-      {!step && (
-        <>
-          <label className="block text-[11px] text-gray-400">Record at
-            <select value={choice} onChange={e => setChoice(Number(e.target.value))} className="ml-2 text-xs bg-gray-800 text-gray-100 rounded px-2 py-1">
-              {choices.map((c, i) => (
-                <option key={`${c.h.hostId}:${c.k.agentId}:${c.k.key}`} value={i} disabled={!c.k.online}>
-                  {c.k.name} ({c.k.agentName}, {c.h.hostName}){c.k.online ? '' : ' - offline'}
-                </option>
-              ))}
+
+      {!source && <p className="text-xs text-gray-400">No host can keep voiceprints yet: run <code>scripts/install-voice.sh</code> on the host your agents listen from.</p>}
+
+      {source && phase.at === 'consent' && (
+        <div className="space-y-3 text-xs">
+          <label className="block space-y-1">
+            <span className="text-gray-400">Record with</span>
+            <select value={pick} onChange={e => setPick(Number(e.target.value))} className="block w-full max-w-sm bg-gray-800 text-gray-100 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-violet-500">
+              {sources.map((s, i) => <option key={i} value={i}>{label(s)}</option>)}
             </select>
           </label>
-          <blockquote className="max-w-2xl border-l-2 border-violet-500/60 pl-3 text-gray-200 whitespace-pre-wrap">{picked?.h.consentText}</blockquote>
-          <label className="flex items-center gap-2 text-gray-300">
-            <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} />
-            {person.displayName} read this text and agrees. The date is stored with the voiceprint.
+          <blockquote className="border-l-2 border-gray-700 pl-3 text-gray-300 whitespace-pre-wrap">{source.h.consentText}</blockquote>
+          <label className="flex items-start gap-2 text-gray-200">
+            <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} className="mt-0.5" />
+            <span>{person.displayName} agreed to this</span>
           </label>
           <div className="flex gap-2">
-            <button onClick={() => setStep({ at: 0, busy: false, error: null, done: false })} disabled={!agreed || !picked?.k.online} className="px-3 py-1 rounded bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50">Start</button>
-            <button onClick={onClose} className="px-3 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700">Cancel</button>
+            <button onClick={() => setPhase({ at: 'sentence', index: 0, status: 'idle' })} disabled={!agreed} className="px-3 py-1.5 rounded-md bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40">Continue</button>
+            <button onClick={cancel} className="px-3 py-1.5 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700">Cancel</button>
           </div>
-          <div className="text-[10px] text-gray-500">The consent text is set in Settings, Voice. Only the voiceprint is kept, never the recordings.</div>
-        </>
+          <p className="text-[11px] text-gray-500">Only the voiceprint is kept, on {source.h.hostName}; the recordings are not. The consent text is set in Settings, Voice.</p>
+        </div>
       )}
-      {step && !step.done && (
-        <>
-          <div className="text-gray-400">Sentence {Math.min(step.at + 1, sentences.length)} of {sentences.length}. {picked?.k.board
-            ? (step.busy ? 'Waiting: say the wake phrase (for example "Hey Bruce"), then read the sentence.' : 'Press Record, then say the wake phrase and read the sentence.')
-            : (step.busy ? 'Recording for 5 seconds: read it aloud at the kiosk now.' : 'Press Record, then read it aloud at the kiosk.')}</div>
-          <div className="text-base text-gray-100">&ldquo;{sentences[step.at]}&rdquo;</div>
-          {step.error && <div className="text-red-300">{step.error}</div>}
+
+      {source && phase.at === 'sentence' && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-1.5" aria-label={`Sentence ${index + 1} of ${sentences.length}`}>
+            {sentences.map((_, i) => <span key={i} className={`h-1 flex-1 rounded-full ${i < index ? 'bg-violet-400' : i === index ? 'bg-violet-400/50' : 'bg-gray-700'}`} />)}
+          </div>
+          <p className="text-[11px] text-gray-500">Sentence {index + 1} of {sentences.length}</p>
+          <p className="text-lg leading-snug text-gray-50">&ldquo;{sentences[index]}&rdquo;</p>
+
+          {status === 'recording' && (
+            <div className="flex items-center gap-3">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <div className="h-1.5 flex-1 max-w-xs rounded-full bg-gray-800 overflow-hidden"><div className="h-full bg-emerald-400 transition-[width] duration-75" style={{ width: `${Math.round(level * 100)}%` }} /></div>
+              <span className="text-xs text-gray-400 tabular-nums">{seconds}s</span>
+            </div>
+          )}
+          {status === 'waiting' && (
+            <p className="text-xs text-gray-300">{source.kind === 'device' && source.k.board
+              ? `Say the wake phrase to ${source.k.name}, wait for it, then read the sentence. ${Math.max(0, BOARD_WAIT_S - seconds)}s left.`
+              : 'Read the sentence at the device now.'}</p>
+          )}
+          {status === 'checking' && <p className="text-xs text-gray-400">Checking the recording…</p>}
+          {phase.at === 'sentence' && phase.error && <p className="text-xs text-red-300" role="alert">{phase.error}</p>}
+
           <div className="flex gap-2">
-            <button onClick={() => record(step.at)} disabled={step.busy || (step.at === 0 && !agreed)} className="px-3 py-1 rounded bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50">
-              {step.busy ? (picked?.k.board ? `Waiting… ${left}s` : 'Recording…') : 'Record'}
-            </button>
-            <button onClick={cancel} className="px-3 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700">Cancel</button>
+            {status === 'recording'
+              ? <button onClick={finish} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-gray-100 text-gray-900 hover:bg-white text-xs font-medium"><Square className="w-3 h-3" /> Done</button>
+              : <button onClick={record} disabled={status !== 'idle'} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40 text-xs"><Mic className="w-3.5 h-3.5" /> {phase.error ? 'Record again' : 'Record'}</button>}
+            <button onClick={cancel} className="px-3 py-1.5 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700 text-xs">Cancel</button>
           </div>
-        </>
+          {status === 'idle' && source.kind === 'computer' && <p className="text-[11px] text-gray-500">Press Record, read the sentence aloud at a normal pace, then press Done.</p>}
+        </div>
       )}
-      {step?.done && (
-        <>
-          <div className="text-emerald-300">Enrolled: {person.displayName}&apos;s voiceprint is stored on {picked?.h.hostName}.</div>
-          <button onClick={onClose} className="px-3 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700">Close</button>
-        </>
+
+      {phase.at === 'done' && (
+        <div className="space-y-3 text-xs">
+          <p className="text-emerald-300">Done. Agents on {source?.h.hostName} now know {person.displayName}&apos;s voice.</p>
+          <button onClick={onClose} className="px-3 py-1.5 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700">Close</button>
+        </div>
       )}
-    </div>
+    </section>
   )
 }

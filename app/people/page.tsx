@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Check, Mic, Pencil, Phone, Plus, Search, Smartphone, UserRoundX } from 'lucide-react'
 import Header from '@/components/Header'
 import { useHosts } from '@/hooks/useHosts'
@@ -64,6 +64,14 @@ export default function PeoplePage() {
     return [...list].sort((a, b) => Number(b.active) - Number(a.active) || a.displayName.localeCompare(b.displayName))
   }, [people, query])
   const person = people.find(p => keyOf(p) === selected) ?? null
+
+  // A wide screen has room for the person: open the first one once, instead of an empty half page
+  const opened = useRef(false)
+  useEffect(() => {
+    if (opened.current || selected || adding || !shown.length) return
+    opened.current = true
+    if (window.matchMedia('(min-width: 768px)').matches) setSelected(keyOf(shown[0]))
+  }, [shown, selected, adding])
 
   const choose = (p: MeshPerson | null) => {
     setSelected(p ? keyOf(p) : null)
@@ -177,7 +185,7 @@ export default function PeoplePage() {
               <span className="text-xs text-gray-500">{people.filter(p => p.active).length} active</span>
               <button
                 onClick={() => { choose(null); setAdding(true); setForm(EMPTY) }}
-                className="ml-auto flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md bg-violet-600 text-white hover:bg-violet-700"
+                className="ml-auto self-center flex items-center gap-1 whitespace-nowrap text-xs px-2.5 py-1.5 rounded-md bg-violet-600 text-white hover:bg-violet-700"
               >
                 <Plus className="w-3.5 h-3.5" /> Add person
               </button>

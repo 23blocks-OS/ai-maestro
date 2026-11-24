@@ -39,7 +39,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           )}
           <Link href="/" className="text-sm text-white hover:text-gray-200">AI Maestro</Link>
         </div>
-        <div className="flex items-center gap-2 min-w-0 overflow-x-auto py-1">
+        <div className="flex items-center gap-2 min-w-0 overflow-x-auto py-1 [&>*]:flex-shrink-0 [&>*]:whitespace-nowrap">
           {onOpenHelp && (
             <button
               onClick={onOpenHelp}

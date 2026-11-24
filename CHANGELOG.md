@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [0.106.280] - 2026-11-23 - People, redesigned; enroll a voice on this computer
 
 ### Added
-- Voice enrollment records on the computer you are at, in the browser, by default: Record, read the sentence, Done, four times. No wake phrase and no device needed. A device of an agent stays an option. `POST /api/voiceprints/{personId}/samples` takes `audio` (a base64 WAV, 16 kHz mono 16-bit, at most 20 s) in place of `agentId` and `deviceKey`; only the voiceprint is kept, as before.
+- Voice enrollment records on the computer you are at, in the browser, by default: Record, read the sentence, Done, four times. No wake phrase and no device needed. The same four takes go to every host that keeps voiceprints, so one enrollment teaches every agent the voice; a host that fails one sentence is asked again alone. A device of an agent stays an option. `POST /api/voiceprints/{personId}/samples` takes `audio` (a base64 WAV, 16 kHz mono 16-bit, at most 20 s) in place of `agentId` and `deviceKey`; only the voiceprint is kept, as before.
 
 ### Changed
 - The People page uses the app header, with the current page marked, and is laid out as a searchable list beside the selected person: voice, contact, organization (reports to, direct reports, organizations) and phones, each in its own section. Editing and adding happen in that panel; phones waiting for approval stay at the top of the list. On a narrow screen the list and the person take turns.

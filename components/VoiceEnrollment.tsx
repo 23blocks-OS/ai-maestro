@@ -101,7 +101,8 @@ export function VoiceStatus({ person, voiceHosts, onEnroll, onChanged }: { perso
 const BOARD_WAIT_S = 90 // CLIP_WAIT_MS in lib/device-host.mjs
 const MAX_TAKE_S = 15
 
-type Source = { kind: 'computer'; h: VoiceHost } | { kind: 'device'; h: VoiceHost; k: Kiosk }
+// On this computer the same takes go to every host that keeps voiceprints: one enrollment, every agent knows the voice
+type Source = { kind: 'computer'; hosts: VoiceHost[] } | { kind: 'device'; h: VoiceHost; k: Kiosk }
 type Phase =
   | { at: 'consent' }
   | { at: 'sentence'; index: number; status: 'idle' | 'recording' | 'checking' | 'waiting'; error?: string }
@@ -114,7 +115,7 @@ type Phase =
 export function VoiceEnrollPanel({ person, voiceHosts, onClose }: { person: MeshPerson; voiceHosts: VoiceHost[]; onClose: () => void }) {
   const ready = voiceHosts.filter(h => h.ready)
   const sources: Source[] = [
-    ...ready.map(h => ({ kind: 'computer' as const, h })),
+    ...(ready.length ? [{ kind: 'computer' as const, hosts: ready }] : []),
     ...ready.flatMap(h => h.kiosks.filter(k => k.online).map(k => ({ kind: 'device' as const, h, k }))),
   ]
   const [pick, setPick] = useState(0)
@@ -126,10 +127,15 @@ export function VoiceEnrollPanel({ person, voiceHosts, onClose }: { person: Mesh
   const recorder = useRef<Awaited<ReturnType<typeof startRecording>> | null>(null)
   const request = useRef<AbortController | null>(null)
   const stopping = useRef(false)
+  // Sentences each host has accepted: a retry goes only to the hosts that did not take this one
+  const got = useRef<Record<string, number>>({})
 
   const index = phase.at === 'sentence' ? phase.index : 0
   const status = phase.at === 'sentence' ? phase.status : null
-  const sentences = source?.h.sentences ?? []
+  const targets = !source ? [] : source.kind === 'computer' ? source.hosts : [source.h]
+  const sentences = targets[0]?.sentences ?? []
+  const where = targets.map(h => h.hostName).join(' and ')
+  const consentTexts = [...new Set(targets.map(h => h.consentText))]
 
   // The meter and the clock while recording; the countdown while a device waits
   useEffect(() => {
@@ -155,19 +161,28 @@ export function VoiceEnrollPanel({ person, voiceHosts, onClose }: { person: Mesh
 
   const send = async (i: number, payload: Record<string, unknown>) => {
     request.current = new AbortController()
-    try {
-      const r = await json(`${source.h.base}/api/voiceprints/${person.id}/samples`, {
-        method: 'POST',
-        body: JSON.stringify({ name: person.displayName, index: i, consent: i === 0 ? agreed : undefined, ...payload }),
-        signal: request.current.signal,
-      })
-      setPhase(r.enrolled ? { at: 'done' } : { at: 'sentence', index: r.count, status: 'idle' })
-    } catch (e) {
-      if (request.current?.signal.aborted) return
-      const message = (e as Error).message
+    const signal = request.current.signal
+    const pending = targets.filter(h => (got.current[h.hostId] ?? 0) === i)
+    const results = await Promise.allSettled(pending.map(h => json(`${h.base}/api/voiceprints/${person.id}/samples`, {
+      method: 'POST',
+      body: JSON.stringify({ name: person.displayName, index: i, consent: i === 0 ? agreed : undefined, ...payload }),
+      signal,
+    })))
+    if (signal.aborted) return
+    const errors: string[] = []
+    results.forEach((r, n) => {
+      const h = pending[n]
+      if (r.status === 'fulfilled') got.current[h.hostId] = i + 1
+      else errors.push(targets.length > 1 ? `${h.hostName}: ${(r.reason as Error).message}` : (r.reason as Error).message)
+    })
+    if (errors.length) {
       // Out of step, or not one person: only a fresh start helps
-      setPhase({ at: 'sentence', index: /Start again/.test(message) ? 0 : i, status: 'idle', error: message })
+      const restart = errors.some(m => /Start again/.test(m))
+      if (restart) got.current = {}
+      setPhase({ at: 'sentence', index: restart ? 0 : i, status: 'idle', error: errors.join(' ') })
+      return
     }
+    setPhase(i + 1 >= sentences.length ? { at: 'done' } : { at: 'sentence', index: i + 1, status: 'idle' })
   }
 
   const record = async () => {
@@ -199,13 +214,11 @@ export function VoiceEnrollPanel({ person, voiceHosts, onClose }: { person: Mesh
     recorder.current?.cancel()
     recorder.current = null
     request.current?.abort()
-    if (phase.at === 'sentence' && source) json(`${source.h.base}/api/voiceprints/${person.id}/samples`, { method: 'DELETE' }).catch(() => {})
+    if (phase.at === 'sentence') targets.forEach(h => json(`${h.base}/api/voiceprints/${person.id}/samples`, { method: 'DELETE' }).catch(() => {}))
     onClose()
   }
 
-  const label = (s: Source) => s.kind === 'computer'
-    ? `This computer's microphone${ready.length > 1 ? `, kept on ${s.h.hostName}` : ''}`
-    : `${s.k.name} (${s.k.agentName}'s device)`
+  const label = (s: Source) => s.kind === 'computer' ? "This computer's microphone" : `${s.k.name} (${s.k.agentName}'s device, kept on ${s.h.hostName} only)`
 
   return (
     <section className="rounded-lg border border-violet-500/30 bg-violet-500/5 p-4 space-y-4" data-testid="voice-enroll" aria-label={`Voice enrollment for ${person.displayName}`}>
@@ -225,16 +238,21 @@ export function VoiceEnrollPanel({ person, voiceHosts, onClose }: { person: Mesh
               {sources.map((s, i) => <option key={i} value={i}>{label(s)}</option>)}
             </select>
           </label>
-          <blockquote className="border-l-2 border-gray-700 pl-3 text-gray-300 whitespace-pre-wrap">{source.h.consentText}</blockquote>
+          {consentTexts.map((text, n) => (
+            <blockquote key={n} className="border-l-2 border-gray-700 pl-3 text-gray-300 whitespace-pre-wrap">
+              {consentTexts.length > 1 && <span className="block text-[11px] text-gray-500 mb-1">On {targets.filter(h => h.consentText === text).map(h => h.hostName).join(' and ')}:</span>}
+              {text}
+            </blockquote>
+          ))}
           <label className="flex items-start gap-2 text-gray-200">
             <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} className="mt-0.5" />
-            <span>{person.displayName} agreed to this</span>
+            <span>{person.displayName} agreed to {consentTexts.length > 1 ? 'these' : 'this'}</span>
           </label>
           <div className="flex gap-2">
-            <button onClick={() => setPhase({ at: 'sentence', index: 0, status: 'idle' })} disabled={!agreed} className="px-3 py-1.5 rounded-md bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40">Continue</button>
+            <button onClick={() => { got.current = {}; setPhase({ at: 'sentence', index: 0, status: 'idle' }) }} disabled={!agreed} className="px-3 py-1.5 rounded-md bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40">Continue</button>
             <button onClick={cancel} className="px-3 py-1.5 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700">Cancel</button>
           </div>
-          <p className="text-[11px] text-gray-500">Only the voiceprint is kept, on {source.h.hostName}; the recordings are not. The consent text is set in Settings, Voice.</p>
+          <p className="text-[11px] text-gray-500">Only the voiceprint is kept, on {where}; the recordings are not. The consent text is set in Settings, Voice.</p>
         </div>
       )}
 
@@ -273,7 +291,7 @@ export function VoiceEnrollPanel({ person, voiceHosts, onClose }: { person: Mesh
 
       {phase.at === 'done' && (
         <div className="space-y-3 text-xs">
-          <p className="text-emerald-300">Done. Agents on {source?.h.hostName} now know {person.displayName}&apos;s voice.</p>
+          <p className="text-emerald-300">Done. Agents on {where} now know {person.displayName}&apos;s voice.</p>
           <button onClick={onClose} className="px-3 py-1.5 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700">Close</button>
         </div>
       )}

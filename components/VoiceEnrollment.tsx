@@ -16,7 +16,7 @@ import type { MeshPerson } from '@/hooks/usePeople'
 export interface Kiosk { agentId: string; agentName: string; key: string; name: string; online: boolean; board: boolean }
 export interface VoiceHost {
   hostId: string; hostName: string; base: string; ready: boolean; consentText: string; sentences: string[]
-  voiceprints: { personId: string; name: string; consentAt: string; enrolledAt: string }[]
+  voiceprints: { personId: string; name: string; consentAt: string; enrolledAt: string; microphones?: string[] }[]
   kiosks: Kiosk[]
 }
 
@@ -54,6 +54,13 @@ export function useVoiceHosts(hosts: Host[]) {
   return { voiceHosts, reloadVoice: load }
 }
 
+/** `dashboard` or `device:<key>`, as people read it */
+function microphoneName(source: string, h: VoiceHost) {
+  if (source === 'dashboard') return 'a computer'
+  const key = source.replace(/^device:/, '')
+  return h.kiosks.find(k => k.key === key)?.name ?? 'a device'
+}
+
 /** Where a person is known by voice: one line per host that keeps a voiceprint, each with its delete */
 export function VoiceStatus({ person, voiceHosts, onEnroll, onChanged }: { person: MeshPerson; voiceHosts: VoiceHost[]; onEnroll: () => void; onChanged: () => void }) {
   const held = voiceHosts.filter(h => h.voiceprints.some(v => v.personId === person.id))
@@ -77,11 +84,12 @@ export function VoiceStatus({ person, voiceHosts, onEnroll, onChanged }: { perso
     <div className="space-y-2">
       {held.map(h => {
         const v = h.voiceprints.find(x => x.personId === person.id)!
+        const mics = (v.microphones ?? []).map(m => microphoneName(m, h))
         return (
           <div key={h.hostId} className="flex items-center gap-2 text-xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
             <span className="text-gray-200">Known by voice on {h.hostName}</span>
-            <span className="text-gray-500">since {new Date(v.enrolledAt).toLocaleDateString()}</span>
+            <span className="text-gray-500 min-w-0 truncate">{mics.length ? `from ${mics.join(' and ')}` : `since ${new Date(v.enrolledAt).toLocaleDateString()}`}</span>
             <button onClick={() => remove(h)} className="ml-auto p-1 rounded text-gray-500 hover:text-red-300 hover:bg-gray-800" title="Delete this voiceprint" aria-label={`Delete the voiceprint on ${h.hostName}`}>
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -89,9 +97,10 @@ export function VoiceStatus({ person, voiceHosts, onEnroll, onChanged }: { perso
         )
       })}
       {held.length === 0 && <p className="text-xs text-gray-400">Agents cannot tell {person.displayName}&apos;s voice from anyone else&apos;s yet.</p>}
+      {held.length > 0 && <p className="text-[11px] text-gray-500">Each microphone sounds different. Add the one an agent hears {person.displayName} through (a toy, a kiosk) so it can tell the voice there too.</p>}
       {person.active && (
         <button onClick={onEnroll} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-violet-600 text-white hover:bg-violet-700">
-          <Mic className="w-3.5 h-3.5" /> {held.length ? 'Record again' : 'Enroll voice'}
+          <Mic className="w-3.5 h-3.5" /> {held.length ? 'Add a microphone' : 'Enroll voice'}
         </button>
       )}
     </div>
@@ -118,7 +127,13 @@ export function VoiceEnrollPanel({ person, voiceHosts, onClose }: { person: Mesh
     ...(ready.length ? [{ kind: 'computer' as const, hosts: ready }] : []),
     ...ready.flatMap(h => h.kiosks.filter(k => k.online).map(k => ({ kind: 'device' as const, h, k }))),
   ]
-  const [pick, setPick] = useState(0)
+  // Adding a microphone: start on a device this person is not known from yet
+  const [pick, setPick] = useState(() => {
+    const known = new Set(ready.flatMap(h => h.voiceprints.find(v => v.personId === person.id)?.microphones ?? []))
+    if (!known.size) return 0
+    const i = sources.findIndex(s => s.kind === 'device' && !known.has(`device:${s.k.key}`))
+    return i < 0 ? 0 : i
+  })
   const source = sources[pick]
   const [agreed, setAgreed] = useState(false)
   const [phase, setPhase] = useState<Phase>({ at: 'consent' })

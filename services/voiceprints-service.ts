@@ -16,7 +16,7 @@
 
 import {
   SENTENCES, SAMPLE_SECONDS, MIN_SPEECH, MODEL, MAX_CONSENT,
-  consentText, setConsentText, listVoiceprints, loadVoiceprint, saveVoiceprint, deleteVoiceprint, combine,
+  consentText, setConsentText, listVoiceprints, loadVoiceprint, saveVoiceprint, deleteVoiceprint, combine, withPrint,
 } from '@/lib/voiceprints.mjs'
 import { embedVoice, voiceprintReady } from '@/lib/speech-local.mjs'
 import { cancelAgentDeviceVoice, recordAgentDeviceVoice } from '@/services/agent-devices-service'
@@ -113,10 +113,14 @@ export async function recordVoiceSample(personId: string, body: Record<string, u
   enrollments.delete(personId)
   const embedding = combine(enrollment.samples)
   if (!embedding) return serviceError('invalid_request', 'The four recordings do not sound like one person. Start again, with only that person near the kiosk', 422)
+  // One print per microphone: recording again on one replaces its print and keeps the others
+  const earlier = loadVoiceprint(personId)
+  const enrolledAt = new Date().toISOString()
   saveVoiceprint({
     personId, name: enrollment.name, model: MODEL, embedding, samples: SENTENCES.length,
-    consentAt: enrollment.consentAt, consentText: enrollment.consentText, enrolledAt: new Date().toISOString(),
+    consentAt: enrollment.consentAt, consentText: enrollment.consentText, enrolledAt,
     device: enrollment.agentId ? { agentId: enrollment.agentId, deviceKey: enrollment.deviceKey } : { dashboard: true },
+    prints: withPrint(earlier?.model === MODEL ? earlier : null, enrollment.deviceKey ? `device:${enrollment.deviceKey}` : 'dashboard', embedding, enrolledAt),
   })
   return { data: { count: SENTENCES.length, needed: SENTENCES.length, enrolled: true }, status: 200 }
 }

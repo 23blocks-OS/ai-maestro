@@ -79,7 +79,13 @@ def embed(request):
             raise ValueError('A voiceprint needs 16 kHz mono 16-bit audio')
         samples = np.frombuffer(audio.readframes(audio.getnframes()), dtype=np.int16).astype(np.float32)
     frames = samples[: len(samples) // 160 * 160].reshape(-1, 160) / 32768.0
-    speech = float(np.sum(np.sqrt(np.mean(frames ** 2, axis=1)) > 0.01) * 0.01) if len(frames) else 0.0
+    # Speech is measured against the clip's own loud part, not a fixed level: a board's microphone is about 24 dB
+    # quieter than a laptop's, and at a fixed level most of a person's words there counted as silence (2026-11-23).
+    # A frame is speech within 20 dB of the loudest tenth; a clip whose loud part is under -54 dBFS has none.
+    rms = np.sqrt(np.mean(frames ** 2, axis=1)) if len(frames) else np.zeros(0)
+    loud = float(np.percentile(rms, 90)) if len(rms) else 0.0
+    voiced = (rms > loud * 0.1) & (rms > 0.002) if loud > 0.002 else np.zeros(len(rms), dtype=bool)
+    speech = float(np.sum(voiced) * 0.01)
     options = knf.FbankOptions()
     options.frame_opts.dither = 0
     options.frame_opts.samp_freq = 16000
@@ -91,6 +97,11 @@ def embed(request):
     if bank.num_frames_ready < 100:
         raise ValueError('The recording is shorter than one second')
     feats = np.stack([bank.get_frame(i) for i in range(bank.num_frames_ready)])
+    # The voiceprint from the speech only: a quiet board's hiss between words otherwise outweighs the voice.
+    # Fbank frame i starts at sample 160*i, as the speech frames do; with under a second of speech, all of it.
+    keep = voiced[: len(feats)]
+    if np.sum(keep) >= 100:
+        feats = feats[np.nonzero(keep)[0]]
     feats = feats - feats.mean(0)
     vector = speaker.run(None, {'feats': feats[None].astype(np.float32)})[0][0]
     answer(embedding=[round(float(v), 6) for v in vector / np.linalg.norm(vector)], speech=speech, done=True)

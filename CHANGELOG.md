@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.281] - 2026-11-23 - One footer
+
+### Changed
+- The dashboard's footer (version, made in Boulder, credits) is now `components/Footer.tsx`, and the People page uses it instead of a bare version line.
+
 ## [0.106.280] - 2026-11-23 - People, redesigned; enroll a voice on this computer
 
 ### Added

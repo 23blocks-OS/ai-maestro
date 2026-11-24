@@ -5,7 +5,7 @@ import { ArrowLeft, Check, Mic, Pencil, Phone, Plus, Search, Smartphone, UserRou
 import Header from '@/components/Header'
 import { useHosts } from '@/hooks/useHosts'
 import { usePeople, type MeshPerson, type MeshDevice } from '@/hooks/usePeople'
-import { VersionChecker } from '@/components/VersionChecker'
+import Footer from '@/components/Footer'
 import { wouldLoop } from '@/lib/agent-manager'
 import { computeHash } from '@/lib/hash-utils'
 import { useVoiceHosts, VoiceStatus, VoiceEnrollPanel } from '@/components/VoiceEnrollment'
@@ -351,7 +351,7 @@ export default function PeoplePage() {
           )}
         </section>
       </main>
-      <VersionChecker />
+      <Footer />
     </div>
   )
 }

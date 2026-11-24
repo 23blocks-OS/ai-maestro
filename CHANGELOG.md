@@ -15,12 +15,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [0.106.283] - 2026-11-24 - Enrollment asks which microphone
 
 ### Fixed
-- **Add a microphone** picked the first device the person was not enrolled on. With more than one (another agent's MacBook and the Bruce toy), the takes went to a device the person was not speaking into, so the sentences reached the agent as talk and the second sentence never came. Now, when more than one device is new for the person, the page asks which microphone they will speak into, and Continue waits for the choice. With only one, it is chosen as before.
+- **Add a microphone** picked the first device the person was not enrolled on. With more than one (another agent's laptop and a voice board), the takes went to a device the person was not speaking into, so the sentences reached the agent as talk and the second sentence never came. Now, when more than one device is new for the person, the page asks which microphone they will speak into, and Continue waits for the choice. With only one, it is chosen as before.
 
 ## [0.106.282] - 2026-11-23 - An agent knows a voice through each microphone
 
 ### Fixed
-- Bruce could not tell Juan's voice through the toy after Juan enrolled on his laptop. Two causes, measured on real toy clips: the toy's quiet microphone made most words read as silence (0 to 1.1 s of speech in 3 to 6 s clips, and a match needs 2 s), so no match was tried; and a voice enrolled on a laptop scored 0.2 to 0.45 on the toy's microphone, under the 0.5 match line.
+- An agent could not tell a person's voice through its voice board after the person enrolled on a laptop. Two causes, measured on real toy clips: the toy's quiet microphone made most words read as silence (0 to 1.1 s of speech in 3 to 6 s clips, and a match needs 2 s), so no match was tried; and a voice enrolled on a laptop scored 0.2 to 0.45 on the toy's microphone, under the 0.5 match line.
 - Speech is now measured against the clip's own loud part (frames within 20 dB of it, never under -54 dBFS), and the voiceprint is made from the speech frames only. The same clips now read as 1.5 to 4.7 s of speech.
 
 ### Added
@@ -44,7 +44,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [0.106.279] - 2026-11-23 - Voice enrollment on a board: more time, and Cancel works
 
 ### Fixed
-- Enrolling a voice on a board (the Bruce toy) waited 45 s for the wake phrase. The small wake model can take a few tries, and the time ran out before the toy heard it; the sentence then went to the agent as talk. The board now waits 90 s, and the page counts down ("Waiting… 72s") instead of showing "Recording…".
+- Enrolling a voice on a board (a toy with a wake phrase) waited 45 s for the wake phrase. The small wake model can take a few tries, and the time ran out before the toy heard it; the sentence then went to the agent as talk. The board now waits 90 s, and the page counts down ("Waiting… 72s") instead of showing "Recording…".
 - Cancel was disabled while waiting. It now works at any time: it stops the request and calls the new `DELETE /api/voiceprints/{personId}/samples`, which forgets the enrollment and frees the board, so its next clip is talk for its agent again instead of a sample.
 
 ## [0.106.278] - 2026-11-23 - Refused agents are seen, not only told

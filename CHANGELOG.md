@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.282] - 2026-11-23 - An agent knows a voice through each microphone
+
+### Fixed
+- Bruce could not tell Juan's voice through the toy after Juan enrolled on his laptop. Two causes, measured on real toy clips: the toy's quiet microphone made most words read as silence (0 to 1.1 s of speech in 3 to 6 s clips, and a match needs 2 s), so no match was tried; and a voice enrolled on a laptop scored 0.2 to 0.45 on the toy's microphone, under the 0.5 match line.
+- Speech is now measured against the clip's own loud part (frames within 20 dB of it, never under -54 dBFS), and the voiceprint is made from the speech frames only. The same clips now read as 1.5 to 4.7 s of speech.
+
+### Added
+- A voiceprint keeps one print per microphone (`dashboard`, or `device:<key>`): recording on another microphone adds a print, recording again on one replaces its print. A person scores as their closest microphone; "two people too close to tell apart" still compares people. Files from before read as one print. The match line stays at 0.5.
+- People: each host line says which microphones it knows the person from, and **Add a microphone** starts on a device the person is not enrolled on yet.
+
 ## [0.106.281] - 2026-11-23 - One footer
 
 ### Changed

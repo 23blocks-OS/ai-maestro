@@ -73,11 +73,13 @@ jobs:
         run: node scripts/tmux-selfcheck.mjs
 
       - name: Windows tests
+        # tests/chat-reactions.test.ts joins this list once the plugin gitlink includes
+        # 23blocks-OS/ai-maestro-plugins#122: before it, Git for Windows' curl turns the emoji into "?".
         run: >-
           yarn vitest run
           tests/tmux-selfcheck.test.ts tests/tmux-runtime.test.ts tests/tmux-exact-targets.test.ts tests/no-unsafe-tmux-kill.test.ts
           tests/pane-shell.test.ts tests/pane-occupant.test.ts tests/git-bash.test.ts tests/launch-command.test.ts tests/program-launch.test.ts
-          tests/ai-maestro-hook.test.ts tests/aimaestro-task-cli.test.ts tests/chat-reactions.test.ts tests/windows-scripts.test.ts tests/windows-pane-child.test.ts
+          tests/ai-maestro-hook.test.ts tests/aimaestro-task-cli.test.ts tests/windows-scripts.test.ts tests/windows-pane-child.test.ts tests/next-config-windows-trace.test.ts
 
       - name: Build
         shell: pwsh

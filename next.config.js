@@ -42,7 +42,21 @@ const nextConfig = {
     ]
   },
 
+  // Native Windows (F041): see the tracer note in webpack() below; this covers the second tracing pass
+  ...(process.platform === 'win32' && { outputFileTracingExcludes: { '*': ['?:/**'] } }),
+
   webpack: (config, { isServer }) => {
+    // Native Windows (F041): the build's file tracer skips files outside the project by their relative path
+    // starting with "..". From a project on another drive than the home folder (D:\ in CI, E:\ on a desktop)
+    // the relative path of C:\Users\<you>\.aimaestro\... is absolute, so the tracer globbed the whole home
+    // folder: "EPERM scandir C:\Users\<you>\Application Data", or out of memory. Absolute paths on any
+    // drive are outside the project, so they are ignored too.
+    if (process.platform === 'win32') {
+      for (const plugin of config.plugins || []) {
+        if (Array.isArray(plugin?.traceIgnores)) plugin.traceIgnores.push('?:/**')
+      }
+    }
+
     // Handle native modules only on server side
     if (isServer) {
       config.externals = config.externals || []

@@ -10,6 +10,8 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     // Native Windows only: HOME and bash as the tests expect them (F041)
     setupFiles: ['tests/setup/windows.ts'],
+    // Each bash script a test runs starts several processes; Git Bash starts them about ten times slower than Linux
+    ...(process.platform === 'win32' && { testTimeout: 30_000 }),
     exclude: ['node_modules', '.next'],
   },
   resolve: {

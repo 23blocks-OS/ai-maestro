@@ -116,10 +116,12 @@ jobs:
           & "$env:USERPROFILE\.local\bin\ai-maestro.cmd" status
           if ($LASTEXITCODE -ne 0) { Get-Content "$env:USERPROFILE\.aimaestro\logs\server.log" -Tail 80; exit 1 }
           New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\agents\ci1" | Out-Null
-          $body = @{ name = 'ci1'; workingDirectory = "$env:RUNNER_TEMP\agents\ci1"; program = 'powershell'; taskDescription = 'CI' } | ConvertTo-Json
+          # A known program, so wake goes through the launch path that makes the messaging identity; Claude Code itself is
+          # not installed here (-NoClaude), so the program does not start and wake may say so
+          $body = @{ name = 'ci1'; workingDirectory = "$env:RUNNER_TEMP\agents\ci1"; program = 'claude'; taskDescription = 'CI' } | ConvertTo-Json
           $agent = (Invoke-RestMethod -Method POST -Uri http://127.0.0.1:23000/api/agents -ContentType application/json -Body $body).agent
-          Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:23000/api/agents/$($agent.id)/wake" -ContentType application/json -Body '{}' | Out-Null
-          Start-Sleep 5
+          try { Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:23000/api/agents/$($agent.id)/wake" -ContentType application/json -Body '{}' | Out-Null } catch { "wake: $($_.ErrorDetails.Message)" }
+          Start-Sleep 10
           tmux ls
           $key = "$env:USERPROFILE\.agent-messaging\agents\$($agent.id)\keys\private.pem"
           if (-not (Test-Path $key)) { Get-Content "$env:USERPROFILE\.aimaestro\logs\server.log" -Tail 80; throw "no AMP identity for the agent ($key)" }

@@ -95,6 +95,8 @@ Implemented in the F041 pull request (branch `feature/f041-native-windows`), por
 - Git Bash rewrites arguments that start with `/` into Windows paths before running a Windows program: a signature starting with `/` reached jq changed, and about one message in 64 was refused as forged. The jq wrapper turns that off.
 - jq.exe writes CRLF; OpenSSL 1.1.1 (Git for Windows before 2023) cannot sign Ed25519 and messages went out unsigned without a word; npm's `.ps1` shims are blocked by PowerShell's default execution policy; Claude Code's project folder names replace every non-alphanumeric character.
 
-**Believed, not verified:** arm64 (the pinned binaries exist; no arm64 machine was used); Windows 10 1809 (only Windows 11 was run); PowerShell 7 as the pane shell; the new CI jobs (written, not yet run on GitHub Actions).
+**Believed, not verified:** arm64 (the pinned binaries exist; no arm64 machine was used); Windows 10 1809 (only Windows 11 and the `windows-latest` runner in CI were run); PowerShell 7 as the pane shell.
+
+**CI:** the `windows` and `windows-install` jobs pass on GitHub Actions (`windows-latest`). Running them found one more Windows-only problem: a build from another drive than the home folder globbed the whole home folder (Next's tracer; fixed in `next.config.js`).
 
 **Not covered:** Docker agents and the cloud/remote paths on Windows hosts.

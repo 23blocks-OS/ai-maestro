@@ -23,6 +23,7 @@ import * as os from 'os'
 import { shouldLogChange } from './log-on-change'
 import { listCopilotSessions, realDir, isCopilotAgent, copilotHomeOf, isCopilotLine } from '@/lib/transcript-copilot.mjs'
 import { summarizeJsonl } from './jsonl'
+import { encodeClaudeProjectDir } from '@/lib/claude-projects'
 
 // ============================================================================
 // THROTTLING: Limit concurrent Delta Index operations to prevent CPU overload
@@ -260,11 +261,11 @@ function copilotSessionsFor(agentId: string, wds: string[]): CopilotSession[] {
 /**
  * The top-level Claude project directory for a working directory.
  *
- * Claude Code encodes a cwd by replacing separators with '-', so
- * /Users/me/repo lives at ~/.claude/projects/-Users-me-repo.
+ * Claude Code encodes a cwd by turning every character that is not a letter or digit into '-' (lib/claude-projects),
+ * so /Users/me/repo lives at ~/.claude/projects/-Users-me-repo and C:\Users\me\repo at C--Users-me-repo (F041).
  */
 function topLevelClaudeDir(projectPath: string): string {
-  return path.join(os.homedir(), '.claude', 'projects', projectPath.replace(/\//g, '-'))
+  return path.join(os.homedir(), '.claude', 'projects', encodeClaudeProjectDir(projectPath))
 }
 
 /**

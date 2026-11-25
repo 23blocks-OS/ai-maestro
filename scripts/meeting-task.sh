@@ -61,7 +61,7 @@ api_call() {
   local resp code
   if [[ -n "$body" ]]; then
     resp=$(curl -sS -w $'\n%{http_code}' -X "$method" "${HOST}${path}" \
-      -H "Content-Type: application/json" -d "$body") || die "curl failed"
+      -H "Content-Type: application/json" -d @- <<<"$body") || die "curl failed"
   else
     resp=$(curl -sS -w $'\n%{http_code}' -X "$method" "${HOST}${path}") || die "curl failed"
   fi

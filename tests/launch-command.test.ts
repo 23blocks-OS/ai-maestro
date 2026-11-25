@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { buildLaunchCommand, sanitizeProgramArgs } from '@/lib/launch-command'
 
-const base = { agentName: 'aria', env: {} as NodeJS.ProcessEnv }
+// The pane's shell is pinned: the default follows the platform (PowerShell on native Windows, F041)
+const base = { agentName: 'aria', env: {} as NodeJS.ProcessEnv, shell: 'posix' as const }
 const CLAUDE_PREFIX = 'CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 '
 
 describe('buildLaunchCommand: Claude Code', () => {
@@ -40,6 +41,9 @@ describe('buildLaunchCommand: Claude Code', () => {
 
   it('keeps the fullscreen renderer when asked, and a wrapper keeps Claude\'s flags (keyed off the kind)', () => {
     expect(buildLaunchCommand({ ...base, command: 'claude', kind: 'claude', env: { AIMAESTRO_KEEP_ALT_SCREEN: 'true' } })).toBe('claude')
+    // A PowerShell pane (native Windows, F041) gets the variable in its own syntax
+    expect(buildLaunchCommand({ ...base, shell: 'powershell', command: 'claude', kind: 'claude', permissionMode: 'fullAutonomy' }))
+      .toBe("$env:CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN='1'; claude --permission-mode bypassPermissions")
     expect(buildLaunchCommand({ ...base, command: '/usr/local/bin/claude-sandboxed.sh', kind: 'claude', permissionMode: 'fullAutonomy' }))
       .toBe(`${CLAUDE_PREFIX}/usr/local/bin/claude-sandboxed.sh --permission-mode bypassPermissions`)
   })
@@ -67,6 +71,9 @@ describe('buildLaunchCommand: the other tools', () => {
     expect(buildLaunchCommand({ ...base, command: 'pi', kind: 'pi', launchOptions: { thinking: 'low', noSession: true } })).toBe('pi --thinking low --no-session')
     expect(buildLaunchCommand({ ...base, command: 'pi', kind: 'pi', launchOptions: { tools: 'messaging' } })).toBe("pi --tools read,grep,find,ls,amp_inbox,amp_read,amp_reply,amp_send --exclude-tools 'mcp__*'")
     expect(buildLaunchCommand({ ...base, command: 'pi', kind: 'pi', launchOptions: { tools: 'full' } })).toBe('pi')
+    // PowerShell (native Windows, F041): the comma list is one quoted argument, not an array
+    expect(buildLaunchCommand({ ...base, shell: 'powershell', command: 'pi', kind: 'pi', launchOptions: { tools: 'messaging' } }))
+      .toBe("pi --tools 'read,grep,find,ls,amp_inbox,amp_read,amp_reply,amp_send' --exclude-tools 'mcp__*'")
     expect(buildLaunchCommand({ ...base, command: 'codex', kind: 'codex', launchOptions: { tools: 'messaging' } })).not.toContain('--tools')
   })
 

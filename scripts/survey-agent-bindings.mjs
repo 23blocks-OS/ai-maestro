@@ -40,7 +40,7 @@ const JSON_OUT = process.argv.includes('--json')
 
 /** Claude Code encodes a cwd as a project dir by replacing separators with '-'. */
 function slugFor(cwd) {
-  return cwd.replace(/\//g, '-')
+  return cwd.replace(/[^a-zA-Z0-9]/g, '-') // Claude Code's rule (lib/claude-projects.ts)
 }
 
 /** Project dirs belonging to this cwd: its own slug plus any descendant slug. */

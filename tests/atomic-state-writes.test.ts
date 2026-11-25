@@ -133,6 +133,12 @@ describe('registry.json', () => {
 })
 
 describe('trustProjectDirectory', () => {
+  it('names a Windows folder with forward slashes, the key Claude Code reads (F041)', async () => {
+    const { claudeProjectKey } = await registryModule()
+    expect(claudeProjectKey('C:\\Users\\Bob\\agents\\lola', 'win32')).toBe('C:/Users/Bob/agents/lola')
+    expect(claudeProjectKey('/Users/bob/agents/lola', 'darwin')).toBe('/Users/bob/agents/lola')
+  })
+
   function setup(config: unknown = { numStartups: 7, projects: { '/other': { allowedTools: ['x'] } } }) {
     const project = path.join(tmp, 'project')
     fs.mkdirSync(project)
@@ -146,10 +152,10 @@ describe('trustProjectDirectory', () => {
 
   it('honours CLAUDE_CONFIG_DIR and keeps every other key', async () => {
     const { project, file } = setup()
-    const { trustProjectDirectory } = await registryModule()
+    const { trustProjectDirectory, claudeProjectKey } = await registryModule()
     expect(trustProjectDirectory(project)).toBe(true)
     const cfg = JSON.parse(fs.readFileSync(file, 'utf8'))
-    expect(cfg.projects[project].hasTrustDialogAccepted).toBe(true)
+    expect(cfg.projects[claudeProjectKey(project)].hasTrustDialogAccepted).toBe(true)
     expect(cfg.numStartups).toBe(7)
     expect(cfg.projects['/other']).toEqual({ allowedTools: ['x'] })
     expect(fs.existsSync(path.join(tmp, '.claude.json'))).toBe(false) // not the home one
@@ -160,20 +166,20 @@ describe('trustProjectDirectory', () => {
     const own = path.join(tmp, 'own-login')
     fs.mkdirSync(own)
     fs.writeFileSync(path.join(own, '.claude.json'), '{}')
-    const { trustProjectDirectory } = await registryModule()
+    const { trustProjectDirectory, claudeProjectKey } = await registryModule()
     expect(trustProjectDirectory(project, { kind: 'config-dir', dir: own })).toBe(true)
-    expect(JSON.parse(fs.readFileSync(path.join(own, '.claude.json'), 'utf8')).projects[project].hasTrustDialogAccepted).toBe(true)
+    expect(JSON.parse(fs.readFileSync(path.join(own, '.claude.json'), 'utf8')).projects[claudeProjectKey(project)].hasTrustDialogAccepted).toBe(true)
   })
 
   it('keys the project by its real path', async () => {
     const { project, file } = setup()
     const alias = path.join(tmp, 'alias')
     fs.symlinkSync(project, alias)
-    const { trustProjectDirectory } = await registryModule()
+    const { trustProjectDirectory, claudeProjectKey } = await registryModule()
     expect(trustProjectDirectory(alias)).toBe(true)
     const cfg = JSON.parse(fs.readFileSync(file, 'utf8'))
-    expect(cfg.projects[project].hasTrustDialogAccepted).toBe(true)
-    expect(cfg.projects[alias]).toBeUndefined()
+    expect(cfg.projects[claudeProjectKey(project)].hasTrustDialogAccepted).toBe(true)
+    expect(cfg.projects[claudeProjectKey(alias)]).toBeUndefined()
   })
 
   it('does not follow a symbolic link to the config file', async () => {
@@ -181,7 +187,7 @@ describe('trustProjectDirectory', () => {
     const real = path.join(tmp, 'real.json')
     fs.writeFileSync(real, '{}')
     fs.symlinkSync(real, file)
-    const { trustProjectDirectory } = await registryModule()
+    const { trustProjectDirectory, claudeProjectKey } = await registryModule()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(trustProjectDirectory(project)).toBe(false)
     expect(fs.readFileSync(real, 'utf8')).toBe('{}')
@@ -190,7 +196,7 @@ describe('trustProjectDirectory', () => {
 
   it('leaves a malformed file alone and never creates a missing one', async () => {
     const { project, file } = setup('{"projects": {')
-    const { trustProjectDirectory } = await registryModule()
+    const { trustProjectDirectory, claudeProjectKey } = await registryModule()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(trustProjectDirectory(project)).toBe(false)
     expect(fs.readFileSync(file, 'utf8')).toBe('{"projects": {')

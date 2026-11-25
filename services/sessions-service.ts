@@ -86,7 +86,8 @@ import crypto from 'crypto'
 import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError, runtimeConflict } from '@/services/service-errors'
 import { runtimeOf } from '@/lib/agent-runtime-kind.mjs'
 import { shouldLogChange } from '@/lib/log-on-change'
-import { recordCredentialSeen, parseCredential } from '@/lib/agent-credential'
+import { recordCredentialSeen, parseCredential, credentialLauncherPath } from '@/lib/agent-credential'
+import { agentEnvLine, paneShell } from '@/lib/pane-shell'
 
 const execFileAsync = promisify(execFile)
 
@@ -1221,9 +1222,8 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
       await runtime.setEnvironment(actualSessionName, 'AIM_AGENT_ID', registeredAgentId)
     }
     await runtime.unsetEnvironment(actualSessionName, 'CLAUDECODE')
-    const exportCmd = registeredAgentId
-      ? `export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${registeredAgentId}'; unset CLAUDECODE`
-      : `export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}'; unset CLAUDECODE`
+    // Written for the pane's shell: POSIX, or PowerShell on native Windows (lib/pane-shell, F041)
+    const exportCmd = agentEnvLine(paneShell(), { AMP_DIR: ampDir, AIM_AGENT_NAME: agentName, AIM_AGENT_ID: registeredAgentId })
     await runtime.sendKeys(actualSessionName, `"${exportCmd}"`, { enter: true })
     console.log(`[Sessions] Set AMP_DIR=${ampDir} for agent ${agentName}`)
   } catch (ampError) {
@@ -1257,7 +1257,7 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
         permissionMode: chosenMode ?? registeredAgent?.permissionMode,
         launchOptions: Object.keys(chosenOptions).length > 0 ? chosenOptions : registeredAgent?.launchOptions,
         credential: registeredAgent?.credential,
-        launcher: path.join(process.cwd(), 'scripts', 'aim-launch.sh'),
+        launcher: credentialLauncherPath(),
       })
 
       await new Promise(resolve => setTimeout(resolve, 300))

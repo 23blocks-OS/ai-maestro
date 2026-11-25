@@ -138,10 +138,11 @@ export function newerVersion(a: number[], b: number[]): boolean {
  */
 export function resolveClaudeBinary(): string | null {
   if (resolvedClaude !== undefined) return resolvedClaude
+  const exe = process.platform === 'win32' ? 'claude.exe' : 'claude' // the native installer's claude.exe (F041)
   const candidates = [
     process.env.CLAUDE_BIN,
-    ...(process.env.PATH || '').split(path.delimiter).filter(Boolean).map(dir => path.join(dir, 'claude')),
-    path.join(os.homedir(), '.local', 'bin', 'claude'),
+    ...(process.env.PATH || '').split(path.delimiter).filter(Boolean).map(dir => path.join(dir, exe)),
+    path.join(os.homedir(), '.local', 'bin', exe),
     path.join(os.homedir(), '.claude', 'local', 'claude'),
     '/opt/homebrew/bin/claude',
     '/usr/local/bin/claude',
@@ -153,8 +154,8 @@ export function resolveClaudeBinary(): string | null {
     try { fs.accessSync(process.env.CLAUDE_BIN, fs.constants.X_OK); return (resolvedClaude = process.env.CLAUDE_BIN) } catch { /* fall through */ }
   }
 
-  // The login shell's claude (how agents launch it) is a candidate too
-  try {
+  // The login shell's claude (how agents launch it) is a candidate too. Windows has no login shell to ask.
+  if (process.platform !== 'win32') try {
     const shell = process.env.SHELL || '/bin/bash'
     const out = execFileSync(shell, ['-lc', 'command -v claude'], { encoding: 'utf8', timeout: 10_000 }).trim().split('\n').pop()
     if (out) candidates.push(out)
@@ -422,7 +423,8 @@ export async function summarizeSession(candidates: Candidate[], knownEntities: s
   return withSlot(async () => {
     let raw = viaTmux ? await runViaTmux(claude, args, prompt) : await runDirect(claude, args, prompt)
     let parsed = parseResult(raw)
-    if (!viaTmux && isNotLoggedIn(raw, parsed)) {
+    // The tmux retry is for the macOS keychain; Windows keeps the login in a file the server can read
+    if (!viaTmux && process.platform !== 'win32' && isNotLoggedIn(raw, parsed)) {
       console.log('[MEMORY-CARDS] claude reports "Not logged in" from the server process; retrying inside tmux (keychain access)')
       viaTmux = true
       raw = await runViaTmux(claude, args, prompt)

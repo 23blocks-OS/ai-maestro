@@ -18,6 +18,7 @@ import { getAgentByName, createAgent, deleteAgent } from '@/lib/agent-registry'
 import { parseNameForDisplay } from '@/types/agent'
 import { getRuntime } from '@/lib/agent-runtime'
 import { type ServiceResult, operationFailed } from '@/services/service-errors'
+import { commandWords, envPrefix, paneShell, quote, unsetEnv } from '@/lib/pane-shell'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -131,7 +132,7 @@ export async function createAssistantAgent(): Promise<ServiceResult<{
 
     // Unset CLAUDECODE env to avoid nested-session detection
     await runtime.unsetEnvironment(ASSISTANT_NAME, 'CLAUDECODE')
-    await runtime.sendKeys(ASSISTANT_NAME, '"unset CLAUDECODE"', { enter: true })
+    await runtime.sendKeys(ASSISTANT_NAME, `"${unsetEnv(paneShell(), 'CLAUDECODE')}"`, { enter: true })
 
     // Small delay for env to take effect
     await new Promise(resolve => setTimeout(resolve, 300))
@@ -142,7 +143,11 @@ export async function createAssistantAgent(): Promise<ServiceResult<{
 
     // Launch claude with read-only tools and bypass permissions
     // AIM_AGENT_ID so the hook links the session to the assistant, not to an agent that owns this folder
-    const launchCmd = `AIM_AGENT_ID=${agent.id} claude --model ${ASSISTANT_MODEL} --tools ${ASSISTANT_TOOLS} --permission-mode bypassPermissions --system-prompt "$(cat ${promptFile})"`
+    // PowerShell (native Windows, F041) has no "$(cat file)": Claude Code reads the file itself
+    const shell = paneShell()
+    const launchCmd = shell === 'powershell'
+      ? `${envPrefix(shell, { AIM_AGENT_ID: agent.id })}${commandWords(shell, `claude --model ${ASSISTANT_MODEL} --tools ${ASSISTANT_TOOLS} --permission-mode bypassPermissions`)} --system-prompt-file ${quote(shell, promptFile)}`
+      : `AIM_AGENT_ID=${agent.id} claude --model ${ASSISTANT_MODEL} --tools ${ASSISTANT_TOOLS} --permission-mode bypassPermissions --system-prompt "$(cat ${promptFile})"`
     await runtime.sendKeys(ASSISTANT_NAME, launchCmd, { literal: true, enter: true })
 
     return {

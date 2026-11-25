@@ -71,9 +71,31 @@ export function buildCall(tool, params = {}) {
   throw new Error(`unknown tool ${tool}`)
 }
 
+/**
+ * Native Windows (F041): Git for Windows' bash.exe, which runs the AMP scripts there; never the bash.exe in
+ * System32, which starts WSL. AIM_BASH, then Claude Code's CLAUDE_CODE_GIT_BASH_PATH, then the Git on PATH, then
+ * the usual install folders (as lib/git-bash.mjs, which this standalone extension cannot import). Null without Git.
+ */
+export function windowsBash(env = process.env, exists = fs.existsSync) {
+  const ok = (p) => Boolean(p) && !/\\(system32|windowsapps)\\/i.test(p) && exists(p)
+  for (const v of [env.AIM_BASH, env.CLAUDE_CODE_GIT_BASH_PATH]) if (ok(v)) return v
+  for (const dir of String(env.PATH || env.Path || '').split(';').filter(Boolean)) {
+    if (!exists(path.win32.join(dir, 'git.exe'))) continue
+    for (const root of [path.win32.dirname(dir), path.win32.dirname(path.win32.dirname(dir))]) {
+      const bash = path.win32.join(root, 'bin', 'bash.exe')
+      if (ok(bash)) return bash
+    }
+  }
+  for (const root of [env.ProgramFiles, env.LOCALAPPDATA && path.win32.join(env.LOCALAPPDATA, 'Programs')].filter(Boolean)) {
+    const bash = path.win32.join(root, 'Git', 'bin', 'bash.exe')
+    if (ok(bash)) return bash
+  }
+  return null
+}
+
 /** First executable `name` on PATH or in ~/.local/bin (a tmux pane may not have it on PATH). */
 export function resolveScript(name, env = process.env, home = os.homedir()) {
-  const dirs = String(env.PATH || '').split(path.delimiter).filter(Boolean)
+  const dirs = String(env.PATH || env.Path || '').split(path.delimiter).filter(Boolean)
   dirs.push(path.join(home, '.local', 'bin'))
   for (const dir of dirs) {
     const full = path.join(dir, name)
@@ -95,16 +117,25 @@ export function capOutput(text, max = MAX_OUTPUT) {
  * Run one tool. `deps` lets tests replace execFile and the script lookup; both default to the real ones.
  * Resolves to { ok, text }. A script failure is a result, not a throw; bad arguments throw (buildCall).
  */
-export function runTool(tool, params, { cwd, env = process.env, exec = execFile, resolve = resolveScript, timeout = TIMEOUT_MS } = {}) {
+export function runTool(tool, params, { cwd, env = process.env, exec = execFile, resolve = resolveScript, timeout = TIMEOUT_MS, platform = process.platform, bash = windowsBash } = {}) {
   const call = buildCall(tool, params)
   const file = resolve(call.script, env)
   if (!file) {
     return Promise.resolve({ ok: false, text: `${call.script} was not found on PATH or in ~/.local/bin. Install the AI Maestro plugin on this host.` })
   }
+  // Windows cannot run a .sh by itself: it goes to Git Bash, still as an argv array
+  let command = file
+  let args = call.args
+  if (platform === 'win32') {
+    const shell = bash(env)
+    if (!shell) return Promise.resolve({ ok: false, text: `${call.script} needs Git for Windows (its bash) on this host: https://git-scm.com/download/win` })
+    command = shell
+    args = [file, ...call.args]
+  }
   return new Promise((done) => {
     const child = exec(
-      file,
-      call.args,
+      command,
+      args,
       { cwd, env, timeout, maxBuffer: 1024 * 1024, windowsHide: true },
       (err, stdout, stderr) => {
         const out = capOutput([stdout, stderr].filter((x) => x && String(x).trim()).join('\n'))

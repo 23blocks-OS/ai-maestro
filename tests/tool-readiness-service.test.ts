@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import path from 'path'
 
 const hosts = vi.hoisted(() => ({
   getHosts: vi.fn((): any[] => []),
@@ -6,7 +7,7 @@ const hosts = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/hosts-config', () => ({ getHosts: hosts.getHosts, isSelf: hosts.isSelf }))
 
-import { buildReadinessReport, findOnPath, toolReadinessRequest, type ReadinessDeps } from '@/services/tool-readiness-service'
+import { allOnPath, buildReadinessReport, findOnPath, toolReadinessRequest, type ReadinessDeps } from '@/services/tool-readiness-service'
 
 /** A fake machine: which files are executable, and what each prints for --version. */
 function machine(files: Record<string, { ok: boolean; output: string }>, searchPath = '/a/bin:/b/bin'): ReadinessDeps & { runs: string[] } {
@@ -34,6 +35,16 @@ describe('findOnPath', () => {
     expect(findOnPath('y', '/a/bin:/b/bin', has)).toBe('/b/bin/y')
     expect(findOnPath('z', '/a/bin:/b/bin', has)).toBeUndefined()
     expect(findOnPath('x', '::/b/bin', has)).toBe('/b/bin/x')
+  })
+})
+
+describe('allOnPath on Windows (F041)', () => {
+  it('finds a program by its extension, never the bash script npm writes beside a .cmd', () => {
+    const files = new Set(['/a/bin/claude', '/a/bin/claude.exe', '/b/bin/npm', '/b/bin/npm.cmd'].map(f => path.join(f)))
+    const has = (f: string) => files.has(f)
+    expect(allOnPath('claude', '/a/bin', has, 'win32')).toEqual([path.join('/a/bin', 'claude.exe')])
+    expect(allOnPath('npm', ['/a/bin', '/b/bin'].join(path.delimiter), has, 'win32')).toEqual([path.join('/b/bin', 'npm.cmd')])
+    expect(allOnPath('claude', '/a/bin', has, 'darwin')).toEqual([path.join('/a/bin', 'claude')])
   })
 })
 

@@ -329,9 +329,16 @@ function checkNodeVersion(): DiagnosticCheck {
 async function checkDiskSpace(): Promise<DiagnosticCheck> {
   const targetDir = path.join(os.homedir(), '.aimaestro')
   try {
-    // argv, no shell: df's last line, 4th column is the free space in KB
-    const { stdout } = await execFileAsync('df', ['-k', targetDir], { timeout: 5000 })
-    const availableKB = parseInt(stdout.trim().split('\n').pop()?.trim().split(/\s+/)[3] ?? '', 10)
+    let availableKB: number
+    if (process.platform === 'win32') {
+      // No df on Windows (F041): Node asks the volume itself
+      const st = fs.statfsSync(fs.existsSync(targetDir) ? targetDir : os.homedir())
+      availableKB = Math.floor((st.bavail * st.bsize) / 1024)
+    } else {
+      // argv, no shell: df's last line, 4th column is the free space in KB
+      const { stdout } = await execFileAsync('df', ['-k', targetDir], { timeout: 5000 })
+      availableKB = parseInt(stdout.trim().split('\n').pop()?.trim().split(/\s+/)[3] ?? '', 10)
+    }
     if (isNaN(availableKB)) {
       return {
         name: 'disk-space',

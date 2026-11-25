@@ -18,6 +18,7 @@ import os from 'os'
 import { execFile } from 'child_process'
 import { randomUUID } from 'crypto'
 import { safeMatter } from '@/lib/safe-matter'
+import { scriptArgv } from '@/lib/git-bash.mjs'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed } from '@/services/service-errors'
 import type {
   PluginBuildConfig,
@@ -562,11 +563,9 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
   if (!existing) return
 
   try {
-    const output = await execPromise(
-      path.join(buildDir, 'build-plugin.sh'),
-      ['--clean'],
-      { cwd: buildDir, timeout: 120000 }
-    )
+    // Through Git Bash on Windows, which cannot run a .sh by itself (F041); unchanged elsewhere
+    const [buildCmd, ...buildArgs] = scriptArgv(path.join(buildDir, 'build-plugin.sh'), ['--clean'])
+    const output = await execPromise(buildCmd, buildArgs, { cwd: buildDir, timeout: 120000 })
 
     // Parse output for stats
     const outputPath = path.join(buildDir, manifest.output)

@@ -115,12 +115,13 @@ function detectGitRepo(dirPath: string): PortableRepository | null {
 
     let defaultBranch = 'main'
     try {
-      const remoteBranch = execSync('git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || echo ""', {
-        cwd: dirPath,
-        encoding: 'utf-8',
-        timeout: 5000,
-        shell: '/bin/bash'
-      }).trim()
+      // argv, no shell (there is no /bin/bash on Windows); -q: no message and exit 1 when there is no origin HEAD
+      let remoteBranch = ''
+      try {
+        remoteBranch = execFileSync('git', ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD'], {
+          cwd: dirPath, encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim()
+      } catch { /* no origin HEAD */ }
       if (remoteBranch) {
         defaultBranch = remoteBranch.replace('refs/remotes/origin/', '')
       } else {

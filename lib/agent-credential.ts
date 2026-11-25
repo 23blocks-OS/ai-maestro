@@ -12,6 +12,7 @@ import path from 'path'
 import { writeFileAtomicSync } from '@/lib/atomic-write.mjs'
 import type { AgentCredential, CredentialCheck } from '@/types/agent'
 import { describeCredential } from '@/lib/credential-words'
+import { quote } from '@/lib/pane-shell'
 
 export { describeCredential }
 
@@ -75,6 +76,26 @@ export function credentialNames(c: AgentCredential | undefined | null): string[]
 export function grantedNames(before: AgentCredential | undefined | null, after: AgentCredential | undefined | null): string[] {
   const had = new Set(credentialNames(before))
   return credentialNames(after).filter(n => !had.has(n))
+}
+
+/** The launcher of this platform: scripts/aim-launch.sh, or scripts/windows/aim-launch.mjs on native Windows (F041). */
+export function credentialLauncherPath(repo = process.cwd(), platform: NodeJS.Platform = process.platform): string {
+  return platform === 'win32' ? path.join(repo, 'scripts', 'windows', 'aim-launch.mjs') : path.join(repo, 'scripts', 'aim-launch.sh')
+}
+
+/**
+ * The PowerShell form (native Windows, F041): `& 'node.exe' 'aim-launch.mjs' <kind> '<arg>'... -- `, typed after the
+ * pane's variables so the launcher and the program inherit them. Every value is quoted; '' when there is no profile.
+ */
+export function credentialLaunchPrefixPowerShell(cred: AgentCredential | undefined | null, launcher: string, node = process.execPath): string {
+  if (!cred || cred.kind === 'host-login') return ''
+  const p = parseCredential(cred)
+  if ('error' in p || !p.credential) return ''
+  const c = p.credential
+  const args = c.kind === 'config-dir' ? [c.dir!]
+    : c.kind === 'gateway' ? [c.secret!, c.baseUrl!, ...(c.model ? [c.model] : [])]
+      : [c.secret!]
+  return `& ${quote('powershell', node)} ${quote('powershell', launcher)} ${c.kind} ${args.map(a => quote('powershell', a)).join(' ')} -- `
 }
 
 export function credentialLaunchPrefix(cred: AgentCredential | undefined | null, launcher: string): string {

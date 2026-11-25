@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import * as coreModule from '../scripts/pi/ai-maestro-amp/core.mjs'
 // The module is plain JavaScript; the tests pass fakes, so they use it untyped.
-const { buildCall, runTool, resolveScript, capOutput, MAX_TEXT, MAX_OUTPUT, TOOL_DEFS } = coreModule as any
+const { buildCall, runTool, resolveScript, capOutput, windowsBash, MAX_TEXT, MAX_OUTPUT, TOOL_DEFS } = coreModule as any
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -91,6 +91,28 @@ describe('runTool', () => {
     expect(f.calls[0].opts.timeout).toBeGreaterThan(0)
     expect(f.calls[0].opts.shell).toBeUndefined()
     expect(f.stdinWrites).toEqual(['hello'])
+  })
+
+  it('on Windows runs the script through Git Bash, still argv with the text on stdin (F041)', async () => {
+    const f = fakeExec({ out: 'sent' })
+    const r = await runTool('amp_reply', { id: 'abcd1', text: 'hola ñ ✅' }, {
+      cwd: 'C:\\agents\\x', exec: f.exec, resolve: () => 'C:\\Users\\b\\.local\\bin\\amp-reply.sh', env: {},
+      platform: 'win32', bash: () => 'C:\\Program Files\\Git\\bin\\bash.exe',
+    })
+    expect(r.ok).toBe(true)
+    expect(f.calls[0].file).toBe('C:\\Program Files\\Git\\bin\\bash.exe')
+    expect(f.calls[0].args).toEqual(['C:\\Users\\b\\.local\\bin\\amp-reply.sh', 'abcd1', '--body-stdin'])
+    expect(f.stdinWrites).toEqual(['hola ñ ✅'])
+    const none = await runTool('amp_inbox', {}, { exec: f.exec, resolve: () => 'x.sh', env: {}, platform: 'win32', bash: () => null })
+    expect(none.ok).toBe(false)
+    expect(none.text).toMatch(/Git for Windows/)
+  })
+
+  it('finds Git for Windows\' bash, never the WSL launcher in System32', () => {
+    const files = new Set(['C:\\Windows\\System32\\bash.exe', 'C:\\Program Files\\Git\\cmd\\git.exe', 'C:\\Program Files\\Git\\bin\\bash.exe'])
+    const exists = (p: string) => files.has(p)
+    expect(windowsBash({ Path: 'C:\\Windows\\System32;C:\\Program Files\\Git\\cmd' }, exists)).toBe('C:\\Program Files\\Git\\bin\\bash.exe')
+    expect(windowsBash({ AIM_BASH: 'C:\\Windows\\System32\\bash.exe' }, exists)).toBeNull()
   })
 
   it('does not run anything for bad arguments', () => {

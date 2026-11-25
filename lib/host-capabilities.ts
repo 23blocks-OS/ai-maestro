@@ -95,7 +95,7 @@ function defaultDeps(): ProbeDeps {
     localVoiceReady: () => { try { return localSpeechReady() } catch { return false } },
     // Anywhere on the server's PATH (mini-lola has it in /usr/bin and ~/.npm-global/bin), plus the usual install places
     claudeInstalled: () => [...(process.env.PATH || '').split(path.delimiter).filter(Boolean), path.join(home, '.local', 'bin'), path.join(home, '.npm-global', 'bin'), '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin']
-      .some(dir => fs.existsSync(path.join(dir, 'claude'))),
+      .some(dir => fs.existsSync(path.join(dir, 'claude')) || (process.platform === 'win32' && fs.existsSync(path.join(dir, 'claude.exe')))),
     diskFreeGB: () => { try { const st = fs.statfsSync(home); return gb(st.bavail * st.bsize) } catch { return null } },
     overrides: () => { try { return JSON.parse(fs.readFileSync(path.join(home, '.aimaestro', 'host-capabilities.json'), 'utf8')) } catch { return {} } },
     home,

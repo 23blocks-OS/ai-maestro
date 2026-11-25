@@ -313,13 +313,22 @@ class ConcurrentChange extends Error {}
  * is a link, not a regular file, or does not parse, and is written atomically
  * after checking just before the rename that nobody changed it since our read.
  */
+/**
+ * A folder as Claude Code names it in ~/.claude.json "projects". On Windows that is the path with forward
+ * slashes ("C:/Users/Bob/agents/lola"); an entry under "C:\\Users\\Bob\\agents\\lola" is never read, so the trust
+ * dialog still appeared (native Windows, F041; seen with Claude Code on Windows 11).
+ */
+export function claudeProjectKey(realPath: string, platform: NodeJS.Platform = process.platform): string {
+  return platform === 'win32' ? realPath.replace(/\\/g, '/') : realPath
+}
+
 export function trustProjectDirectory(workingDirectory?: string | null, credential?: AgentCredential | null): boolean {
   try {
     if (!workingDirectory || !path.isAbsolute(workingDirectory)) return false
     if (workingDirectory === '/' || workingDirectory === os.homedir()) return false
     if (!fs.existsSync(workingDirectory)) return false
     // Claude Code keys projects by the real path of its folder (/tmp → /private/tmp on macOS)
-    const projectKey = fs.realpathSync(workingDirectory)
+    const projectKey = claudeProjectKey(fs.realpathSync(workingDirectory))
 
     const configDir = (credential?.kind === 'config-dir' && credential.dir) || process.env.CLAUDE_CONFIG_DIR || os.homedir()
     const claudeJson = path.join(configDir, '.claude.json')
@@ -374,6 +383,7 @@ export function writeAgentDirHint(agentName: string, workingDirectory?: string |
     if (!path.isAbsolute(workingDirectory)) return
     if (workingDirectory === '/' || workingDirectory === os.homedir()) return
     if (workingDirectory.includes('/claude-501/') || workingDirectory.startsWith('/private/tmp/') || workingDirectory.startsWith('/tmp/')) return
+    if (process.platform === 'win32' && workingDirectory.toLowerCase().startsWith(os.tmpdir().toLowerCase() + path.sep)) return
     if (!fs.existsSync(workingDirectory)) return
 
     const claudeDir = path.join(workingDirectory, '.claude')

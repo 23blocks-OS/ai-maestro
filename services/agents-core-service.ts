@@ -96,9 +96,11 @@ import { agentParty, governanceCheck } from '@/lib/policy-check'
 import { policyDeniedResult, type PolicyParty } from '@/lib/policy'
 import { raisesMode } from '@/lib/freedom'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed, gone, timeout, runtimeConflict } from '@/services/service-errors'
-import { parseCredential, settingsWarnings, describeCredential, credentialCheck, forgetCredentialSeen, grantedNames } from '@/lib/agent-credential'
+import { parseCredential, settingsWarnings, describeCredential, credentialCheck, forgetCredentialSeen, grantedNames, credentialLauncherPath } from '@/lib/agent-credential'
 import { loginFor } from '@/lib/claude-login'
 import type { AgentCredential as AgentCredentialRecord } from '@/types/agent'
+import { agentEnvLine, paneShell, sequence, setEnv, unsetEnv } from '@/lib/pane-shell'
+import { runAmpInit } from '@/lib/amp-init-runner'
 
 // ---------------------------------------------------------------------------
 // Circuit breaker — half-open pattern with exponential backoff
@@ -2166,7 +2168,7 @@ async function wakeAgentStart(agentId: string, params: WakeAgentParams): Promise
       if (isNoProgram(program)) {
         // Export env vars for terminal-only mode
         try {
-          await runtime.sendKeys(sessionName, `"export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${agentId}'; unset CLAUDECODE"`, { enter: true })
+          await runtime.sendKeys(sessionName, `"${agentEnvLine(paneShell(), { AMP_DIR: ampDir, AIM_AGENT_NAME: agentName, AIM_AGENT_ID: agentId })}"`, { enter: true })
         } catch { /* non-fatal */ }
         console.log(`[Wake] Terminal only mode - no AI program started`)
       } else {
@@ -2222,7 +2224,7 @@ async function wakeAgentStart(agentId: string, params: WakeAgentParams): Promise
           launchOptions,
           resumeSessionId,
           credential: agent.credential,
-          launcher: path.join(process.cwd(), 'scripts', 'aim-launch.sh'),
+          launcher: credentialLauncherPath(),
         })
         // A settings file that would defeat the credential profile (the #65 incident): said at every wake
         credentialWarnings = settingsWarnings(workingDirectory, agent.credential)
@@ -2234,14 +2236,19 @@ async function wakeAgentStart(agentId: string, params: WakeAgentParams): Promise
 
         // Single send-keys: export env vars, unset CLAUDECODE, then launch program
         try {
+          // The line is written for the pane's shell (lib/pane-shell): POSIX, or PowerShell on native Windows (F041)
+          const shell = paneShell()
           const envExport = ampDir
-            ? `export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${agentId}'; `
+            ? setEnv(shell, { AMP_DIR: shell === 'powershell' ? ampDir.replace(/\\/g, '/') : ampDir, AIM_AGENT_NAME: agentName, AIM_AGENT_ID: agentId })
             : ''
           // B040: an agent with no keys yet woke with no AMP identity. amp-init.sh exits early when one exists.
-          const ampInit = ampDir && !fs.existsSync(path.join(ampDir, 'keys', 'private.pem'))
-            ? 'command -v amp-init.sh >/dev/null 2>&1 && amp-init.sh --auto >/dev/null 2>&1; '
+          // It is a bash script: a PowerShell pane (native Windows, F041) cannot run it, so the server runs it in Git Bash.
+          const needsIdentity = Boolean(ampDir) && !fs.existsSync(path.join(ampDir!, 'keys', 'private.pem'))
+          if (needsIdentity && shell === 'powershell') await runAmpInit({ ampDir: ampDir!, agentName, agentId, cwd: workingDirectory })
+          const ampInit = needsIdentity && shell === 'posix'
+            ? 'command -v amp-init.sh >/dev/null 2>&1 && amp-init.sh --auto >/dev/null 2>&1'
             : ''
-          await runtime.sendKeys(sessionName, `"${envExport}${ampInit}unset CLAUDECODE; ${fullCommand}"`, { enter: true })
+          await runtime.sendKeys(sessionName, `"${sequence(shell, [envExport, ampInit, unsetEnv(shell, 'CLAUDECODE'), fullCommand])}"`, { enter: true })
         } catch (error) {
           console.error(`[Wake] Failed to start program:`, error)
         }

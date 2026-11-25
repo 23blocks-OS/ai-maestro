@@ -61,6 +61,14 @@ const SHELL_FAILURE_PATTERNS: Array<{ re: RegExp; hint: string }> = [
       'or check the program is installed at all.',
   },
   {
+    // Windows (psmux, F041): PowerShell's "The term 'claude' is not recognized as the name of a cmdlet..." and
+    // cmd's "'claude' is not recognized as an internal or external command"
+    re: /is not recognized as (the name of a cmdlet|an internal or external command)/i,
+    hint:
+      'the program is not on PATH inside the session. On Windows the session runs PowerShell with the PATH ' +
+      'AI Maestro started with: install the program, or add its folder to your user PATH and restart AI Maestro.',
+  },
+  {
     re: /no such file or directory/i,
     hint: 'the path does not exist, or a wrapper script points at a missing interpreter.',
   },
@@ -98,7 +106,7 @@ export interface LaunchVerdict {
 export function findLaunchError(pane: string, startCommand: string): { line: string; hint: string } | null {
   if (!pane) return null
   const program = startCommand.trim().split(/\s+/)[0]
-  const base = program.split('/').pop() || program
+  const base = program.split(/[\\/]/).pop() || program
   const lines = pane.split('\n').slice(-25)
 
   // Pi is a Node program that needs zlib's zstd support (Node 22.15+, 23.8+, 24+). On an older Node it

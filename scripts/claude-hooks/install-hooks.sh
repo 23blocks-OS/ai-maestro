@@ -57,6 +57,9 @@ echo ""
 
 # Make hook script executable
 chmod +x "$HOOK_SCRIPT"
+# Native Windows (Git Bash, F041): settings.json is read by Windows programs (Claude Code, the AI Maestro
+# server), which cannot open /c/Users/...; C:/Users/... works for them and for bash alike
+if command -v cygpath >/dev/null 2>&1; then HOOK_SCRIPT="$(cygpath -m "$HOOK_SCRIPT")"; fi
 
 # Create state directory
 mkdir -p "$STATE_DIR"

@@ -57,6 +57,19 @@ remove_all() {
   echo "removed the ai-maestro command, the launcher and the login item"
 }
 
+# Native Windows (Git Bash, F041): the command, the Start menu entry and the scheduled task come from the
+# PowerShell form, with the same choices
+case "$OS" in
+  MINGW*|MSYS*|CYGWIN*)
+    ps_args=()
+    [ "$LOGIN" = yes ] && ps_args+=(-LoginItem)
+    [ "$LOGIN" = no ] && ps_args+=(-NoLoginItem)
+    [ "$LAUNCHER" = no ] && ps_args+=(-NoLauncher)
+    [ "$REMOVE" = yes ] && ps_args+=(-Remove)
+    [ -t 0 ] || ps_args+=(-NonInteractive)
+    exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$REPO/scripts/windows/install-launcher.ps1")" "${ps_args[@]}" ;;
+esac
+
 if [ "$REMOVE" = yes ]; then remove_all; exit 0; fi
 
 # --- the command -------------------------------------------------------------------------------------

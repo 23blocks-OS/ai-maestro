@@ -8,6 +8,8 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    // Native Windows only: HOME and bash as the tests expect them (F041)
+    setupFiles: ['tests/setup/windows.ts'],
     exclude: ['node_modules', '.next'],
   },
   resolve: {

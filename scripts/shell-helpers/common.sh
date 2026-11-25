@@ -356,14 +356,26 @@ api_query() {
     local method="$1"
     local endpoint="$2"
     shift 2
-    local extra_args=("$@")
+    # A request body (-d / --data) goes to curl on stdin, never as an argument: Git for Windows' curl reads its
+    # arguments in the ANSI code page, which turns emoji and most non-Latin text into "?" (F041).
+    local extra_args=() body="" has_body=false
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -d|--data|--data-raw|--data-binary) has_body=true; body="${2:-}"; shift; [ $# -gt 0 ] && shift ;;
+            *) extra_args+=("$1"); shift ;;
+        esac
+    done
 
     local api_base
     api_base=$(get_api_base)
     local url="${api_base}${endpoint}"
     local response
 
-    response=$(curl -s --max-time 30 -X "$method" "${extra_args[@]}" "$url" 2>/dev/null)
+    if [ "$has_body" = true ]; then
+        response=$(curl -s --max-time 30 -X "$method" ${extra_args[@]+"${extra_args[@]}"} -d @- "$url" <<<"$body" 2>/dev/null)
+    else
+        response=$(curl -s --max-time 30 -X "$method" ${extra_args[@]+"${extra_args[@]}"} "$url" 2>/dev/null)
+    fi
 
     if [ -z "$response" ]; then
         echo "Error: API request failed" >&2

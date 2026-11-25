@@ -38,6 +38,89 @@ jobs:
           touch data/.help-build-success
           yarn build
 
+  windows:
+    # Native Windows (F041): agents in psmux, PowerShell panes, the agent tools in Git Bash.
+    # The suite was written for macOS and Linux (POSIX modes, /tmp, ':' in PATH); these files cover the
+    # Windows code paths and pass there.
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: yarn
+
+      - name: psmux
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'psmux'
+          $zip = Join-Path $env:RUNNER_TEMP 'psmux.zip'
+          Invoke-WebRequest https://github.com/psmux/psmux/releases/download/v3.4.0/psmux-v3.4.0-windows-x64.zip -OutFile $zip
+          if ((Get-FileHash $zip).Hash -ne 'A66B6BE7C13C6FA0DC3660A267B9E34EAA91A4EB7F07FBD55A0468018BD0F721') { throw 'psmux checksum mismatch' }
+          Expand-Archive $zip $dir
+          Add-Content $env:GITHUB_PATH $dir
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: psmux self-check
+        run: node scripts/tmux-selfcheck.mjs
+
+      - name: Windows tests
+        run: >-
+          yarn vitest run
+          tests/tmux-selfcheck.test.ts tests/tmux-runtime.test.ts tests/tmux-exact-targets.test.ts tests/no-unsafe-tmux-kill.test.ts
+          tests/pane-shell.test.ts tests/pane-occupant.test.ts tests/git-bash.test.ts tests/launch-command.test.ts tests/program-launch.test.ts
+          tests/ai-maestro-hook.test.ts tests/aimaestro-task-cli.test.ts tests/chat-reactions.test.ts tests/windows-scripts.test.ts tests/windows-pane-child.test.ts
+
+      - name: Build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force data | Out-Null
+          New-Item -ItemType File -Force data/.help-build-success | Out-Null
+          yarn build
+
+  windows-install:
+    # install.ps1 end to end on a fresh Windows (F041): tools, dependencies, build, agent tools in Git Bash,
+    # launcher and scheduled task, psmux self-check, then the server answers and an agent's AMP identity is made.
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: install.ps1
+        shell: powershell
+        run: .\install.ps1 -Yes -NoClaude -NoLoginItem -Force -Dir $env:GITHUB_WORKSPACE
+
+      - name: The server answers, and an agent gets its messaging identity
+        shell: powershell
+        run: |
+          & "$env:USERPROFILE\.local\bin\ai-maestro.cmd" status
+          if ($LASTEXITCODE -ne 0) { Get-Content "$env:USERPROFILE\.aimaestro\logs\server.log" -Tail 80; exit 1 }
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\agents\ci1" | Out-Null
+          $body = @{ name = 'ci1'; workingDirectory = "$env:RUNNER_TEMP\agents\ci1"; program = 'powershell'; taskDescription = 'CI' } | ConvertTo-Json
+          $agent = (Invoke-RestMethod -Method POST -Uri http://127.0.0.1:23000/api/agents -ContentType application/json -Body $body).agent
+          Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:23000/api/agents/$($agent.id)/wake" -ContentType application/json -Body '{}' | Out-Null
+          Start-Sleep 5
+          tmux ls
+          $key = "$env:USERPROFILE\.agent-messaging\agents\$($agent.id)\keys\private.pem"
+          if (-not (Test-Path $key)) { Get-Content "$env:USERPROFILE\.aimaestro\logs\server.log" -Tail 80; throw "no AMP identity for the agent ($key)" }
+          & "$env:USERPROFILE\.local\bin\ai-maestro.cmd" stop
+
   lint:
     runs-on: ubuntu-latest
 

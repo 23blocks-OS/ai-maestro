@@ -36,6 +36,15 @@ describe('exact tmux targets', () => {
     expect(exactTargets(['list-sessions', '-F', '#{session_name}'])).toEqual(['list-sessions', '-F', '#{session_name}'])
   })
 
+  it('kill-session names the session alone ("=name"): psmux refuses "=name:" and tmux reads both the same', () => {
+    expect(exactTargets(['kill-session', '-t', '=lola'])).toEqual(['kill-session', '-t', '=lola'])
+    expect(exactTargets(['kill-session', '-t', 'lola'])).toEqual(['kill-session', '-t', '=lola'])
+    expect(exactTargets(['-S', '/tmp/sock', 'kill-session', '-t', 'lola'])).toEqual(['-S', '/tmp/sock', 'kill-session', '-t', '=lola'])
+    expect(exactTargets(['-L', 'x', 'kill-session', '-t', 'lola:0'])).toEqual(['-L', 'x', 'kill-session', '-t', '=lola:0'])
+    // other commands keep "=name:", which pane commands need
+    expect(exactTargets(['has-session', '-t', 'lola'])).toEqual(['has-session', '-t', '=lola:'])
+  })
+
   it('both wrappers send exact targets to tmux', async () => {
     await tmux(['send-keys', '-t', 'ai-maestro', 'C-m'])
     expect(execFile.mock.calls[0][1]).toEqual(['send-keys', '-t', '=ai-maestro:', 'C-m'])

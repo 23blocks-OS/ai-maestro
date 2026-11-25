@@ -1238,8 +1238,15 @@ async function startServer(handleRequest) {
   globalThis._originGuard = originGuard
   console.log(`[origin-guard] mode: ${originGuard.mode}`)
 
+  // Who is calling, worked out by the server for the message routes (lib/caller-identity.ts). The routes
+  // read it from a request header that is stripped from every incoming request first.
+  const callerIdentity = await import('./lib/caller-identity.ts')
+  const callerResolver = callerIdentity.createCallerResolver()
+  console.log(`[caller-identity] mode: ${callerResolver.mode()}`)
+
   const server = createServer(async (req, res) => {
     try {
+      callerIdentity.stripCallerHeader(req)
       if (!originGuard.check(req).allow) {
         res.writeHead(403, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: 'cross-origin request refused', origin: req.headers.origin || null }))
@@ -1252,6 +1259,16 @@ async function startServer(handleRequest) {
       }
       compressJson(req, res)
       const parsedUrl = parse(req.url, true)
+
+      if (callerIdentity.isProtectedPath(parsedUrl.pathname)) {
+        const resolved = await callerResolver.resolve(req)
+        if (resolved.refused) {
+          res.writeHead(resolved.refused.status, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify(resolved.refused.data))
+          return
+        }
+        callerIdentity.setCallerHeader(req, resolved.caller)
+      }
 
       // Internal endpoint for PTY debug info - served directly from server.mjs
       // This allows access to the in-memory sessions map
@@ -1288,7 +1305,8 @@ async function startServer(handleRequest) {
           if (owner) {
             const target = new URL(req.url, owner)
             // The browser's Origin was checked here; the peer gets a server-to-server call
-            const { origin: _o, 'sec-fetch-site': _s, ...rest } = req.headers
+            // The caller found here is not the peer's to trust; it works out its own
+            const { origin: _o, 'sec-fetch-site': _s, [callerIdentity.CALLER_HEADER]: _c, ...rest } = req.headers
             const headers = { ...rest, host: target.host, 'x-aim-forwarded': '1' }
             const out = httpRequest(target, { method: req.method, headers }, (up) => {
               res.writeHead(up.statusCode || 502, up.headers)

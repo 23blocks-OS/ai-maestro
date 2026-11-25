@@ -595,21 +595,32 @@ export interface PolicyCheckInput {
   error?: string
   lint: { rule: string; message: string }[]
   tests: { test: { from: string; to: string; action?: string; expect: string }; got: string; pass: boolean; reason: string }[]
+  /** AIMAESTRO_POLICY_FILE is set */
+  configured?: boolean
+  /** The file cannot be used and AIMAESTRO_POLICY_FAIL_CLOSED is on */
+  refusing?: boolean
+  /** A configured file, or its folder, that this server's user can write */
+  writable?: string[]
 }
 
 export function checkPolicyRules(p: PolicyCheckInput): DiagnosticCheck {
   const items: DiagnosticItem[] = []
   // No rules in force although a file exists: fail. The last good version still in force: warn
-  if (p.error) items.push({ key: 'policy:error', status: p.version ? 'warn' : 'fail', path: p.file, message: p.error })
+  if (p.refusing) {
+    items.push({ key: 'policy:fail-closed', status: 'fail', path: p.file, message: `AGENTS ARE REFUSED: this host's rules file cannot be used and AIMAESTRO_POLICY_FAIL_CLOSED is on, so no agent may send, call or be changed until it is fixed. ${p.error || ''}`.trim() })
+  } else if (p.error) items.push({ key: 'policy:error', status: p.version ? 'warn' : 'fail', path: p.file, message: p.error })
+  for (const w of p.writable || []) {
+    items.push({ key: `policy:writable:${w}`, status: 'warn', path: w, message: `${w} can be changed by this server's OS user, so by every agent on this host: the configured rules file protects nothing while it can. Give the file and its folder to another user (or root), readable by the server` })
+  }
   for (const l of p.lint) items.push({ key: `policy:lint:${l.rule}`, status: 'warn', message: l.message })
   for (const [i, t] of p.tests.entries()) {
     if (!t.pass) items.push({ key: `policy:test:${i + 1}`, status: 'warn', message: `Test ${i + 1} (${t.test.from} -> ${t.test.to}, ${t.test.action || 'message'}) expects ${t.test.expect}, got ${t.got}: ${t.reason}` })
   }
   const ok = !p.version
-    ? 'No policy file on this host: everyone may reach everyone'
+    ? `No policy file on this host${p.configured ? ` (${p.file})` : ''}: everyone may reach everyone`
     : `The policy file loads (version ${p.version}${p.version === 1 ? ', rules in order' : ''}, ${p.rules.length} rule(s), ${p.tests.length} test(s) pass)`
   return check('policy', 'host', items, ok, `The policy file has ${items.length} problem(s)`,
-    `Fix ${p.file}. GET /api/policy shows the rules in force, the lint warnings and the test results; decisions are logged in ~/.aimaestro/policy/decisions.jsonl.`)
+    `Fix ${p.file}${p.configured ? ' (AIMAESTRO_POLICY_FILE)' : ''}. GET /api/policy shows the rules in force, the lint warnings and the test results; decisions are logged in ~/.aimaestro/policy/decisions.jsonl.`)
 }
 
 // ---------------------------------------------------------------------------

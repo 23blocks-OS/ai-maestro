@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { broadcastToMeeting } from '@/services/meeting-broadcast-service'
 import { toResponse } from '@/app/api/_helpers'
+import { callerFromHeaders } from '@/lib/caller-identity'
 
 /**
  * POST /api/meetings/[id]/broadcast
@@ -16,5 +17,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     participantIds: body.participantIds,
     teamName: body.teamName,
     recipients: body.recipients,
+    caller: callerFromHeaders(request.headers),
   }))
 }

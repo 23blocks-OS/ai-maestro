@@ -29,6 +29,7 @@ import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
 import { agentParty, checkPolicy, holdForApproval, resolveParty } from '@/lib/policy-check'
 import { PolicyDeniedError, type PolicyParty } from '@/lib/policy'
 import type { Message } from '@/lib/messageQueue'
+import type { SenderVia } from '@/lib/caller-identity'
 
 // Re-export Message type for consumers
 export type { Message } from '@/lib/messageQueue'
@@ -155,6 +156,8 @@ export interface SendFromUIOptions {
   fromLabel?: string
   toLabel?: string
   fromVerified?: boolean
+  /** How the server established the sender (lib/caller-identity.ts), recorded in the stored message */
+  senderVia?: SenderVia
   /** Who is sending, for the policy (F042), when `from` is not an agent: a person at a device. Resolved from `from` otherwise */
   fromParty?: PolicyParty
   /** An approved quarantine entry this send delivers (F118): its one pass through the policy check */
@@ -376,6 +379,7 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<SendOutcom
         subject: message.subject,
         priority: message.priority,
         messageType: content.type,
+        ...(options.senderVia ? { senderVia: options.senderVia } : {}),
       })
       if (!result.delivered) {
         throw new Error(`Message delivery failed for ${recipientName}: ${result.error || 'unknown error'}`)

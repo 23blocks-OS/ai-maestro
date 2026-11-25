@@ -47,6 +47,7 @@ interface DeviceHost {
   capture(agent: Agent, key: string, kind: string, seconds: number): Promise<string>
   record(agent: Agent, key: string, seconds: number): Promise<Buffer>
   recordVoice?(agent: Agent, key: string, seconds: number): Promise<Buffer>
+  cancelVoice?(key: string): boolean
   canSpeak(agent: Agent, key: string): Promise<boolean>
   hubOrigin(): string | null
   homeOrigin(): string | null
@@ -217,6 +218,11 @@ export async function recordAgentDeviceVoice(agentId: string, key: string, line:
     await h.invoke(agent, key, 'display.text', { text: line }).catch(() => {})
     return { data: { wav: await (h.recordVoice ?? h.record).call(h, agent, key, seconds) }, status: 200 }
   })
+}
+
+/** Stops waiting for a board's voice sample, so its next clip reaches the agent */
+export async function cancelAgentDeviceVoice(agentId: string, key: string): Promise<ServiceResult<{ cancelled: boolean }>> {
+  return withAgent(agentId, (h) => ({ data: { cancelled: Boolean(h.cancelVoice?.(key)) }, status: 200 }))
 }
 
 export function latestAgentDeviceSnapshot(agentId: string, key: string) {

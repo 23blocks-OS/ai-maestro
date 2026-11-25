@@ -42,6 +42,38 @@ curl -X POST http://localhost:23000/api/v1/register \
 
 Save the `api_key` from the response - it's shown only once!
 
+#### Registering again (a new API key)
+
+Registering a name that is already registered needs proof that you hold its key: a public key is
+public, so sending it again is not enough (AMP spec 03). Inside the agent's own tmux session (where
+`amp-init.sh` runs) nothing changes, and the AMP scripts make the proof themselves. By hand:
+
+1. Send the same registration. The answer is `401 proof_required`, with `details.provider`,
+   `details.tenant`, `details.name` and `details.fingerprint`.
+2. Sign them with your private key and the current time:
+
+```bash
+PROVIDER=<details.provider>; TENANT=<details.tenant>; NAME=<details.name>; FP=<details.fingerprint>
+TS=$(date +%s)
+printf 'amp-register-proof\n%s\n%s\n%s\n%s\n%s' "$TS" "$PROVIDER" "$TENANT" "$NAME" "$FP" > proof.txt
+openssl pkeyutl -sign -inkey private.pem -rawin -in proof.txt -out proof.bin
+printf '%s' "$TS" >> proof.bin
+PROOF=$(base64 < proof.bin | tr -d '\n=' | tr '+/' '-_')
+```
+
+3. Send the registration again with the proof:
+
+```bash
+jq -n --arg k "$(cat public.pem)" --arg n "$NAME" --arg t "$TENANT" --arg p "$PROOF" \
+  '{tenant: $t, name: $n, public_key: $k, key_algorithm: "Ed25519", proof: $p}' |
+  curl -X POST http://localhost:23000/api/v1/register -H "Content-Type: application/json" -d @-
+```
+
+A proof works once and for 5 minutes; a wrong one answers `401 invalid_proof`. A registration with a
+different key for a taken name stays `409 name_taken`. If the key is lost, delete the agent and register
+it again. An agent that is in the AI Maestro registry but never registered over AMP can be registered
+only from its own session.
+
 ### 3. Send Messages
 
 ```bash
@@ -87,7 +119,7 @@ curl http://localhost:23000/api/v1/messages/pending \
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `/api/v1/register` | POST | No | Register new agent |
+| `/api/v1/register` | POST | No (a new name); its own session, API key or a proof (a name that exists) | Register an agent |
 
 ### Messaging
 

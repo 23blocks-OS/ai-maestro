@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server'
 import { forwardMessage } from '@/services/messages-service'
 import { toResponse } from '@/app/api/_helpers'
+import { callerFromHeaders } from '@/lib/caller-identity'
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const result = await forwardMessage(body)
+  const result = await forwardMessage(body, callerFromHeaders(request.headers))
   return toResponse(result)
 }

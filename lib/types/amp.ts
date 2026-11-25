@@ -236,6 +236,15 @@ export interface AMPRegistrationRequest {
   /** Where an assistant lives (muse, grok, or free text); `metadata.platform` works too */
   platform?: string
 
+  /**
+   * For a name that is already registered: proof of possession of its registered key (AMP spec 03,
+   * lib/amp-register-proof.ts). Needed unless the request comes from that agent's own session or API key.
+   */
+  proof?: string
+
+  /** Administrator only (this server itself here): replace the registered key and revoke its old API keys */
+  reset?: boolean
+
   /** Program name, if there is one. Nothing is assumed when it is left out. */
   program?: string
 

@@ -15,14 +15,15 @@ vi.mock('os', async (orig) => {
 })
 vi.mock('@/services/agent-devices-service', () => ({
   recordAgentDeviceVoice: vi.fn(async (...args: any[]) => { device.calls.push(args); return device.result }),
+  cancelAgentDeviceVoice: vi.fn(async (...args: any[]) => { device.calls.push(['cancel', ...args]); return { data: { cancelled: true }, status: 200 } }),
 }))
 vi.mock('@/lib/speech-local.mjs', () => ({
   voiceprintReady: () => model.ready,
   embedVoice: vi.fn(async () => ({ embedding: model.vectors.shift(), speech: model.speech })),
 }))
 
-import { recordVoiceSample, removeVoiceprint, renameVoiceprint, voiceprintStatus, updateConsentText } from '@/services/voiceprints-service'
-import { combine, loadVoiceprint, saveVoiceprint, bestMatch, identifySpeaker, DEFAULT_CONSENT, MODEL } from '@/lib/voiceprints.mjs'
+import { cancelVoiceSample, recordVoiceSample, removeVoiceprint, renameVoiceprint, voiceprintStatus, updateConsentText } from '@/services/voiceprints-service'
+import { combine, loadVoiceprint, saveVoiceprint, bestMatch, identifySpeaker, DEFAULT_CONSENT, MODEL, printsOf, listVoiceprints } from '@/lib/voiceprints.mjs'
 
 const unit = (v: number[]) => { const n = Math.hypot(...v); return v.map(x => x / n) }
 const near = (i: number) => unit([1, 0.1 * i, 0.05, 0]) // one person: four close vectors
@@ -48,6 +49,51 @@ const enroll = async () => {
 }
 
 describe('voice enrollment', () => {
+  it('keeps one print per microphone: a second microphone adds one, the same one again replaces it', async () => {
+    const run = async (extra: (i: number) => Record<string, unknown>) => {
+      model.vectors = [0, 1, 2, 3].map(near)
+      for (let i = 0; i < 4; i++) expect((await recordVoiceSample('person-a', { name: 'Alice', index: i, ...(i === 0 ? { consent: true } : {}), ...extra(i) })).status).toBe(200)
+    }
+    await run(() => ({ audio: wavOf() }))
+    await run(() => ({ agentId: 'agent-1', deviceKey: 'kiosk-1' }))
+    expect(printsOf(loadVoiceprint('person-a')).map((p: any) => p.source)).toEqual(['dashboard', 'device:kiosk-1'])
+    await run(() => ({ audio: wavOf() }))
+    expect(printsOf(loadVoiceprint('person-a')).map((p: any) => p.source)).toEqual(['device:kiosk-1', 'dashboard'])
+    expect(listVoiceprints()[0].microphones).toEqual(['device:kiosk-1', 'dashboard'])
+  })
+
+  const wavOf = (rate = 16000, channels = 1) => {
+    const pcm = Buffer.alloc(rate * 2), h = Buffer.alloc(44)
+    h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVEfmt ', 8); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20)
+    h.writeUInt16LE(channels, 22); h.writeUInt32LE(rate, 24); h.writeUInt32LE(rate * 2 * channels, 28); h.writeUInt16LE(2 * channels, 32)
+    h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(pcm.length, 40)
+    return Buffer.concat([h, pcm]).toString('base64')
+  }
+  const dash = (index: number, extra: Record<string, unknown> = {}) => ({ name: 'Alice', audio: wavOf(), index, ...extra })
+
+  it('enrolls from the dashboard microphone without any device', async () => {
+    for (let i = 0; i < 4; i++) expect((await recordVoiceSample('person-a', dash(i, i === 0 ? { consent: true } : {}))).status).toBe(200)
+    expect(device.calls).toEqual([])
+    expect(loadVoiceprint('person-a')).toMatchObject({ device: { dashboard: true } })
+  })
+
+  it('refuses a dashboard recording that is not 16 kHz mono 16-bit, and a switch of source mid-way', async () => {
+    expect((await recordVoiceSample('person-a', { ...dash(0, { consent: true }), audio: wavOf(48000) })).status).toBe(400)
+    expect((await recordVoiceSample('person-a', { ...dash(0, { consent: true }), audio: 'bm90IGEgd2F2' })).status).toBe(400)
+    await recordVoiceSample('person-a', dash(0, { consent: true }))
+    expect((await recordVoiceSample('person-a', body(1))).status).toBe(409)
+  })
+
+  it('cancel forgets the enrollment and frees the device it waits on', async () => {
+    await recordVoiceSample('person-a', body(0, { consent: true }))
+    expect((await cancelVoiceSample('person-a')).data).toEqual({ cancelled: true })
+    expect(device.calls.at(-1)).toEqual(['cancel', 'agent-1', 'kiosk-1'])
+    // the next sentence has no enrollment to join: start again
+    expect((await recordVoiceSample('person-a', body(1))).status).toBe(409)
+    // nothing pending: nothing to free
+    expect((await cancelVoiceSample('person-a')).data).toEqual({ cancelled: false })
+  })
+
   it('records nothing before consent', async () => {
     const r = await recordVoiceSample('person-a', body(0))
     expect(r.status).toBe(400)
@@ -166,5 +212,27 @@ describe('voice matching', () => {
     expect(await identifySpeaker(audio, { ready: () => true, embed })).toBeNull()
     embed.mockRejectedValueOnce(new Error('bad wav'))
     expect(await identifySpeaker(audio, { ready: () => true, embed })).toBeNull()
+  })
+})
+
+describe('voiceprints: one per microphone', () => {
+  const rec = (personId: string, prints: number[][]) => ({ personId, name: personId, embedding: prints[0], prints: prints.map((e, i) => ({ source: `m${i}`, embedding: e })) })
+
+  it('a person scores as their closest microphone', () => {
+    const laptop = unit([1, 0, 0, 0]), board = unit([0, 1, 0, 0])
+    const heard = unit([0.1, 1, 0, 0])
+    expect(bestMatch(heard, [rec('alice', [laptop])])).toBeNull()
+    expect(bestMatch(heard, [rec('alice', [laptop, board])])).toMatchObject({ id: 'alice' })
+  })
+
+  it('"too close to tell" compares people, never one person\'s own prints', () => {
+    const a = unit([0, 1, 0, 0]), b = unit([0, 1, 0.02, 0])
+    expect(bestMatch(unit([0, 1, 0.01, 0]), [rec('alice', [a, b])])).toMatchObject({ id: 'alice' })
+    expect(bestMatch(unit([0, 1, 0.01, 0]), [rec('alice', [a]), rec('bob', [b])])).toBeNull()
+  })
+
+  it('reads a file from before prints as one print', () => {
+    expect(printsOf({ embedding: [1, 0], device: { deviceKey: 'k' } })).toEqual([{ source: 'device:k', embedding: [1, 0], enrolledAt: undefined }])
+    expect(printsOf({ embedding: [1, 0], device: { dashboard: true } })[0].source).toBe('dashboard')
   })
 })

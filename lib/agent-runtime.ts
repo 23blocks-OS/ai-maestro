@@ -134,8 +134,10 @@ export class TmuxRuntime implements AgentRuntime {
     // 36 sessions ≈ 1.8 s, which was most of GET /api/agents; under load it
     // passed the dashboard's 8 s timeout and the agent list reset (2026-09-23).
     try {
-      const { stdout } = await tmux(['list-sessions', '-F', '#{session_name}\t#{session_windows}\t#{session_created}\t#{pane_current_path}'])
-      const rows = stdout.split('\n').filter(Boolean).map(line => line.split('\t'))
+      // ':' not a tab: without a UTF-8 locale (pm2) tmux prints a tab as "_" and this always fell back to the slow
+      // path. A session name never holds ':'; the path is last, so it keeps any ':' of its own
+      const { stdout } = await tmux(['list-sessions', '-F', '#{session_name}:#{session_windows}:#{session_created}:#{pane_current_path}'])
+      const rows = stdout.split('\n').filter(Boolean).map(line => { const f = line.split(':'); return [...f.slice(0, 3), f.slice(3).join(':')] })
       if (rows.length > 0 && rows.every(r => r.length === 4 && /^\d+$/.test(r[1]) && /^\d+$/.test(r[2]))) {
         return rows.map(([name, windows, created, cwd]) => ({
           name,

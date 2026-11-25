@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { listMessages, sendMessage } from '@/services/agents-messaging-service'
 import { toResponse } from '@/app/api/_helpers'
+import { callerFromHeaders } from '@/lib/caller-identity'
 
 /**
  * GET /api/agents/[id]/messages
@@ -19,7 +20,7 @@ export async function GET(
     priority: searchParams.get('priority') as any,
     from: searchParams.get('from') || undefined,
     to: searchParams.get('to') || undefined,
-  })
+  }, callerFromHeaders(request.headers))
 
   return toResponse(result)
 }
@@ -35,6 +36,6 @@ export async function POST(
   const { id } = await params
   const body = await request.json()
 
-  const result = await sendMessage(id, body)
+  const result = await sendMessage(id, body, callerFromHeaders(request.headers))
   return toResponse(result)
 }

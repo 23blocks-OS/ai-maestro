@@ -10,6 +10,7 @@
 import { NextRequest } from 'next/server'
 import { routeMessage } from '@/services/amp-service'
 import { toResponse } from '@/app/api/_helpers'
+import { callerFromHeaders } from '@/lib/caller-identity'
 import type { AMPRouteRequest } from '@/lib/types/amp'
 
 export async function POST(request: NextRequest) {
@@ -21,6 +22,6 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json() as AMPRouteRequest
 
-  const result = await routeMessage(body, authHeader, forwardedFrom, envelopeIdHeader, signatureHeader, contentLength)
+  const result = await routeMessage(body, authHeader, forwardedFrom, envelopeIdHeader, signatureHeader, contentLength, callerFromHeaders(request.headers))
   return toResponse(result)
 }

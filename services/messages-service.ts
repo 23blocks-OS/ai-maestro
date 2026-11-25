@@ -48,6 +48,10 @@ import {
 } from '@/lib/meeting-registry'
 import type { SidebarMode } from '@/types/team'
 import { type ServiceResult, missingField, notFound, invalidRequest, operationFailed } from '@/services/service-errors'
+import { type Caller, checkMailbox, checkNotAgent, checkSender, refusal, sameAgent, senderViaOf } from '@/lib/caller-identity'
+
+/** A mailbox or sender name -> the local agent's id, for the caller checks */
+const agentIdOf = (identifier: string) => resolveAgentIdentifier(identifier)?.agentId ?? null
 
 // ---------------------------------------------------------------------------
 // Messages: GET /api/messages
@@ -65,13 +69,13 @@ export interface GetMessagesParams {
   to?: string | null
 }
 
-export async function getMessages(params: GetMessagesParams): Promise<ServiceResult<any>> {
+export async function getMessages(params: GetMessagesParams, caller?: Caller): Promise<ServiceResult<any>> {
   const {
-    agent: agentIdentifier,
     id: messageId,
     action,
     box = 'inbox',
   } = params
+  let agentIdentifier = params.agent
 
   // Resolve agent info (exact match)
   if (action === 'resolve' && agentIdentifier) {
@@ -106,6 +110,16 @@ export async function getMessages(params: GetMessagesParams): Promise<ServiceRes
       },
       status: 200,
     }
+  }
+
+  // Everything below reads a mailbox: an agent reads its own (the default when it names none)
+  if (action === 'agents' || action === 'sessions') {
+    const refused = checkNotAgent(caller)
+    if (refused) return refused
+  } else {
+    if (!agentIdentifier && caller?.kind === 'agent') agentIdentifier = caller.agentId
+    const refused = checkMailbox(caller, agentIdentifier, agentIdOf)
+    if (refused) return refused
   }
 
   // Get specific message
@@ -193,8 +207,14 @@ export interface SendMessageParams {
   toLabel?: string
 }
 
-export async function sendMessage(params: SendMessageParams): Promise<ServiceResult<any>> {
-  const { from, to, subject, content } = params
+export async function sendMessage(params: SendMessageParams, caller?: Caller): Promise<ServiceResult<any>> {
+  const { to, subject, content } = params
+
+  // The sender is the caller when the server knows it, never only what the body says
+  const sender = checkSender(caller, params.from, agentIdOf)
+  if (sender.refused) return sender.refused
+  const from = sender.from as string
+  const asAgent = caller?.kind === 'agent'
 
   // Validate required fields
   if (!from || !to || !subject || !content) {
@@ -214,12 +234,15 @@ export async function sendMessage(params: SendMessageParams): Promise<ServiceRes
       content,
       priority: params.priority,
       inReplyTo: params.inReplyTo,
-      fromHost: params.fromHost,
+      // An agent's name, host and label come from the registry: the alias becomes the AMP address
+      fromHost: asAgent ? undefined : params.fromHost,
       toHost: params.toHost,
-      fromAlias: params.fromAlias,
+      fromAlias: asAgent ? undefined : params.fromAlias,
       toAlias: params.toAlias,
-      fromLabel: params.fromLabel,
+      fromLabel: asAgent ? undefined : params.fromLabel,
       toLabel: params.toLabel,
+      ...(asAgent ? { fromVerified: true } : {}),
+      ...(senderViaOf(caller) ? { senderVia: senderViaOf(caller) } : {}),
     })
 
     return {
@@ -251,7 +274,11 @@ export async function updateMessage(
   agentIdentifier: string | null,
   messageId: string | null,
   action: string | null,
+  caller?: Caller,
 ): Promise<ServiceResult<{ success: boolean }>> {
+  if (!agentIdentifier && caller?.kind === 'agent') agentIdentifier = caller.agentId!
+  const refused = checkMailbox(caller, agentIdentifier, agentIdOf)
+  if (refused) return refused as ServiceResult<{ success: boolean }>
   if (!agentIdentifier || !messageId) {
     return invalidRequest('Agent identifier and message ID required')
   }
@@ -288,7 +315,11 @@ export async function updateMessage(
 export async function removeMessage(
   agentIdentifier: string | null,
   messageId: string | null,
+  caller?: Caller,
 ): Promise<ServiceResult<{ success: boolean }>> {
+  if (!agentIdentifier && caller?.kind === 'agent') agentIdentifier = caller.agentId!
+  const refused = checkMailbox(caller, agentIdentifier, agentIdOf)
+  if (refused) return refused as ServiceResult<{ success: boolean }>
   if (!agentIdentifier || !messageId) {
     return invalidRequest('Agent identifier and message ID required')
   }
@@ -319,8 +350,16 @@ export interface ForwardMessageParams {
   forwardNote?: string
 }
 
-export async function forwardMessage(params: ForwardMessageParams): Promise<ServiceResult<any>> {
-  const { messageId, originalMessage, fromSession, toSession, forwardNote } = params
+export async function forwardMessage(params: ForwardMessageParams, caller?: Caller): Promise<ServiceResult<any>> {
+  const { messageId, originalMessage, toSession, forwardNote } = params
+
+  // The forwarder is the caller; an agent forwards a message of its own mailbox, by id
+  const sender = checkSender(caller, params.fromSession, agentIdOf)
+  if (sender.refused) return sender.refused
+  const fromSession = sender.from as string
+  if (caller?.kind === 'agent' && originalMessage) {
+    return refusal(403, 'not_your_mailbox', 'An agent forwards a message from its own mailbox: send its messageId, not the message', caller.name || caller.agentId)
+  }
 
   // Validate required fields
   if ((!messageId && !originalMessage) || !fromSession || !toSession) {
@@ -374,8 +413,10 @@ export interface GetMeetingMessagesParams {
 
 export async function getMeetingMessages(
   params: GetMeetingMessagesParams,
+  caller?: Caller,
 ): Promise<ServiceResult<{ meetingId: string; messages: MessageSummary[]; count: number; unreachable?: string[] }>> {
   const { meetingId, participants: participantsParam, since } = params
+  type Result = ServiceResult<{ meetingId: string; messages: MessageSummary[]; count: number; unreachable?: string[] }>
 
   if (!meetingId) {
     return missingField('meetingId')
@@ -384,16 +425,24 @@ export async function getMeetingMessages(
     return missingField('participants')
   }
 
-  const participantIds = participantsParam.split(',').filter(Boolean)
+  let participantIds = participantsParam.split(',').filter(Boolean)
+  const asAgent = caller?.kind === 'agent' && caller.mode !== 'off'
+  if (asAgent) {
+    // An agent reads the meeting from its own mailbox only: what was sent to it and what it sent
+    if (!participantIds.some(p => sameAgent(caller!, p, agentIdOf))) {
+      return checkMailbox(caller, null, agentIdOf) as Result
+    }
+    participantIds = [caller!.agentId!]
+  }
 
   // Participants this host does not hold live on a peer: ask the owning host for their side of the
   // conversation, and say so when one cannot be reached (an empty list would look like silence).
-  const remoteIds = params.local ? [] : participantIds.filter(id => !getLocalAgent(id))
+  const remoteIds = params.local || asAgent ? [] : participantIds.filter(id => !getLocalAgent(id))
   const localIds = participantIds.filter(id => !remoteIds.includes(id))
   const remote = await fetchRemoteMeetingMessages(meetingId, remoteIds, since)
 
   // Include 'maestro' as a pseudo-participant
-  const allParticipants = [...new Set([...localIds, 'maestro'])]
+  const allParticipants = asAgent ? localIds : [...new Set([...localIds, 'maestro'])]
 
   const seenIds = new Set<string>()
   const meetingMessages: MessageSummary[] = []

@@ -1,0 +1,5 @@
+# Shell scripts keep LF line endings in every checkout (F041). Git for Windows converts text files to CRLF by
+# default (core.autocrlf=true), and bash cannot run a script with CRLF line endings ($'\r': command not found).
+*.sh text eol=lf
+*.bash text eol=lf
+docs/install text eol=lf

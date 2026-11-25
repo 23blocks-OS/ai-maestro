@@ -1,6 +1,6 @@
 # F045 - A tmux self-check: run our exact tmux calls against any tmux binary and name what fails
 
-**Status:** Todo (the probe F041 needs; useful on every platform)
+**Status:** In Progress (shipped with the F041 pull request: `lib/tmux-selfcheck.mjs`, `scripts/tmux-selfcheck.mjs`; run by `install.ps1` and the Windows CI job)
 **Type:** Feature / tooling
 **Created:** 2026-10-27
 **Source:** `CamiloCaceres/lolad`, `lolad doctor` and `internal/tmux/conformance_test.go` (read 2026-10-27; not run).

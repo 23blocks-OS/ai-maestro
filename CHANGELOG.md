@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- AI Maestro runs on Windows without WSL (F041): agents in psmux, the native Windows tmux, with Windows PowerShell panes; the agent tools run in Git Bash. One line installs it: `irm https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/install.ps1 | iex` (no administrator rights; installs Git, Node.js 24, Yarn, psmux and jq when missing, checked by SHA-256). It adds the `ai-maestro` command (open, start, stop, restart, status, logs, update), a Start menu entry and a login task. Secrets use Windows DPAPI. WSL2 installs are unchanged. Guide: docs/WINDOWS-NATIVE.md. Ported from lolad's native Windows support.
+- `node scripts/tmux-selfcheck.mjs` (F045) runs AI Maestro's tmux calls against any tmux binary (`--bin psmux`) in a private server and names each operation that fails.
+
+### Fixed
+- Agent scripts send request bodies to curl on stdin, so accents and emoji survive Git for Windows' curl; `list-agents`, `export-agent` and `import-agent` use jq instead of python3. Plugin: 23blocks-OS/ai-maestro-plugins (companion PR).
+
 ## [0.106.284] - 2026-11-24 - A registered name cannot be taken over
 
 ### Security

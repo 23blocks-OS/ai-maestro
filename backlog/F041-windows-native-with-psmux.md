@@ -1,6 +1,6 @@
 # F041 - Windows without WSL: can psmux stand in for tmux?
 
-**Status:** Todo (research from documentation and from lolad's repo; nothing run on Windows by us)
+**Status:** In Progress (implemented and verified on Windows 11; pull request open, see Result below)
 **Type:** Feature / platform support
 **Created:** 2026-10-27
 **Requested by:** a user comment on GitHub: "I used psmux and that way I can run native in windows without using WSL." Juan asked whether it is real and what it would take.
@@ -78,6 +78,25 @@ Cautions from their repo: a test binary that did not call their helper once star
 - Whether Windows native is a goal, or WSL2 stays the supported path and psmux is documented as "works for some users".
 - Who has a Windows machine to run the probe.
 
-## Not done
+## Result (2026-11-25): it works, implemented
 
-No code changes. No claim in the README until a real run exists.
+Implemented in the F041 pull request (branch `feature/f041-native-windows`), ported from lolad's native Windows support. Agents run in psmux 3.4.0, panes run Windows PowerShell, and the agent tools (the `.sh` scripts) run in Git Bash. WSL2 installs are unchanged. Guide: [docs/WINDOWS-NATIVE.md](../docs/WINDOWS-NATIVE.md).
+
+**Verified** on Windows 11 (Spanish locale), clean install with `install.ps1` under a fresh local user, psmux 3.4.0, Node 24, Git for Windows 2.56, Claude Code 2.1.33x:
+- install, `ai-maestro update`, 24/24 diagnostics, the F045 self-check;
+- agents wake with their AMP identity; Claude Code runs in the pane; the hook is installed and fires;
+- signed messages between two Claude Code agents, read and answered with their own Bash tool, over the registered route and over local delivery, Spanish text and emoji intact;
+- tasks, the help assistant, hibernate and wake, server restart keeping the sessions, the browser terminal, credential profiles (DPAPI vault);
+- the Mac test suite: 4570 passing, one pre-existing failure (`f039-launcher`, fails on `main` too).
+
+**Windows-only problems found by running it** (each fixed in the PR):
+- psmux reports the newest process in a pane as `pane_current_command`, not the foreground job: while Claude Code ran a Bash tool call the pane read `bash`, and crash restart (F044) restarted a working agent. Now the child of the pane's shell is looked up (`lib/windows-pane-child.ts`).
+- Git for Windows' curl converts its arguments to the ANSI code page: accents and emoji in request bodies were mangled. Bodies now go on stdin.
+- Git Bash rewrites arguments that start with `/` into Windows paths before running a Windows program: a signature starting with `/` reached jq changed, and about one message in 64 was refused as forged. The jq wrapper turns that off.
+- jq.exe writes CRLF; OpenSSL 1.1.1 (Git for Windows before 2023) cannot sign Ed25519 and messages went out unsigned without a word; npm's `.ps1` shims are blocked by PowerShell's default execution policy; Claude Code's project folder names replace every non-alphanumeric character.
+
+**Believed, not verified:** arm64 (the pinned binaries exist; no arm64 machine was used); Windows 10 1809 (only Windows 11 and the `windows-latest` runner in CI were run); PowerShell 7 as the pane shell.
+
+**CI:** the `windows` and `windows-install` jobs pass on GitHub Actions (`windows-latest`). Running them found one more Windows-only problem: a build from another drive than the home folder globbed the whole home folder (Next's tracer; fixed in `next.config.js`).
+
+**Not covered:** Docker agents and the cloud/remote paths on Windows hosts.

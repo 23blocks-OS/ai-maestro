@@ -16,6 +16,8 @@ import { execFileSync as nodeExecFileSync } from 'child_process'
 import { tmux, assertSessionName, assertPaneTarget, splitKeySpec } from '@/lib/tmux-safe.mjs'
 // The operations server.mjs also needs live in plain ESM so both share them.
 import * as tmuxRt from '@/lib/tmux-runtime.mjs'
+import { paneShellArgv } from '@/lib/pane-shell'
+import { paneOccupant } from '@/lib/windows-pane-child'
 
 
 // ---------------------------------------------------------------------------
@@ -275,10 +277,13 @@ export class TmuxRuntime implements AgentRuntime {
       'session_created=#{session_created}',
       // Last keystroke or output (crash restart never interrupts a person using the shell)
       'activity=#{session_activity}',
+      // The pane's own shell process: on Windows, psmux names the newest process in the pane, not the
+      // foreground job, so the shell's child is looked up (lib/windows-pane-child)
+      'pid=#{pane_pid}',
     ].join(' ')
     try {
       const { stdout } = await tmux(['display-message', '-t', assertPaneTarget(name), '-p', FORMAT])
-      return Object.fromEntries(
+      const info: Record<string, string> = Object.fromEntries(
         stdout
           .trim()
           .split(' ')
@@ -287,6 +292,9 @@ export class TmuxRuntime implements AgentRuntime {
             return at === -1 ? [pair, ''] : [pair.slice(0, at), pair.slice(at + 1)]
           })
       )
+      const command = await paneOccupant(info)
+      if (command !== undefined) info.command = command
+      return info
     } catch {
       return {}
     }
@@ -319,7 +327,9 @@ export class TmuxRuntime implements AgentRuntime {
     // Unset TMUX so tmux doesn't try to use a stale parent socket
     const env = { ...process.env, TMUX: undefined }
     try {
-      await tmux(['new-session', '-d', '-s', assertSessionName(name), '-c', cwd], { env })
+      // On native Windows the pane runs PowerShell, the shell lib/pane-shell writes for (F041); elsewhere the user's shell
+      const shellArgv = paneShellArgv()
+      await tmux(['new-session', '-d', '-s', assertSessionName(name), '-c', cwd, ...(shellArgv.length ? ['--', ...shellArgv] : [])], { env })
     } finally {
       this.forgetListing()
     }
@@ -351,8 +361,8 @@ export class TmuxRuntime implements AgentRuntime {
     const { literal = false, enter = false } = opts
 
     if (literal) {
-      // No escaping: -l takes the text as one argv entry, verbatim.
-      await tmux(['send-keys', '-t', assertPaneTarget(name), '-l', keys])
+      // No escaping: -l takes the text as one argv entry, verbatim (hex when it ends in ";", see argv.sendLiteral).
+      await tmux(tmuxRt.argv.sendLiteral(name, keys))
       if (enter) {
         // Send Enter separately with a delay so TUIs (Claude Code, Codex)
         // process the literal text before receiving the submit. Without this,

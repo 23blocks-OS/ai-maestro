@@ -59,11 +59,11 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F038** — [GitHub Copilot CLI: from "runs in the terminal" to real support](./backlog/F038-github-copilot-cli-support.md) — `In Progress` (launch 0.68.1; trust-question card, status, chat reader open; issue #572)
 - **F039** — [A way back in: an `ai-maestro` command, a desktop launcher and a PWA](./backlog/F039-desktop-launcher-and-pwa.md) — `Done` (0.77.0)
 - **F040** — [Waking and creating agents: launch options declared per tool, one-click wake](./backlog/F040-wake-and-create-ux-launch-options.md) — `In Progress` (step 1 shipped in 0.69.0; steps 2 to 4 open)
-- **F041** — [Windows without WSL: can psmux stand in for tmux?](./backlog/F041-windows-native-with-psmux.md) — `Todo` (documentation research only; probe script next)
+- **F041** — [Windows without WSL: can psmux stand in for tmux?](./backlog/F041-windows-native-with-psmux.md) — `In Progress` (implemented: install.ps1, psmux panes in PowerShell, scripts in Git Bash; verified on Windows 11; PR open)
 - **F042** — [Who may message whom: a policy on every send, with a reason on every denial](./backlog/F042-send-path-policy-with-reasons.md) — `In Progress` (phase 1 in 0.106.222: rules file, check on every send path, why API; phases 2a and 2b in 0.106.229: version 2 rules, decision log, audit mode, lint, tests in the file; next: tell agents whom they may reach)
 - **F043** — [Pairing with another person's AI Maestro: invite codes, held senders, visible delivery state](./backlog/F043-federation-between-people.md) — `Todo` (idea from lolad; builds on F035)
 - **F044** — [Agent lifecycle and isolation: ideas from lolad to check against what we have](./backlog/F044-agent-lifecycle-and-isolation-ideas.md) — `Todo` (checklist)
-- **F045** — [A tmux self-check: run our exact tmux calls against any tmux binary](./backlog/F045-tmux-self-check-and-conformance-suite.md) — `Todo` (the F041 probe)
+- **F045** — [A tmux self-check: run our exact tmux calls against any tmux binary](./backlog/F045-tmux-self-check-and-conformance-suite.md) — `In Progress` (shipped with the F041 PR: `node scripts/tmux-selfcheck.mjs`)
 - **F046** — [Plugin build: lock the upstream commits and show what changed](./backlog/F046-plugin-build-lock-file-and-upstream-diff.md) — `Todo`
 - **F047** — [Dependency hygiene: Node end of life, scheduled audit, npm supply chain](./backlog/F047-node-eol-and-dependency-hygiene.md) — `Todo`
 - **F048** — [A security status view per host](./backlog/F048-host-security-status-view.md) — `Todo`

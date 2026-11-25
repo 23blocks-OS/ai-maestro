@@ -10,8 +10,9 @@ import type { ProgramKind } from '@/lib/program-names'
 import { sanitizeLaunchOptions, launchOptionArgs, grokPermissionFlags, copilotPermissionFlags, codexPermissionFlags } from '@/lib/launch-options'
 import { claudeSessionNameFlag } from '@/lib/claude-session-name'
 import { claudeTelemetryEnvPrefix } from '@/lib/claude-telemetry'
-import { credentialLaunchPrefix } from '@/lib/agent-credential'
+import { credentialLaunchPrefix, credentialLaunchPrefixPowerShell } from '@/lib/agent-credential'
 import type { AgentCredential } from '@/types/agent'
+import { commandWords, envPrefix, paneShell, type PaneShell } from '@/lib/pane-shell'
 
 /** Arguments typed by a person (the agent's "extra arguments"): only characters that cannot end a shell word. */
 export function sanitizeProgramArgs(args: string): string {
@@ -36,10 +37,13 @@ export interface LaunchCommandInput {
   credential?: AgentCredential | null
   launcher?: string
   env?: NodeJS.ProcessEnv
+  /** The pane's shell (lib/pane-shell); PowerShell on native Windows. Defaults to this platform's. */
+  shell?: PaneShell
 }
 
 export function buildLaunchCommand(input: LaunchCommandInput): string {
   const env = input.env ?? process.env
+  const shell = input.shell ?? paneShell()
   const kind = input.kind
   let full = input.command
 
@@ -92,15 +96,30 @@ export function buildLaunchCommand(input: LaunchCommandInput): string {
 
     // Channels: reliable idle-agent wake via MCP turn-injection. Off until AIMAESTRO_CHANNEL_FLAG is set.
     if (env.AIMAESTRO_CHANNEL_FLAG) full = `${full} ${env.AIMAESTRO_CHANNEL_FLAG}`
+  }
 
+  // The words so far are written for POSIX; PowerShell needs some of them quoted (F041)
+  full = commandWords(shell, full)
+
+  if (kind === 'claude') {
     // Inline renderer so terminal SCROLLBACK works (the fullscreen renderer keeps no tmux history).
-    if (env.AIMAESTRO_KEEP_ALT_SCREEN !== 'true') full = `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 ${full}`
+    let prefix = ''
+    if (env.AIMAESTRO_KEEP_ALT_SCREEN !== 'true') {
+      prefix = shell === 'powershell' ? envPrefix(shell, { CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN: '1' }) : 'CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 '
+    }
 
     // Opt-in OTLP telemetry env prefix (off by default).
-    full = `${claudeTelemetryEnvPrefix('claude')}${full}`
+    prefix = `${claudeTelemetryEnvPrefix('claude', shell)}${prefix}`
 
-    // The credential profile goes outermost: the launcher reads the secret from the vault and runs all of the above
-    if (input.launcher) full = `${credentialLaunchPrefix(input.credential, input.launcher)}${full}`
+    if (shell === 'powershell') {
+      // PowerShell (native Windows, F041): the variables are set first, then scripts/windows/aim-launch.mjs reads the
+      // secret from the vault and runs the program with all of them
+      full = `${prefix}${input.launcher ? credentialLaunchPrefixPowerShell(input.credential, input.launcher) : ''}${full}`
+    } else {
+      full = `${prefix}${full}`
+      // The credential profile goes outermost: the launcher reads the secret from the vault and runs all of the above
+      if (input.launcher) full = `${credentialLaunchPrefix(input.credential, input.launcher)}${full}`
+    }
   }
 
   return full

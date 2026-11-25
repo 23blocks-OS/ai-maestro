@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { parseCredential, credentialLaunchPrefix, settingsWarnings, describeCredential, credentialCheck, recordCredentialSeen, forgetCredentialSeen } from '@/lib/agent-credential'
+import { parseCredential, credentialLaunchPrefix, credentialLaunchPrefixPowerShell, credentialLauncherPath, settingsWarnings, describeCredential, credentialCheck, recordCredentialSeen, forgetCredentialSeen } from '@/lib/agent-credential'
 import { buildLaunchCommand } from '@/lib/launch-command'
 
 describe('credential profiles (#65)', () => {
@@ -26,10 +26,25 @@ describe('credential profiles (#65)', () => {
     expect(credentialLaunchPrefix({ kind: 'config-dir', dir: '/Users/a/.claude-b' }, L)).toBe(`${L} config-dir /Users/a/.claude-b -- `)
     expect(credentialLaunchPrefix(null, L)).toBe('')
     expect(credentialLaunchPrefix({ kind: 'oauth-token', secret: 'bad;name' } as any, L)).toBe('')
-    const cmd = buildLaunchCommand({ command: 'claude', kind: 'claude', agentName: 'ada', credential: { kind: 'oauth-token', secret: 'TOK' }, launcher: L, env: {} as any })
+    const cmd = buildLaunchCommand({ command: 'claude', kind: 'claude', agentName: 'ada', credential: { kind: 'oauth-token', secret: 'TOK' }, launcher: L, env: {} as any, shell: 'posix' })
     expect(cmd.startsWith(`${L} oauth-token TOK -- `)).toBe(true)
     expect(cmd).toContain('CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 claude')
-    expect(buildLaunchCommand({ command: 'codex', kind: 'codex', agentName: 'ada', credential: { kind: 'oauth-token', secret: 'TOK' }, launcher: L, env: {} as any })).not.toContain('aim-launch')
+    expect(buildLaunchCommand({ command: 'codex', kind: 'codex', agentName: 'ada', credential: { kind: 'oauth-token', secret: 'TOK' }, launcher: L, env: {} as any, shell: 'posix' })).not.toContain('aim-launch')
+  })
+
+  it('on Windows sets the variables first, then runs the Node launcher with every value quoted (F041)', () => {
+    const L = 'C:\\ai maestro\\scripts\\windows\\aim-launch.mjs'
+    const node = 'C:\\Program Files\\nodejs\\node.exe'
+    expect(credentialLauncherPath('C:\\r', 'win32')).toBe(path.join('C:\\r', 'scripts', 'windows', 'aim-launch.mjs'))
+    expect(credentialLauncherPath('/r', 'darwin')).toBe(path.join('/r', 'scripts', 'aim-launch.sh'))
+    expect(credentialLaunchPrefixPowerShell({ kind: 'oauth-token', secret: 'TOK' }, L, node))
+      .toBe("& 'C:\\Program Files\\nodejs\\node.exe' 'C:\\ai maestro\\scripts\\windows\\aim-launch.mjs' oauth-token 'TOK' -- ")
+    expect(credentialLaunchPrefixPowerShell({ kind: 'gateway', secret: 'K', baseUrl: 'https://g.example.com', model: 'v/m' }, L, node))
+      .toContain("gateway 'K' 'https://g.example.com' 'v/m' -- ")
+    expect(credentialLaunchPrefixPowerShell({ kind: 'host-login' }, L, node)).toBe('')
+    const cmd = buildLaunchCommand({ command: 'claude', kind: 'claude', agentName: 'ada', credential: { kind: 'oauth-token', secret: 'TOK' }, launcher: L, env: {} as any, shell: 'powershell' })
+    expect(cmd.startsWith("$env:CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN='1'; & ")).toBe(true)
+    expect(cmd.endsWith("oauth-token 'TOK' -- claude")).toBe(true)
   })
 
   it('warns about settings that Claude Code ignores, or that would win over the profile, by name only', () => {

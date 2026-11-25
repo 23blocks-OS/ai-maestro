@@ -65,7 +65,7 @@ BODY="Automated wake test. No reply needed. ref=$SUBJECT"
 # --- 2. send through the real delivery path --------------------------------
 RESP=$(curl -s -m 30 -X POST "$BASE/api/messages" \
   -H 'Content-Type: application/json' \
-  -d "$(jq -nc --arg to "$TARGET" --arg s "$SUBJECT" --arg b "$BODY" \
+  -d @- <<<"$(jq -nc --arg to "$TARGET" --arg s "$SUBJECT" --arg b "$BODY" \
         '{from:"wake-test", to:$to, subject:$s,
           content:{type:"notification", message:$b}}')")
 

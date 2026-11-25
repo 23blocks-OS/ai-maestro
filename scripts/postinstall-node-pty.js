@@ -24,7 +24,9 @@ if (!fs.existsSync(path.join(root, 'node_modules', 'node-pty'))) {
 }
 
 // In a child process: a failed native load in this one would stick
-const SMOKE = "const p=require('node-pty').spawn('echo',['ok'],{name:'xterm',cols:80,rows:24,cwd:process.env.HOME||'/tmp',env:process.env});p.kill()"
+// Spawns Node itself: `echo` is a cmd builtin on Windows, not a program, so the old smoke test failed there on a node-pty
+// that loads fine, and HOME/'/tmp' is not a folder on Windows (F041)
+const SMOKE = "const p=require('node-pty').spawn(process.execPath,['-e','0'],{name:'xterm',cols:80,rows:24,cwd:require('os').homedir(),env:process.env});p.kill()"
 function loads() {
   try {
     execSync(`"${process.execPath}" -e "${SMOKE}"`, { cwd: root, stdio: 'pipe', timeout: 30000 })

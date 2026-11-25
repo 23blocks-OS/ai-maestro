@@ -6,7 +6,7 @@
  */
 
 import { getAgent, getAgentByAlias, loadAgents, saveAgents } from '@/lib/agent-registry'
-import { execSync } from 'child_process'
+import { execSync, execFileSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import type { Agent, Repository } from '@/types/agent'
@@ -41,8 +41,9 @@ function getGitRepoInfo(dirPath: string): Repository | null {
 
     let defaultBranch = currentBranch
     try {
-      const remoteBranch = execSync('git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || echo ""', {
-        cwd: dirPath, encoding: 'utf-8', timeout: 5000, shell: '/bin/bash'
+      // argv, no shell (there is no /bin/bash on Windows); -q: exit 1 and no message when there is no origin HEAD
+      const remoteBranch = execFileSync('git', ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD'], {
+        cwd: dirPath, encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'],
       }).trim()
       if (remoteBranch) {
         defaultBranch = remoteBranch.replace('refs/remotes/origin/', '')

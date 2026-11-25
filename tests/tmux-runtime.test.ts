@@ -20,6 +20,7 @@ vi.mock('@/lib/tmux-safe.mjs', async importOriginal => {
 })
 
 import * as rt from '@/lib/tmux-runtime.mjs'
+import { resolveExecutable } from '@/lib/tmux-safe.mjs'
 
 const S = 'agent-1'
 const EVIL = 'x"; touch /tmp/pwned; echo "'
@@ -158,6 +159,19 @@ describe('async operations keep the argv of the execFile calls they replaced', (
     expect(lastAsyncArgs()).toEqual(['kill-session', '-t', `=${S}`])
   })
 
+  it('send-keys -l text ending in ";" goes as hex, because tmux eats a trailing ";" (F045 self-check)', async () => {
+    await rt.sendLiteralAsync(S, 'ls;')
+    expect(lastAsyncArgs()).toEqual(['send-keys', '-t', S, '-H', '6c', '73', '3b'])
+    rt.sendLiteralSync(S, 'é;;')
+    expect(lastSyncArgs()).toEqual(['send-keys', '-t', S, '-H', 'c3', 'a9', '3b', '3b'])
+    // psmux types a newline given to -l as "\\n"
+    await rt.sendLiteralAsync(S, 'a\nb')
+    expect(lastAsyncArgs()).toEqual(['send-keys', '-t', S, '-H', '61', '0a', '62'])
+    // a ";" anywhere else is safe as a literal and keeps the readable form
+    await rt.sendLiteralAsync(S, 'a; b')
+    expect(lastAsyncArgs()).toEqual(['send-keys', '-t', S, '-l', 'a; b'])
+  })
+
   it('a bad target rejects before tmux runs', async () => {
     await expect(rt.setOptionAsync(EVIL, 'mouse', 'off')).rejects.toThrow(/Invalid tmux session name/)
     await expect(rt.scrollAsync(EVIL, 'up', 1)).rejects.toThrow(/Invalid tmux pane target/)
@@ -191,9 +205,12 @@ describe('async operations keep the argv of the execFile calls they replaced', (
 
 describe('attachCommand', () => {
   it('matches the old getAttachCommand output, and the call-session read-only observer', () => {
-    expect(rt.attachCommand(S)).toEqual({ command: 'tmux', args: ['attach-session', '-t', `=${S}:`] })
-    expect(rt.attachCommand(S, { socketPath: '/s' })).toEqual({ command: 'tmux', args: ['-S', '/s', 'attach-session', '-t', `=${S}:`] })
-    expect(rt.attachCommand(`${S}__call`, { readOnly: true })).toEqual({ command: 'tmux', args: ['attach-session', '-t', `=${S}__call:`, '-r'] })
+    // "tmux", or its full path on Windows, where node-pty does not search PATH with PATHEXT (F041)
+    const TMUX = resolveExecutable('tmux')
+    if (process.platform !== 'win32') expect(TMUX).toBe('tmux')
+    expect(rt.attachCommand(S)).toEqual({ command: TMUX, args: ['attach-session', '-t', `=${S}:`] })
+    expect(rt.attachCommand(S, { socketPath: '/s' })).toEqual({ command: TMUX, args: ['-S', '/s', 'attach-session', '-t', `=${S}:`] })
+    expect(rt.attachCommand(`${S}__call`, { readOnly: true })).toEqual({ command: TMUX, args: ['attach-session', '-t', `=${S}__call:`, '-r'] })
   })
 
   it('refuses a name that is not a session name', () => {

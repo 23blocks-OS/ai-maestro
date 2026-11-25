@@ -14,6 +14,8 @@
  * https://code.claude.com/docs/en/monitoring-usage.md
  */
 
+import { envPrefix, type PaneShell } from '@/lib/pane-shell'
+
 const CLAUDE_PROGRAMS = new Set(['claude', 'claude-code'])
 
 /** True when AIMAESTRO_TELEMETRY opts this host into exporting OTLP telemetry. */
@@ -38,7 +40,7 @@ export function telemetryEndpoint(): string {
  * (no protobuf dependency). Values are fixed/sanitized, so the prefix is
  * shell-safe.
  */
-export function claudeTelemetryEnvPrefix(program: string): string {
+export function claudeTelemetryEnvPrefix(program: string, shell: PaneShell = 'posix'): string {
   if (!isTelemetryEnabled()) return ''
   if (!CLAUDE_PROGRAMS.has((program || '').toLowerCase())) return ''
   const pairs: Record<string, string> = {
@@ -55,5 +57,5 @@ export function claudeTelemetryEnvPrefix(program: string): string {
     // Export a bit more often than the 60s default for fresher dashboard tiles.
     OTEL_METRIC_EXPORT_INTERVAL: '30000',
   }
-  return Object.entries(pairs).map(([k, v]) => `${k}='${v}'`).join(' ') + ' '
+  return envPrefix(shell, pairs)
 }

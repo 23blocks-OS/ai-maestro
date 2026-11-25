@@ -9,7 +9,7 @@
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
 [![Version](https://img.shields.io/badge/version-0.106.284-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
 
@@ -102,9 +102,17 @@ This installs everything you need:
 **Time:** 5-10 minutes · **Requires:** Node.js 24, tmux, and **4 GB of RAM** to build (or 2 GB plus swap; once built it runs in a few hundred MB) · *Optional:* Claude Code 2.1.287+ for the [inbox mod](docs/CLAUDE-CODE-MODS.md)
 
 <details>
-<summary>Windows (WSL2) / Linux notes</summary>
+<summary>Windows / Linux notes</summary>
 
-**Windows:** Install WSL2 first (PowerShell as Administrator, then restart), then open **Ubuntu** from the Start menu and run the curl command there:
+**Windows, native (no WSL):** in PowerShell, no administrator needed:
+
+```powershell
+irm https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/install.ps1 | iex
+```
+
+Agents run in [psmux](https://github.com/psmux/psmux) (a native Windows tmux) and the agent tools in Git Bash. [Native Windows guide](./docs/WINDOWS-NATIVE.md)
+
+**Windows, WSL2:** Install WSL2 first (PowerShell as Administrator, then restart), then open **Ubuntu** from the Start menu and run the curl command there:
 
 ```powershell
 wsl --install
@@ -503,7 +511,7 @@ MIT — see [LICENSE](./LICENSE). Free for any purpose, including commercial.
 No. Claude Code, Codex and Grok Build get first-class support (launch, chat, status, approval cards), and any other terminal agent runs in the terminal tab. See [what each one supports](./docs/AGENT-PROGRAMS.md).
 
 **Does it work on Linux / Windows?**
-Yes. macOS and Linux natively. Windows via WSL2 — see the [Windows guide](./docs/WINDOWS-INSTALLATION.md).
+Yes. macOS and Linux natively. Windows natively with psmux ([native Windows guide](./docs/WINDOWS-NATIVE.md)), or via WSL2 ([WSL2 guide](./docs/WINDOWS-INSTALLATION.md)).
 
 **Can agents on different machines talk to each other?**
 Yes. The [Agent Messaging Protocol (AMP)](https://agentmessaging.org) handles cross-machine messaging with cryptographic signatures and push notifications. No central server required.

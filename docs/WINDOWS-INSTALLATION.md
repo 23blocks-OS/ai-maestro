@@ -2,6 +2,8 @@
 
 AI Maestro runs on Windows through **WSL2 (Windows Subsystem for Linux)**, Microsoft's built-in way to run Linux on Windows. AI Maestro, your agents and their tools live inside WSL; you use them from your normal Windows browser.
 
+**No WSL?** AI Maestro also runs natively on Windows, with psmux and Git Bash: see [AI Maestro on Windows, natively](./WINDOWS-NATIVE.md). This guide is the WSL2 install.
+
 **New to WSL or Linux?** Read the next section first. It takes five minutes and saves the most common confusion.
 
 ---

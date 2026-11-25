@@ -113,6 +113,11 @@ if [ ! -f "package.json" ] || [ ! -f "server.mjs" ]; then
     exit 1
 fi
 
+# Native Windows (Git Bash, F041): no pm2; the server runs as the "AI Maestro" scheduled task (scripts/windows)
+IS_WINDOWS=false
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=true ;; esac
+aim_windows() { powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$(pwd)/scripts/windows/$1")" "${@:2}"; }
+
 # Get current version
 CURRENT_VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
 echo "Current version: ${CYAN}${CURRENT_VERSION}${NC}"
@@ -220,8 +225,17 @@ if [ -f scripts/use-project-node.sh ]; then . scripts/use-project-node.sh; fi
 # does not put node-gyp on PATH. Borrow the copy bundled with npm (#740).
 _npm_gyp_dir="$(dirname "$(readlink -f "$(command -v npm)" 2>/dev/null)" 2>/dev/null)/node-gyp-bin"
 if ! command -v node-gyp >/dev/null 2>&1 && [ -x "$_npm_gyp_dir/node-gyp" ]; then export PATH="$_npm_gyp_dir:$PATH"; fi
+# Windows will not replace files a running program has open (node-pty, .next): stop the server first.
+# The agents keep running in psmux.
+if [ "$IS_WINDOWS" = true ]; then
+    print_info "Stopping AI Maestro for the update (your agents keep running)..."
+    aim_windows ai-maestro.ps1 stop || true
+fi
+# An odd Node release (23, 25) runs AI Maestro but fails the engine check of its test tools (vitest)
+YARN_ENGINES=""
+case "$(node -v 2>/dev/null)" in v2[3579].*|v3[13579].*) YARN_ENGINES="--ignore-engines" ;; esac
 # Issue 7.1: Don't let yarn install failure abort the entire update under set -e
-yarn install --frozen-lockfile 2>/dev/null || yarn install || { print_warning "yarn install had warnings but continuing..."; }
+yarn install --frozen-lockfile $YARN_ENGINES 2>/dev/null || yarn install $YARN_ENGINES || { print_warning "yarn install had warnings but continuing..."; }
 print_success "Dependencies installed"
 
 # Issue 7.2: Track build failure so tool reinstallation still proceeds under set -e
@@ -366,12 +380,21 @@ fi
 # Log rotation (B013): cap the pm2 and hook logs at 50 MB, trim any already past the cap.
 # Idempotent, and it never fails the update.
 echo ""
-print_step "$BUILD" "Setting up log rotation..."
-bash "$(pwd)/scripts/setup-log-rotation.sh" "$(pwd)" || print_warning "Log rotation setup failed (not fatal)"
+if [ "$IS_WINDOWS" = true ]; then
+    : # scripts/windows/service.mjs caps its own log at 50 MB
+else
+    print_step "$BUILD" "Setting up log rotation..."
+    bash "$(pwd)/scripts/setup-log-rotation.sh" "$(pwd)" || print_warning "Log rotation setup failed (not fatal)"
+fi
 
 # Check if PM2 is managing ai-maestro
 echo ""
-if command -v pm2 &> /dev/null; then
+if [ "$IS_WINDOWS" = true ]; then
+    # Started again even after a failed build: it was stopped above, and the last good build may still be there
+    print_step "$RESTART" "Starting AI Maestro..."
+    if aim_windows ai-maestro.ps1 start; then print_success "AI Maestro is running"
+    else print_warning "AI Maestro did not start; look at: ai-maestro logs"; fi
+elif command -v pm2 &> /dev/null; then
     if pm2 list | grep -q "ai-maestro"; then
         if [[ "$BUILD_FAILED" != "true" ]]; then
             if [ "$ECOSYSTEM_CHANGED" = true ]; then

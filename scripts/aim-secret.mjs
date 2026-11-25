@@ -16,7 +16,7 @@ const USAGE = `aim-secret - local secret vault. Agents use secrets; they never r
                                  the AI Maestro chat, never into this command
   aim-secret status              which store is in use, and why
   aim-secret doctor              test that this machine can save a secret, and say what is wrong if it cannot
-  aim-secret backend NAME        keychain | libsecret | file | auto: remember the store for this machine
+  aim-secret backend NAME        keychain | libsecret | dpapi | file | auto: remember the store for this machine
                                  (use file on a headless server with no keyring)
   aim-secret exec --use NAME [--use ENV=NAME ...] -- COMMAND [ARGS...]
                                  run COMMAND with the secret in its environment; its output is

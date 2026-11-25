@@ -40,6 +40,8 @@ async function loginShellPath(): Promise<string> {
     '/opt/homebrew/bin',
     '/usr/local/bin',
   ].filter(Boolean).join(path.delimiter)
+  // Native Windows (F041): no login shell; an agent's pane gets the server's own PATH
+  if (process.platform === 'win32') return fallback
   return new Promise<string>((resolve) => {
     // The marker keeps a shell's own start-up chatter (prompts, banners, warnings) out of the value.
     execFile(shell, ['-ilc', 'printf "\\nAIMPATH=%s\\n" "$PATH"'], { timeout: 10_000, maxBuffer: 256 * 1024 }, (err, stdout) => {
@@ -51,7 +53,9 @@ async function loginShellPath(): Promise<string> {
 
 function realRun(file: string, args: string[], env: NodeJS.ProcessEnv): Promise<RunResult> {
   return new Promise((resolve) => {
-    const child = execFile(file, args, { env, timeout: 8000, maxBuffer: 64 * 1024 }, (err, stdout, stderr) => {
+    // Windows runs a .cmd (npm's shims) only through cmd.exe; the arguments here are fixed (--version)
+    const viaCmd = process.platform === 'win32' && /\.(cmd|bat)$/i.test(file)
+    const child = execFile(viaCmd ? `"${file}"` : file, args, { env, timeout: 8000, maxBuffer: 64 * 1024, windowsHide: true, ...(viaCmd && { shell: true }) }, (err, stdout, stderr) => {
       resolve({ ok: !err, output: `${stdout || ''}\n${stderr || ''}`.trim(), ...((err as { killed?: boolean } | null)?.killed && { timedOut: true }) })
     })
     child.stdin?.end()
@@ -67,12 +71,19 @@ function isExecutableFile(file: string): boolean {
 }
 
 /** Every executable named `command` on the PATH, in PATH order (the first is the one a shell runs). */
-export function allOnPath(command: string, searchPath: string, isExecutable: (f: string) => boolean): string[] {
+export function allOnPath(command: string, searchPath: string, isExecutable: (f: string) => boolean, platform: NodeJS.Platform = process.platform): string[] {
   const found: string[] = []
+  // Windows finds a program by its extension (claude.exe, npm.cmd); the extensionless file npm writes beside a
+  // .cmd is a bash script Windows cannot run (F041)
+  const exts = platform === 'win32' && !path.extname(command)
+    ? (process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean).map(e => e.toLowerCase())
+    : ['']
   for (const dir of searchPath.split(path.delimiter)) {
     if (!dir) continue
-    const candidate = path.join(dir, command)
-    if (!found.includes(candidate) && isExecutable(candidate)) found.push(candidate)
+    for (const ext of exts) {
+      const candidate = path.join(dir, command + ext)
+      if (!found.includes(candidate) && isExecutable(candidate)) found.push(candidate)
+    }
   }
   return found
 }

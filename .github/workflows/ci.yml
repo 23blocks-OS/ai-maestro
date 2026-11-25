@@ -111,6 +111,8 @@ jobs:
       - name: The server answers, and an agent gets its messaging identity
         shell: powershell
         run: |
+          # install.ps1 adds psmux and the tools to the user PATH; this step's process started with the old one
+          $env:Path = [Environment]::GetEnvironmentVariable('Path', 'User') + ';' + $env:Path
           & "$env:USERPROFILE\.local\bin\ai-maestro.cmd" status
           if ($LASTEXITCODE -ne 0) { Get-Content "$env:USERPROFILE\.aimaestro\logs\server.log" -Tail 80; exit 1 }
           New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\agents\ci1" | Out-Null
